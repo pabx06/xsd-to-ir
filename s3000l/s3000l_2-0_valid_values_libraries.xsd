@@ -1,0 +1,479 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.asd-europe.org/s3000l/validValues" targetNamespace="http://www.asd-europe.org/s3000l/validValues" version="001-00">
+	<xsd:annotation>
+		<xsd:documentation>Issue number: 2.0</xsd:documentation>
+		<xsd:documentation>Issue date: 2021-04-30</xsd:documentation>
+		<xsd:documentation>Valid values release number: 001-00</xsd:documentation>
+		<xsd:documentation>Valid values release date: 2021-04-30</xsd:documentation>
+		<xsd:documentation>URL: http://www.s3000l.org</xsd:documentation>
+		<xsd:documentation>Copyright:
+                Copyright (C) 2020-2021 by AeroSpace and Defence Industries Associations of Europe - ASD.
+                
+                Limitations of Liability:
+                
+                1.  This material is provided 'As Is' and neither ASD nor any person who has contributed to the creation, revision or maintenance of the material makes any representations or warranties, express or implied, including but not limited to, warranties of merchantability or fitness for any particular purpose.
+                2.  Neither ASD nor any person who has contributed to the creation, revision or maintenance of this material shall be liable for any direct, indirect, special or consequential damages or any other liability arising from any use of this material.
+                3.  Revisions to this document may occur after its issuance.  The user is responsible for determining if revisions to the material contained in this document have occurred and are applicable.
+            </xsd:documentation>
+	</xsd:annotation>
+	<!-- ___________________________________________________________________________________________________ -->
+	<xsd:simpleType name="comparisonOperatorCode">
+		<xsd:restriction base="xsd:string">
+			<xsd:enumeration value="NE">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:notEqualToComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="EQ">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:equalToComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="LT">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:lessThanComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="LE">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:lessThanOrEqualToComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="GT">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:greaterThanComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="GE">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:greaterThanOrEqualToComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="IN">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:withinRangeComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="OUT">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:outsideRangeComparisonOperator</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="N/A">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:notApplicable</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="/NULL">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:unknownValue</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="/EMPTY">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:knownButNotSharedValue</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="hardwarePartHazardousClassCode">
+		<xsd:restriction base="xsd:string">
+			<!-- 
+            <xsd:enumeration value="N/A">
+                <xsd:annotation>
+                    <xsd:appinfo>
+                        <source>SX001G:notApplicable</source>
+                    </xsd:appinfo>
+                </xsd:annotation>
+            </xsd:enumeration>
+            <xsd:enumeration value="/NULL">
+                <xsd:annotation>
+                    <xsd:appinfo>
+                        <source>SX001G:unknownValue</source>
+                    </xsd:appinfo>
+                </xsd:annotation>
+            </xsd:enumeration>
+            <xsd:enumeration value="/EMPTY">
+                <xsd:annotation>
+                    <xsd:appinfo>
+                        <source>SX001G:knownButNotSharedValue</source>
+                    </xsd:appinfo>
+                </xsd:annotation>
+            </xsd:enumeration>
+            -->
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="revisionStatusCode">
+		<xsd:restriction base="xsd:string">
+			<xsd:enumeration value="A">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:approvedStatus</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="D">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:draftStatus</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="IW">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:inWorkStatus</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="C">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001:cancelledStatus</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="R">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX00G:reviewedStatus</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="N/A">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:notApplicable</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="/NULL">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:unknownValue</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="/EMPTY">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:knownButNotSharedValue</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+		</xsd:restriction>
+	</xsd:simpleType>
+	<xsd:simpleType name="taskInformationCode">
+		<xsd:restriction base="xsd:string">
+			<xsd:enumeration value="100">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:operationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="120">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:preOperationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="130">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:normalOperationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="150">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:postOperationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="200">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:servicingProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="210">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:fillProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="220">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:drainLiquidAndReleasePressureProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="230">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:bleedAndPrimeProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="240">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:lubricationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="250">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:cleanAndApplySurfaceProtectionProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="260">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:removeAndPreventIceAndRemoveContaminationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="270">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:adjustAlignAndCalibrateProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="280">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:inspectionProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="300">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:examinationTestAndCheckProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="310">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:visualExaminationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="320">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:operationTestProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="340">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:functionTestProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="350">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:structureTestProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="360">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:designDataTolerancesCheckProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="370">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:monitorConditionProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="520">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:removeProcedureProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="525">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:ammunitionUnloadingProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="600">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:repairAndLocallyMakeProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="700">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:assembleInstallAndConnectProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="720">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:installProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="725">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:ammunitionLoadingProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="750">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:loadSoftwareProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="800">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:packageHandlingStorageAndTransportationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="810">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:preservationProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="820">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:removePreservationMaterialProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="830">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:putItemInContainerProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="840">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:removeItemFromContainerProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="850">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:keepItemServiceableWhenInStorageProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="860">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:moveItemWhenInStorageProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="870">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:prepareItemForUseAfterStorageProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="920">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:removeAndInstallProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="921">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:removeAndInstallNewItemProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="990">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:neutralizationAndDisposalProcedure</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="N/A">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:notApplicable</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="/NULL">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:unknownValue</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="/EMPTY">
+				<xsd:annotation>
+					<xsd:appinfo>
+						<source>SX001G:knownButNotSharedValue</source>
+					</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+		</xsd:restriction>
+	</xsd:simpleType>
+</xsd:schema>

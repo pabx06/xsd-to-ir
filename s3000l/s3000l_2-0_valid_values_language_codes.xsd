@@ -1,0 +1,706 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.asd-europe.org/s3000l/validValues" targetNamespace="http://www.asd-europe.org/s3000l/validValues" version="001-00">
+	<xsd:annotation>
+		<xsd:documentation>Issue number: 2.0</xsd:documentation>
+		<xsd:documentation>Issue date: 2021-04-30</xsd:documentation>
+		<xsd:documentation>Valid values release number: 001-00</xsd:documentation>
+		<xsd:documentation>Valid values release date: 2021-04-30</xsd:documentation>
+		<xsd:documentation>URL: http://www.s3000l.org</xsd:documentation>
+		<xsd:documentation>Copyright:
+                Copyright file structure (c) 2016-2021 by AeroSpace and Defence Industries Associations of Europe (ASD).
+                Copyright enumerated codes (c) 1988 by International Standards Organization (ISO) as per ISO 639-2.
+                
+                Limitations of Liability:
+                
+                1.  This material is provided 'As Is' and neither ASD nor any person who has contributed to the creation, revision or maintenance of the material makes any representations or warranties, express or implied, including but not limited to, warranties of merchantability or fitness for any particular purpose.
+                2.  Neither ASD nor any person who has contributed to the creation, revision or maintenance of this material shall be liable for any direct, indirect, special or consequential damages or any other liability arising from any use of this material.
+                3.  Revisions to this document may occur after its issuance.  The user is responsible for determining if revisions to the material contained in this document have occurred and are applicable.
+            </xsd:documentation>
+	</xsd:annotation>
+	<!-- ___________________________________________________________________________________________________ -->
+	<!-- Source: ISO 639-2:1988 -->
+	<xsd:simpleType name="languageCode">
+		<xsd:restriction base="xsd:language">
+			<xsd:enumeration value="aa">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:afar</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ab">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:abkhazian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="af">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:afrikaans</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="am">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:amharic</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ar">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:arabic</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="as">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:assamese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ay">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:aymara</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="az">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:azerbaijani</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ba">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:bashkir</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="be">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:byelorussian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="bg">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:bulgarian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="bh">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:bihari</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="bi">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:bislama</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="bn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:bengalibangla</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="bo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tibetan</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="br">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:breton</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ca">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:catalan</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="co">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:corsican</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="cs">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:czech</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="cy">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:welsh</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="da">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:danish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="de">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:german</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="dz">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:bhutani</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="el">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:greek</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="en">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:english</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="eo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:esperanto</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="es">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:spanish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="et">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:estonian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="eu">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:basque</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="fa">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:persian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="fi">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:finnish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="fj">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:fiji</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="fo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:faeroese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="fr">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:french</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="fy">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:frisian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ga">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:irish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="gd">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:scotsGaelic</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="gl">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:galician</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="gn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:guarani</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="gu">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:gujarati</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ha">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:hausa</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="hi">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:hindi</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="hr">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:croatian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="hu">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:hungarian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="hy">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:armenian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ia">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:interlingua</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ie">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:interlingue</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ik">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:inupiak</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="in">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:indonesian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="is">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:icelandic</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="it">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:italian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="iw">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:hebrew</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ja">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:japanese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ji">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:yiddish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="jw">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:javanese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ka">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:georgian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="kk">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kazakh</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="kl">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:greenlandic</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="km">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:cambodian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="kn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kannada</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ko">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:korean</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ks">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kashmiri</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ku">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kurdish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ky">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kirghiz</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="la">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:latin</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ln">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:lingala</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="lo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:laothian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="lt">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:lithuanian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="lv">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:latvianlettish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mg">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:malagasy</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mi">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:maori</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mk">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:macedonian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ml">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:malayalam</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:mongolian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:moldavian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mr">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:marathi</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ms">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:malay</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="mt">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:maltese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="my">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:burmese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="na">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:nauru</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ne">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:nepali</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="nl">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:dutch</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="no">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:norwegian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="oc">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:occitan</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="om">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:oromo</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="or">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:oriya</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="pa">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:punjabi</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="pl">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:polish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ps">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:pashto,pushto</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="pt">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:portuguese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="qu">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:quechua</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="rm">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:rhaeto-romance</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="rn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kirundi</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ro">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:romanian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ru">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:russian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="rw">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:kinyarwanda</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sa">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:sanskrit</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sd">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:sindhi</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sg">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:sangro</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sh">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:serboCroatian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="si">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:singhalese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sk">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:slovak</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sl">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:slovenian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sm">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:samoan</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:shona</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="so">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:somali</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sq">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:albanian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sr">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:serbian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ss">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:siswati</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="st">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:sesotho</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="su">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:sundanese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sv">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:swedish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="sw">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:swahili</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ta">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tamil</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="te">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tegulu</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tg">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tajik</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="th">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:thai</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ti">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tigrinya</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tk">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:turkmen</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tl">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tagalog</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tn">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:setswana</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="to">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tonga</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tr">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:turkish</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ts">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tsonga</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tt">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:tatar</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="tw">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:twi</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="uk">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:ukrainian</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="ur">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:urdu</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="uz">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:uzbek</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="vi">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:vietnamese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="vo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:volapuk</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="wo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:wolof</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="xh">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:xhosa</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="yo">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:yoruba</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="zh">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:chinese</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+			<xsd:enumeration value="zu">
+				<xsd:annotation>
+					<xsd:appinfo>ISO639-2-1988:zulu</xsd:appinfo>
+				</xsd:annotation>
+			</xsd:enumeration>
+		</xsd:restriction>
+	</xsd:simpleType>
+</xsd:schema>

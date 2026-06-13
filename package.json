@@ -1,0 +1,34 @@
+{
+  "name": "xsd-to-ir",
+  "version": "2.0.0",
+  "description": "Parse XSD schemas into an IR — generate DB schema, JSON Schema, and round-trip XML↔DB for S3000L",
+  "main": "index.js",
+  "bin": {
+    "xsd-to-ir": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "example": "node index.js test/s3000l-sample.xsd --out output --root Dmodule",
+    "example:s3000l": "node index.js s3000l_3-0_lsaDataset.xsd --out output --verbose"
+  },
+  "keywords": ["xsd", "schema", "s3000l", "lsa", "database", "json-schema", "xml"],
+  "license": "MIT",
+
+  "dependencies": {
+    "fast-xml-parser": "^4.5.3",
+    "knex":            "^3.2.0"
+  },
+
+  "optionalDependencies": {
+    "libxmljs2":      "^0.31.0",
+    "mysql2":         "^3.0.0",
+    "better-sqlite3": "^12.10.0"
+  },
+
+  "notes": {
+    "knex":           "Query builder — required by db-adapter.js.",
+    "mysql2":         "MariaDB/MySQL driver for knex (optionalDependencies).",
+    "better-sqlite3": "SQLite driver — useful for local dev/test (optionalDependencies).",
+    "libxmljs2":      "Native libxml2 bindings for full XSD 1.0 validation (optionalDependencies). Requires node-gyp. Falls back to structural check if absent."
+  }
+}
