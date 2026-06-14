@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * xml-serializer.js
  *
@@ -11,7 +9,7 @@
  *
  * It uses the IR to know:
  *   - Which columns map to XML attributes vs child elements
- *   - Which columns are JSONB (re-expanded as nested XML nodes)
+ *   - Which LONGTEXT columns contain JSON to re-expand as nested XML nodes
  *   - Which entities belong in lsaPrimaryData vs lsaSupportingData
  *
  * The envelope nodes (lsaDataset, logisticsSupportAnalysisData,
@@ -20,7 +18,7 @@
  *
  * Output modes:
  *   B (Baseline)  — all active rows, crud="I" on every record
- *   U (NetChange) — only rows changed since last export seq,
+ *   U (NetChange) — dirty rows not yet stamped by markExported(),
  *                   with per-row crud="I"|"U"|"D"
  *
  * Usage:
@@ -30,51 +28,32 @@
  *   const xml = await s.serialize({
  *     msgType  : 'B',        // 'B' | 'U'
  *     msgStatus: 'F',        // 'D' | 'P' | 'F'
- *     since    : null,       // for 'U': last _msg_seq value
+ *     since    : null,       // for 'U': enables dirty-row filtering
  *     collections: null,     // null = all; or ['tasks', 'breakdowns']
  *     msgId    : 'MSG-001',
  *   });
  */
 
 const { XMLBuilder } = require('fast-xml-parser');
-const { PRIMARY_COLLECTIONS } = require('./xml-deserializer');
+const { validateValueAssertions } = require('./assertion-validator');
+const {
+  collectionEntries,
+  columnXmlKindForExport,
+  columnXmlNameForExport,
+  fallbackCollectionMeta,
+  relationColumn,
+} = require('./s3000l-xml-metadata');
 
 // ─── XML builder config ───────────────────────────────────────────────────────
 
 function _makeBuilder() {
   return new XMLBuilder({
-    ignoreAttributes  : false,
+    ignoreAttributes: false,
     attributeNamePrefix: '@_',
-    format            : true,
-    indentBy          : '  ',
-    suppressEmptyNode : true,
+    format: true,
+    indentBy: '  ',
+    suppressEmptyNode: true,
   });
-}
-
-// ─── naming helpers ───────────────────────────────────────────────────────────
-
-// snake_case → camelCase
-const _toCamel = s => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-
-// camelCase entity name → plural collection key
-// We just append 's'; caller can override with COLLECTION_OVERRIDES below.
-const COLLECTION_OVERRIDES = {
-  breakdownElement         : 'breakdownElements',
-  productOperationalRoleKit: 'productOperationalRoleKits',
-  facility                 : 'facilities',
-  country                  : 'countries',
-  trade                    : 'trades',
-  skill                    : 'skills',
-  contract                 : 'contracts',
-  project                  : 'projects',
-  document                 : 'documents',
-  organization             : 'organizations',
-  infrastructure           : 'infrastructures',
-  substanceDefinition      : 'substanceDefinitions',
-};
-
-function _collectionKey(entityName) {
-  return COLLECTION_OVERRIDES[entityName] ?? (entityName + 's');
 }
 
 // ─── row → XML node ───────────────────────────────────────────────────────────
@@ -85,43 +64,48 @@ function _collectionKey(entityName) {
  * S3000L convention:
  *   - uid and crud are XML *attributes* (@_ prefix)
  *   - All other columns become child elements
- *   - JSONB columns are re-expanded as nested object/array children
+ *   - LONGTEXT JSON columns are re-expanded as nested object/array children
  *
  * @param {object} entity  IR entity
  * @param {object} row     DB row
  * @param {string} crud    'I' | 'U' | 'D'
  */
-// Columns that are XML *attributes* in S3000L (not child elements)
-const XML_ATTRIBUTE_COLS = new Set(['uid', 'uri', 'crud']);
-
-function _rowToXmlNode(entity, row, crud) {
-  const node = {
-    '@_crud': crud,
-  };
-
-  // Write uid as XML attribute if present
-  if (row.uid) node['@_uid'] = row.uid;
-  if (row.uri) node['@_uri'] = row.uri;
+async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since) {
+  const node = _hasColumn(entity, 'crud') ? { '@_crud': crud } : {};
 
   for (const col of entity.columns) {
+    const xmlKind = columnXmlKindForExport(col);
+
     // Skip internal tech cols
-    if (col.columnName === 'id')          continue;
-    if (col.columnName.startsWith('_'))   continue;
-    // Skip cols already written as attributes
-    if (XML_ATTRIBUTE_COLS.has(col.columnName)) continue;
+    if (col.columnName === 'id') continue;
+    if (col.columnName.startsWith('_')) continue;
+    if (xmlKind === 'internal') continue;
+    if (xmlKind === 'relation') continue;
+    if (col.columnName === 'crud') continue; // supplied by export mode
 
     const val = row[col.columnName];
     if (val === null || val === undefined) continue;
 
-    const xmlKey = _toCamel(col.columnName);
+    const xmlKey = columnXmlNameForExport(col);
+
+    if (xmlKind === 'attribute') {
+      node[`@_${xmlKey}`] = String(val);
+      continue;
+    }
 
     if (col.sqlType === 'LONGTEXT') {
       // Re-expand JSON string back into nested XML object
-      try {
-        node[xmlKey] = typeof val === 'string' ? JSON.parse(val) : val;
-      } catch {
-        node[xmlKey] = val; // fallback: leave as string
+      let parsed = val;
+      if (typeof val === 'string') {
+        try {
+          parsed = JSON.parse(val);
+        } catch {
+          node[xmlKey] = val; // fallback: leave as string
+          continue;
+        }
       }
+      _validateColumnAssertions(ir, entity, col, parsed);
+      node[xmlKey] = parsed;
     } else if (col.sqlType === 'TINYINT(1)') {
       node[xmlKey] = val ? 'true' : 'false';
     } else if (col.sqlType === 'LONGBLOB') {
@@ -134,7 +118,109 @@ function _rowToXmlNode(entity, row, crud) {
     }
   }
 
+  await _appendRelationNodes(entity, row, node, ir, db, msgType, since);
   return node;
+}
+
+async function _appendRelationNodes(entity, row, node, ir, db, msgType, since) {
+  if (!row || row.id === undefined || row.id === null) return;
+
+  for (const relation of (entity.relations || [])) {
+    if (!ir.entities.has(relation.targetEntity)) continue;
+
+    const childEntity = ir.entities.get(relation.targetEntity);
+    const queryOpts = msgType === 'U' && since !== null ? { since } : {};
+
+    if (!relation.parentColumn) {
+      const relationCol = relationColumn(entity, relation);
+      const childId = relationCol ? row[relationCol.columnName] : null;
+      if (childId === null || childId === undefined) continue;
+
+      const childRow = await _queryById(db, relation.targetEntity, childId, queryOpts);
+      if (!childRow) continue;
+
+      const childCrud = _crudForRow(childRow, msgType, since);
+      node[relation.fieldName] = await _rowToXmlNode(childEntity, childRow, childCrud, ir, db, msgType, since);
+      continue;
+    }
+
+    const childRows = await _queryRelatedRows(db, relation.targetEntity, relation.parentColumn, row.id, queryOpts);
+
+    if (childRows.length === 0) continue;
+
+    const childNodes = await Promise.all(childRows.map((childRow) => {
+      const childCrud = _crudForRow(childRow, msgType, since);
+      return _rowToXmlNode(childEntity, childRow, childCrud, ir, db, msgType, since);
+    }));
+
+    if (relation.flattened) {
+      for (const childNode of childNodes) {
+        _appendFlattenedNode(node, childNode);
+      }
+      continue;
+    }
+
+    node[relation.fieldName] = relation.kind === 'one-to-one'
+      ? childNodes[0]
+      : childNodes;
+  }
+}
+
+function _appendFlattenedNode(target, childNode) {
+  for (const [key, value] of Object.entries(childNode || {})) {
+    if (key.startsWith('@_')) continue;
+    const values = Array.isArray(value) ? value : [value];
+
+    if (target[key] === undefined) {
+      target[key] = Array.isArray(value) ? [...value] : value;
+      continue;
+    }
+
+    if (!Array.isArray(target[key])) target[key] = [target[key]];
+    target[key].push(...values);
+  }
+}
+
+async function _queryRelatedRows(db, entityName, parentColumn, parentId, opts) {
+  if (typeof db.queryRelated === 'function') {
+    return db.queryRelated(entityName, parentColumn, parentId, opts);
+  }
+
+  const rows = await db.queryEntity(entityName, opts);
+  return rows.filter((row) => String(row[parentColumn]) === String(parentId));
+}
+
+async function _queryById(db, entityName, id, opts) {
+  if (typeof db.queryById === 'function') {
+    return db.queryById(entityName, id, opts);
+  }
+
+  const rows = await db.queryEntity(entityName, opts);
+  return rows.find((row) => String(row.id) === String(id)) || null;
+}
+
+function _hasColumn(entity, columnName) {
+  return entity.columns.some((col) => col.columnName === columnName);
+}
+
+function _crudForRow(row, msgType, since) {
+  if (msgType !== 'U' || since === null) return 'I';
+
+  const created = row._created_at ? new Date(row._created_at) : null;
+  const updated = row._updated_at ? new Date(row._updated_at) : null;
+  return created && updated && updated > created ? 'U' : 'I';
+}
+
+function _validateColumnAssertions(ir, entity, col, value) {
+  if (!col.xsdType || value === null || typeof value !== 'object') return;
+  const result = validateValueAssertions(ir, col.xsdType, value);
+  if (!result.valid) {
+    const err = result.errors[0];
+    throw new Error(
+      `XSD assertion failed while serializing ${entity.name}.${col.name} `
+      + `as ${col.xsdType}: ${err.message}`,
+    );
+  }
 }
 
 // ─── XMLSerializer ────────────────────────────────────────────────────────────
@@ -145,9 +231,10 @@ class XMLSerializer {
    * @param {DBAdapter} db    DBAdapter instance
    */
   constructor(ir, db) {
-    this.ir      = ir;
-    this.db      = db;
+    this.ir = ir;
+    this.db = db;
     this.builder = _makeBuilder();
+    this.collectionMeta = collectionEntries(ir, { requireSection: true });
   }
 
   // ── main entry point ──────────────────────────────────────────────────────
@@ -158,7 +245,7 @@ class XMLSerializer {
    * @param {object}   opts
    * @param {string}   opts.msgType       'B' | 'U'
    * @param {string}   opts.msgStatus     'D' | 'P' | 'F'
-   * @param {number|null} opts.since      For 'U': last exported _msg_seq
+   * @param {number|null} opts.since      For 'U': enables dirty-row filtering
    * @param {string[]|null} opts.collections  Null = all; or subset list
    * @param {string}   [opts.msgId]       Message identifier
    * @param {string}   [opts.relatedMsgId] For net-change: ref to baseline
@@ -169,53 +256,45 @@ class XMLSerializer {
    */
   async serialize(opts = {}) {
     const {
-      msgType        = 'B',
-      msgStatus      = 'F',
-      since          = null,
-      collections    = null,
-      msgId          = `MSG-${Date.now()}`,
-      relatedMsgId   = null,
-      sendingSystem  = null,
-      receivingSystem= null,
+      msgType = 'B',
+      msgStatus = 'F',
+      since = null,
+      collections = null,
+      msgId = `MSG-${Date.now()}`,
+      relatedMsgId = null,
+      sendingSystem = null,
+      receivingSystem = null,
     } = opts;
 
-    // ── 1. Build lsaPrimaryData ───────────────────────────────────────────
-    const primaryData   = await this._buildSection(
-      PRIMARY_COLLECTIONS, msgType, since, collections
-    );
+    const primaryData = await this._buildSection('lsaPrimaryData', msgType, since, collections);
 
-    // ── 2. Build lsaSupportingData ────────────────────────────────────────
-    const allEntityNames = new Set(this.ir.entities.keys());
-    const supportingKeys = new Set(
-      [...allEntityNames].filter(n => !PRIMARY_COLLECTIONS.has(n))
-    );
-    const supportingData = await this._buildSection(
-      supportingKeys, msgType, since, collections
-    );
+    const supportingData = await this._buildSection('lsaSupportingData', msgType, since, collections);
 
     // ── 3. Build the envelope tree ────────────────────────────────────────
-    const now     = new Date().toISOString();
+    const now = new Date().toISOString();
     const msgDate = now.split('T')[0];
 
     const envelope = {
       '?xml': { '@_version': '1.0', '@_encoding': 'UTF-8' },
       lsaDataset: {
-        msgId    : msgId,
-        msgDate  : msgDate,
-        msgType  : { code: msgType },
+        msgId,
+        msgDate,
+        msgType: { code: msgType },
         msgStatus: { code: msgStatus },
 
         // Optional header fields
-        ...(sendingSystem   ? { msgPty: [
-          { partyType: { code: 'SE' }, partyName: sendingSystem   },
-          { partyType: { code: 'RE' }, partyName: receivingSystem ?? '' },
-        ]} : {}),
+        ...(sendingSystem ? {
+          msgPty: [
+            { partyType: { code: 'SE' }, partyName: sendingSystem },
+            { partyType: { code: 'RE' }, partyName: receivingSystem ?? '' },
+          ],
+        } : {}),
 
         // Link to baseline for net-change messages
         ...(relatedMsgId ? {
           relatedMsg: {
             relType: { code: 'RM' },
-            msgRef : relatedMsgId,
+            msgRef: relatedMsgId,
           },
         } : {}),
 
@@ -238,20 +317,28 @@ class XMLSerializer {
   /**
    * Build a data section (primary or supporting) by querying each entity.
    *
-   * @param {Set<string>}      entitySet
+   * @param {string}           sectionName 'lsaPrimaryData' | 'lsaSupportingData'
    * @param {string}           msgType    'B' | 'U'
    * @param {number|null}      since
    * @param {string[]|null}    filter     Allowed collection keys (null = all)
    * @returns {object}  Object whose keys are collection names
    */
-  async _buildSection(entitySet, msgType, since, filter) {
+  async _buildSection(sectionName, msgType, since, filter) {
     const section = {};
+    const metas = this.collectionMeta.length > 0
+      ? this.collectionMeta.filter((meta) => meta.section === sectionName)
+      : [...this.ir.entities.keys()]
+        .map(fallbackCollectionMeta)
+        .filter((meta) => meta.section === sectionName);
 
-    for (const entityName of entitySet) {
-      const collKey = _collectionKey(entityName);
+    for (const meta of metas) {
+      const { entityName, collectionName, recordName } = meta;
 
       // Apply optional collection filter
-      if (filter !== null && !filter.includes(collKey) && !filter.includes(entityName)) {
+      if (filter !== null
+          && !filter.includes(collectionName)
+          && !filter.includes(recordName)
+          && !filter.includes(entityName)) {
         continue;
       }
 
@@ -271,29 +358,22 @@ class XMLSerializer {
       if (rows.length === 0 && deletedRows.length === 0) continue;
 
       // ── Map rows → XML nodes ─────────────────────────────────────────
+      const activeNodes = await Promise.all(rows.map((row) => {
+        const crud = _crudForRow(row, msgType, since);
+        return _rowToXmlNode(entity, row, crud, this.ir, this.db, msgType, since);
+      }));
+
       const xmlNodes = [
-        ...rows.map(row => {
-          // For baseline: always 'I'
-          // For net-change: rows that existed before this export but changed
-          // are 'U'; new rows are 'I'.  We use _created_at vs _updated_at
-          // to distinguish new vs updated.
-          let crud = 'I';
-          if (msgType === 'U' && since !== null) {
-            const created = row._created_at ? new Date(row._created_at) : null;
-            const updated = row._updated_at ? new Date(row._updated_at) : null;
-            if (created && updated && updated > created) crud = 'U';
-          }
-          return _rowToXmlNode(entity, row, crud);
-        }),
-        ...deletedRows.map(row => ({
+        ...activeNodes,
+        ...deletedRows.map((row) => ({
           '@_crud': 'D',
-          '@_uid' : row.uid,
+          '@_uid': row.uid,
         })),
       ];
 
       if (xmlNodes.length > 0) {
-        // Nest nodes under the singular entity name inside the collection
-        section[collKey] = { [entityName]: xmlNodes };
+        if (!section[collectionName]) section[collectionName] = {};
+        section[collectionName][recordName] = xmlNodes;
       }
     }
 

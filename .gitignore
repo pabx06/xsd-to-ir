@@ -1,1 +1,4 @@
 .code-graph/
+.cache/
+node_modules/
+output/

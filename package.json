@@ -1,34 +1,55 @@
 {
   "name": "xsd-to-ir",
   "version": "2.0.0",
-  "description": "Parse XSD schemas into an IR — generate DB schema, JSON Schema, and round-trip XML↔DB for S3000L",
+  "description": "Parse XSD schemas into an IR — generate DB schema, JSON Schema, XSD assertion metadata, and round-trip XML↔DB for S3000L",
   "main": "index.js",
   "bin": {
     "xsd-to-ir": "./index.js"
   },
   "scripts": {
     "start": "node index.js",
-    "example": "node index.js test/s3000l-sample.xsd --out output --root Dmodule",
-    "example:s3000l": "node index.js s3000l_3-0_lsaDataset.xsd --out output --verbose"
+    "ci": "npm run lint && npm run check && npm test && npm run test:generate && npm run test:xsd11 && npm audit --omit=optional && npm audit",
+    "lint": "eslint . --ext .js,.cjs",
+    "lint:fix": "npm run lint -- --fix",
+    "test": "node --test",
+    "test:generate": "rm -rf ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} && node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} --verbose",
+    "test:mariadb": "MARIADB_TEST_URL=${MARIADB_TEST_URL:-mysql://xsd:xsdpass@127.0.0.1:3307/xsd_to_ir_test} node --test test/mariadb-integration.test.js",
+    "test:mariadb:docker": "npm run mariadb:start && npm run test:mariadb",
+    "test:xsd11": "node scripts/validate-xsd11.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-valid.xml",
+    "mariadb:start": "bash scripts/start-mariadb-test.sh",
+    "mariadb:stop": "docker rm -f ${MARIADB_TEST_CONTAINER:-xsd-to-ir-mariadb-test}",
+    "check": "node --check index.js && find src test scripts -type f \\( -name '*.js' -o -name '*.cjs' \\) -print0 | xargs -0 -n1 node --check",
+    "example": "node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out output --root product",
+    "example:s3000l": "node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out output --verbose"
   },
-  "keywords": ["xsd", "schema", "s3000l", "lsa", "database", "json-schema", "xml"],
+  "keywords": [
+    "xsd",
+    "schema",
+    "s3000l",
+    "lsa",
+    "database",
+    "json-schema",
+    "xml"
+  ],
   "license": "MIT",
-
   "dependencies": {
-    "fast-xml-parser": "^4.5.3",
-    "knex":            "^3.2.0"
+    "fast-xml-parser": "^5.8.0",
+    "knex": "^3.2.0"
   },
-
   "optionalDependencies": {
-    "libxmljs2":      "^0.31.0",
-    "mysql2":         "^3.0.0",
-    "better-sqlite3": "^12.10.0"
+    "better-sqlite3": "^12.10.0",
+    "libxmljs2": "^0.37.0",
+    "mysql2": "^3.0.0"
   },
-
   "notes": {
-    "knex":           "Query builder — required by db-adapter.js.",
-    "mysql2":         "MariaDB/MySQL driver for knex (optionalDependencies).",
+    "knex": "Query builder — required by db-adapter.js.",
+    "mysql2": "MariaDB/MySQL driver for knex (optionalDependencies).",
     "better-sqlite3": "SQLite driver — useful for local dev/test (optionalDependencies).",
-    "libxmljs2":      "Native libxml2 bindings for full XSD 1.0 validation (optionalDependencies). Requires node-gyp. Falls back to structural check if absent."
+    "libxmljs2": "Native libxml2 bindings for XSD 1.0 validation (optionalDependencies). Requires node-gyp. Falls back to structural check if absent or unsupported."
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.32.0"
   }
 }

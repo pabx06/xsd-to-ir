@@ -1,4 +1,6 @@
-# xsd-to-ir — Complete Source Files
+# xsd-to-ir — Archived Source Snapshot
+
+> **Stale:** This file is an older generated copy-paste snapshot and is not a source of truth. Use `docs/developer-guide.md`, the live files under `src/`, and `package.json` instead. It has not been regenerated after the hardening work that added tests, S3000L collection metadata, validator fixes, MariaDB adapter fixes, and the `fast-xml-parser` v5 upgrade.
 
 > All 11 files. Copy each block into the corresponding path.
 
@@ -2500,11 +2502,11 @@ module.exports = { XMLDeserializer, deserializeXML, PRIMARY_COLLECTIONS };
  *   - Query rows for XML serialization (with optional delta filter)
  *   - Bump _msg_seq after a successful export
  *
- * The adapter is DB-agnostic: any knex-supported dialect works
- * (PostgreSQL recommended for production, SQLite for dev/test).
+ * The adapter is DB-agnostic at the API layer, but this project currently
+ * targets generated MariaDB DDL for production and fake/local adapters for tests.
  *
  * Usage:
- *   const knex   = require('knex')({ client: 'pg', connection: { ... } });
+ *   const knex   = require('knex')({ client: 'mysql2', connection: { ... } });
  *   const db     = new DBAdapter(knex, ir);
  *
  *   // Persist a full deserialized message

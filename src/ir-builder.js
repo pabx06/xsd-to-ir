@@ -1,4 +1,4 @@
-'use strict';
+const crypto = require('crypto');
 
 /**
  * ir-builder.js
@@ -14,6 +14,8 @@
  *   joinTables : Map<string, IRJoinTable>
  *   enums      : Map<string, IREnum>
  *   simpleTypes: Map<string, IRSimpleType>
+ *   assertions : Map<string, IRAssertionSet>
+ *   assertionPaths: Map<string, IRAssertionPathSet>
  * }
  *
  * IREntity {
@@ -29,9 +31,12 @@
  * IRColumn {
  *   name         : string        // camelCase attribute / element name
  *   columnName   : string        // snake_case DB column name
+ *   xmlName      : string | null // original XML attribute / element name
+ *   xmlKind      : 'element' | 'attribute' | 'relation' | 'internal'
  *   sqlType      : string
  *   jsonType     : string | object
  *   nullable     : boolean
+ *   defaultValue : string | number | boolean | null
  *   isPrimaryKey : boolean
  *   isForeignKey : boolean
  *   referencesEntity : string | null
@@ -62,36 +67,47 @@
  *
  * IREnum { name, tableName, values: string[] }
  * IRSimpleType { name, sqlType, jsonType, constraints }
+ * IRAssertionSet { typeName, rules: IRAssertionRule[] }
+ * IRAssertionPathSet { typeName, paths: IRAssertionPath[] }
  */
 
 const { TypeResolver } = require('./type-resolver');
+const {
+  extractAssertionPaths,
+  extractAssertionSets,
+} = require('./xsd-assertion-metadata');
 
 // ─── naming helpers ───────────────────────────────────────────────────────────
 
-const toSnake  = s => s
+const toSnake = (s) => s
   .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
-  .replace(/([a-z\d])([A-Z])/g,    '$1_$2')
+  .replace(/([a-z\d])([A-Z])/g, '$1_$2')
   .replace(/-/g, '_')
   .toLowerCase();
 
-const toCamel  = s => s.replace(/[-_](.)/g, (_, c) => c.toUpperCase());
-const toPascal = s => { const c = toCamel(s); return c[0].toUpperCase() + c.slice(1); };
+const toCamel = (s) => s.replace(/[-_](.)/g, (_, c) => c.toUpperCase());
+const toPascal = (s) => { const c = toCamel(s); return c[0].toUpperCase() + c.slice(1); };
+const toDbName = (s) => _shortenIdentifier(toSnake(s));
 
 // ─── IR builder ───────────────────────────────────────────────────────────────
 
 class IRBuilder {
   constructor(schema) {
-    this.schema   = schema;
+    this.schema = schema;
     this.resolver = new TypeResolver(schema);
 
     /** @type {Map<string, object>} */
-    this.entities    = new Map();
+    this.entities = new Map();
     /** @type {Map<string, object>} */
-    this.joinTables  = new Map();
+    this.joinTables = new Map();
     /** @type {Map<string, object>} */
-    this.enums       = new Map();
+    this.enums = new Map();
     /** @type {Map<string, object>} */
     this.simpleTypes = new Map();
+    /** @type {Map<string, object>} */
+    this.assertions = new Map();
+    /** @type {Map<string, object>} */
+    this.assertionPaths = new Map();
 
     // Guard against infinite recursion on self-referencing types
     this._visited = new Set();
@@ -105,13 +121,20 @@ class IRBuilder {
       this._processSimpleType(st);
     }
 
+    // 1b. Collect XSD 1.1 assertions for all complexTypes. In S3000L these
+    // are mostly reference value types, not persistable uid+crud entities.
+    this.assertions = extractAssertionSets(this.schema);
+
     // 2. Identify S3000L "real entities" — complexTypes that carry both
     //    uid AND crud attributes.  When such a set exists we restrict
     //    entity generation to that list so envelope/wrapper types are
     //    never turned into DB tables.
     const s3000lRealTypes = this._detectS3000LEntities();
     this._s3000lMode = s3000lRealTypes !== null;
-    this._s3000lSet  = s3000lRealTypes ?? new Set();
+    this._s3000lSet = s3000lRealTypes ?? new Set();
+    this._s3000lCollections = this._s3000lMode
+      ? this._extractS3000LCollections()
+      : new Map();
 
     // 3. Collect all named complexTypes → entities
     for (const ct of (this.schema.complexType || [])) {
@@ -133,13 +156,61 @@ class IRBuilder {
       }
     }
 
+    // 5. Collect nested assertion paths only for opaque inline value types
+    //    that are actually persisted as LONGTEXT JSON columns. This keeps the
+    //    path graph bounded to what import/export can validate.
+    this.assertionPaths = extractAssertionPaths({
+      entities: this.entities,
+      resolver: this.resolver,
+      assertions: this.assertions,
+      typedChildElements: (node) => this._typedChildElements(node),
+    });
+
     return {
-      entities   : this.entities,
-      joinTables : this.joinTables,
-      enums      : this.enums,
+      entities: this.entities,
+      joinTables: this.joinTables,
+      enums: this.enums,
       simpleTypes: this.simpleTypes,
-      s3000lMode : this._s3000lMode,
+      assertions: this.assertions,
+      assertionPaths: this.assertionPaths,
+      s3000lMode: this._s3000lMode,
+      s3000lCollections: this._s3000lCollections,
     };
+  }
+
+  _typedChildElements(node, seenGroups = new Set()) {
+    const out = [];
+    const walk = (cur) => {
+      if (!cur || typeof cur !== 'object') return;
+
+      for (const el of (cur.element || [])) {
+        out.push({
+          name: el['@_name'] || el['@_ref'],
+          type: el['@_type'],
+          minOccurs: _parseOccurs(el['@_minOccurs'], 1),
+          maxOccurs: _parseOccurs(el['@_maxOccurs'], 1),
+        });
+
+        for (const anonCT of (el.complexType || [])) walk(anonCT);
+      }
+
+      for (const groupRef of (cur.group || [])) {
+        const ref = groupRef['@_ref'];
+        if (!ref || seenGroups.has(ref)) continue;
+        const group = this.resolver.getGroup(ref);
+        if (!group) continue;
+        seenGroups.add(ref);
+        walk(group);
+        seenGroups.delete(ref);
+      }
+
+      for (const key of ['sequence', 'choice', 'all', 'complexContent', 'simpleContent', 'extension', 'restriction']) {
+        for (const child of (cur[key] || [])) walk(child);
+      }
+    };
+
+    walk(node);
+    return out.filter((child) => child.name && child.type);
   }
 
   /**
@@ -153,11 +224,97 @@ class IRBuilder {
       const name = ct['@_name'];
       if (!name) continue;
       const attrs = this._flatAttributes(ct);
-      const hasUid  = attrs.some(a => a['@_name'] === 'uid');
-      const hasCrud = attrs.some(a => a['@_name'] === 'crud');
+      const hasUid = attrs.some((a) => a['@_name'] === 'uid');
+      const hasCrud = attrs.some((a) => a['@_name'] === 'crud');
       if (hasUid && hasCrud) candidates.push(name);
     }
     return candidates.length > 0 ? new Set(candidates) : null;
+  }
+
+  /**
+   * Extract the S3000L envelope map:
+   *   lsaPrimaryData.products.prod -> product
+   *   lsaPrimaryData.taskRequirements.taskReq -> taskRequirement
+   *
+   * The serializer needs the collection and record element names; they are
+   * not reliably derivable from the entity type name.
+   */
+  _extractS3000LCollections() {
+    const map = new Map();
+    const msgContent = (this.schema.complexType || [])
+      .find((ct) => ct['@_name'] === 'logisticsSupportAnalysisMessageContent');
+
+    if (!msgContent) return map;
+
+    for (const section of this._childElements(msgContent)) {
+      const sectionName = section['@_name'];
+      if (sectionName !== 'lsaPrimaryData' && sectionName !== 'lsaSupportingData') {
+        continue;
+      }
+
+      for (const collection of this._childElements(section)) {
+        const collectionName = collection['@_name'];
+        if (!collectionName) continue;
+
+        for (const record of this._recordElements(collection)) {
+          if (!record.type || !this._s3000lSet.has(record.type)) continue;
+          map.set(record.type, {
+            entityName: record.type,
+            section: sectionName,
+            collectionName,
+            recordName: record.name || record.type,
+          });
+        }
+      }
+    }
+
+    return map;
+  }
+
+  _childElements(node) {
+    const out = [];
+    const walk = (cur) => {
+      if (!cur || typeof cur !== 'object') return;
+      for (const el of (cur.element || [])) out.push(el);
+      for (const ct of (cur.complexType || [])) walk(ct);
+      for (const seq of (cur.sequence || [])) walk(seq);
+      for (const all of (cur.all || [])) walk(all);
+    };
+    walk(node);
+    return out;
+  }
+
+  _recordElements(collectionNode) {
+    const records = [];
+    const walk = (cur, seenGroups = new Set()) => {
+      if (!cur || typeof cur !== 'object') return;
+
+      for (const el of (cur.element || [])) {
+        if (el['@_type']) {
+          records.push({ name: el['@_name'] || el['@_ref'], type: el['@_type'] });
+        } else {
+          walk(el, seenGroups);
+        }
+      }
+
+      for (const groupRef of (cur.group || [])) {
+        const ref = groupRef['@_ref'];
+        if (!ref || seenGroups.has(ref)) continue;
+        const group = this.resolver.getGroup(ref);
+        if (!group) continue;
+        const nextSeen = new Set(seenGroups);
+        nextSeen.add(ref);
+        walk(group, nextSeen);
+      }
+
+      for (const ct of (cur.complexType || [])) walk(ct, seenGroups);
+      for (const seq of (cur.sequence || [])) walk(seq, seenGroups);
+      for (const choice of (cur.choice || [])) walk(choice, seenGroups);
+      for (const all of (cur.all || [])) walk(all, seenGroups);
+    };
+
+    walk(collectionNode);
+    return records;
   }
 
   /** Collect all attribute nodes shallowly in a complexType (not nested). */
@@ -167,9 +324,9 @@ class IRBuilder {
       if (!node || typeof node !== 'object') return;
       for (const a of (node.attribute || [])) attrs.push(a);
       for (const cc of (node.complexContent || [])) walk(cc);
-      for (const sc of (node.simpleContent  || [])) walk(sc);
-      for (const ext of (node.extension     || [])) walk(ext);
-      for (const res of (node.restriction   || [])) walk(res);
+      for (const sc of (node.simpleContent || [])) walk(sc);
+      for (const ext of (node.extension || [])) walk(ext);
+      for (const res of (node.restriction || [])) walk(res);
     };
     walk(ct);
     return attrs;
@@ -184,25 +341,25 @@ class IRBuilder {
     const restriction = (st.restriction || [])[0];
     if (!restriction) return;
 
-    const enumerations = (restriction.enumeration || []).map(e => e['@_value']).filter(Boolean);
+    const enumerations = (restriction.enumeration || []).map((e) => e['@_value']).filter(Boolean);
     if (enumerations.length > 0) {
       // It's an enum
       this.enums.set(name, {
         name,
-        tableName: toSnake(name),
-        values   : enumerations,
-        docs     : _docs(st),
+        tableName: toDbName(name),
+        values: enumerations,
+        docs: _docs(st),
       });
     } else {
       // It's a restricted primitive
-      const base  = restriction['@_base'] || 'string';
-      const prim  = this.resolver.primitiveInfo(base) || { sqlType: 'TEXT', jsonType: 'string' };
+      const base = restriction['@_base'] || 'string';
+      const prim = this.resolver.primitiveInfo(base) || { sqlType: 'TEXT', jsonType: 'string' };
       this.simpleTypes.set(name, {
         name,
-        sqlType    : prim.sqlType,
-        jsonType   : prim.jsonType,
+        sqlType: prim.sqlType,
+        jsonType: prim.jsonType,
         constraints: _extractConstraints(restriction),
-        docs       : _docs(st),
+        docs: _docs(st),
       });
     }
   }
@@ -219,28 +376,31 @@ class IRBuilder {
 
     const entity = {
       name,
-      tableName    : toSnake(name),
-      columns      : [],
-      relations    : [],
-      abstract     : ct['@_abstract'] === 'true',
-      parentType   : null,
+      tableName: toDbName(name),
+      columns: [],
+      relations: [],
+      abstract: ct['@_abstract'] === 'true',
+      parentType: null,
       documentation: _docs(ct),
     };
 
     // Always add a surrogate PK (MariaDB: BIGINT AUTO_INCREMENT)
     entity.columns.push({
-      name        : 'id',
-      columnName  : 'id',
-      sqlType     : 'BIGINT',
-      jsonType    : 'integer',
-      nullable    : false,
+      name: 'id',
+      columnName: 'id',
+      ..._internalColumnMeta(),
+      sqlType: 'BIGINT',
+      jsonType: 'integer',
+      nullable: false,
+      defaultValue: null,
       isPrimaryKey: true,
       isForeignKey: false,
       referencesEntity: null,
-      isEnum      : false,
-      enumRef     : null,
-      constraints : {},
+      isEnum: false,
+      enumRef: null,
+      constraints: {},
       documentation: 'Surrogate primary key',
+      xsdType: null,
     });
 
     // S3000L technical tracking columns (added once per real entity)
@@ -252,24 +412,27 @@ class IRBuilder {
 
     // Handle xs:extension (inheritance)
     const extension = _dig(ct, 'complexContent', 'extension')
-                   || _dig(ct, 'simpleContent',  'extension');
+                   || _dig(ct, 'simpleContent', 'extension');
     if (extension) {
       const base = extension['@_base'];
       entity.parentType = base;
       // Add FK to parent table
       entity.columns.push({
-        name        : toCamel(base) + 'Id',
-        columnName  : toSnake(base) + '_id',
-        sqlType     : 'BIGINT',
-        jsonType    : 'integer',
-        nullable    : false,
+        name: `${toCamel(base)}Id`,
+        columnName: _shortenIdentifier(`${toSnake(base)}_id`),
+        ..._relationColumnMeta(base),
+        sqlType: 'BIGINT',
+        jsonType: 'integer',
+        nullable: false,
+        defaultValue: null,
         isPrimaryKey: false,
         isForeignKey: true,
         referencesEntity: base,
-        isEnum      : false,
-        enumRef     : null,
-        constraints : {},
+        isEnum: false,
+        enumRef: null,
+        constraints: {},
         documentation: `FK to parent type ${base}`,
+        xsdType: base,
       });
       // Ensure parent entity is processed first
       const parentCT = this.resolver.getComplexType(base);
@@ -315,7 +478,7 @@ class IRBuilder {
 
     // xs:attributeGroup refs
     for (const ag of (node.attributeGroup || [])) {
-      const ref  = ag['@_ref'];
+      const ref = ag['@_ref'];
       const agDef = ref ? this.resolver.getAttributeGroup(ref) : null;
       if (agDef) this._processParticle(entity, agDef);
     }
@@ -329,8 +492,8 @@ class IRBuilder {
     // We also respect the ref's own minOccurs/maxOccurs: if the ref says
     // maxOccurs="unbounded" we must honour that for every element inside.
     for (const g of (node.group || [])) {
-      const ref     = g['@_ref'];
-      const gDef    = ref ? this.resolver.getGroup(ref) : null;
+      const ref = g['@_ref'];
+      const gDef = ref ? this.resolver.getGroup(ref) : null;
       if (!gDef) continue;
 
       const refMin = _parseOccurs(g['@_minOccurs'], 1);
@@ -356,7 +519,7 @@ class IRBuilder {
       this._walkSequence(entity, seq, false);
     }
     for (const all of (gDef.all || [])) {
-      this._walkSequence(entity, all, false);   // <all> behaves like <sequence> for our purposes
+      this._walkSequence(entity, all, false); // <all> behaves like <sequence> for our purposes
     }
     for (const choice of (gDef.choice || [])) {
       this._walkChoice(entity, choice);
@@ -366,7 +529,7 @@ class IRBuilder {
       this._processAttribute(entity, attr);
     }
     for (const ag of (gDef.attributeGroup || [])) {
-      const ref   = ag['@_ref'];
+      const ref = ag['@_ref'];
       const agDef = ref ? this.resolver.getAttributeGroup(ref) : null;
       if (agDef) this._processParticle(entity, agDef);
     }
@@ -378,32 +541,35 @@ class IRBuilder {
    * the parent via a one-to-many.
    */
   _walkGroupAsRelation(entity, groupName, gDef, minOccurs, maxOccurs) {
-    const childName = toPascal(entity.name + '_' + toPascal(groupName));
+    const childName = toPascal(`${entity.name}_${toPascal(groupName)}`);
     if (!this.entities.has(childName)) {
       // Build the synthetic entity
       const child = {
-        name         : childName,
-        tableName    : toSnake(childName),
-        columns      : [
+        name: childName,
+        tableName: toDbName(childName),
+        columns: [
           _surrogateKey(),
           {
-            name        : toCamel(entity.name) + 'Id',
-            columnName  : toSnake(entity.name) + '_id',
-            sqlType     : 'BIGINT',
-            jsonType    : 'integer',
-            nullable    : false,
+            name: `${toCamel(entity.name)}Id`,
+            columnName: _shortenIdentifier(`${toSnake(entity.name)}_id`),
+            ..._internalColumnMeta(),
+            sqlType: 'BIGINT',
+            jsonType: 'integer',
+            nullable: false,
+            defaultValue: null,
             isPrimaryKey: false,
             isForeignKey: true,
             referencesEntity: entity.name,
-            isEnum      : false,
-            enumRef     : null,
-            constraints : {},
+            isEnum: false,
+            enumRef: null,
+            constraints: {},
             documentation: `FK back to ${entity.name} (from group ${groupName})`,
+            xsdType: entity.name,
           },
         ],
-        relations    : [],
-        abstract     : false,
-        parentType   : null,
+        relations: [],
+        abstract: false,
+        parentType: null,
         documentation: `Synthetic entity for repeated xs:group "${groupName}" in ${entity.name}`,
       };
       this.entities.set(childName, child);
@@ -411,11 +577,13 @@ class IRBuilder {
       this._walkGroupInline(child, gDef);
     }
     entity.relations.push({
-      kind        : 'one-to-many',
-      fieldName   : groupName,
+      kind: 'one-to-many',
+      fieldName: groupName,
       targetEntity: childName,
-      joinTable   : null,
-      nullable    : minOccurs === 0,
+      joinTable: null,
+      parentColumn: _shortenIdentifier(`${toSnake(entity.name)}_id`),
+      flattened: true,
+      nullable: minOccurs === 0,
       minOccurs,
       maxOccurs,
     });
@@ -439,7 +607,7 @@ class IRBuilder {
     }
     // xs:group refs inside a sequence
     for (const g of (seq.group || [])) {
-      const ref  = g['@_ref'];
+      const ref = g['@_ref'];
       const gDef = ref ? this.resolver.getGroup(ref) : null;
       if (!gDef) continue;
       const refMin = _parseOccurs(g['@_minOccurs'], 1);
@@ -452,7 +620,7 @@ class IRBuilder {
     }
     // xs:attributeGroup refs inside a sequence
     for (const ag of (seq.attributeGroup || [])) {
-      const ref   = ag['@_ref'];
+      const ref = ag['@_ref'];
       const agDef = ref ? this.resolver.getAttributeGroup(ref) : null;
       if (agDef) this._processParticle(entity, agDef);
     }
@@ -460,30 +628,32 @@ class IRBuilder {
 
   _walkChoice(entity, choice) {
     const elementBranches = (choice.element || []);
-    const groupBranches   = (choice.group   || []);
+    const groupBranches = (choice.group || []);
 
     // Build discriminator values from both element names and group refs
     const allBranchNames = [
-      ...elementBranches.map(b => b['@_name']).filter(Boolean),
-      ...groupBranches.map(b => b['@_ref']).filter(Boolean),
+      ...elementBranches.map((b) => b['@_name']).filter(Boolean),
+      ...groupBranches.map((b) => b['@_ref']).filter(Boolean),
     ];
 
     // Add choice_type discriminator only once per entity (avoid duplicates
     // when there are multiple xs:choice blocks in the same complexType)
-    const alreadyHasDiscriminator = entity.columns.some(c => c.columnName === 'choice_type');
+    const alreadyHasDiscriminator = entity.columns.some((c) => c.columnName === 'choice_type');
     if (allBranchNames.length > 1 && !alreadyHasDiscriminator) {
       entity.columns.push({
-        name        : 'choiceType',
-        columnName  : 'choice_type',
-        sqlType     : 'VARCHAR(64)',
-        jsonType    : 'string',
-        nullable    : true,
+        name: 'choiceType',
+        columnName: 'choice_type',
+        ..._internalColumnMeta(),
+        sqlType: 'VARCHAR(64)',
+        jsonType: 'string',
+        nullable: true,
+        defaultValue: null,
         isPrimaryKey: false,
         isForeignKey: false,
         referencesEntity: null,
-        isEnum      : false,
-        enumRef     : null,
-        constraints : { enum: allBranchNames },
+        isEnum: false,
+        enumRef: null,
+        constraints: { enum: allBranchNames },
         documentation: 'Discriminator for xs:choice',
       });
     }
@@ -495,7 +665,7 @@ class IRBuilder {
 
     // Group branches inside a choice: flatten inline (each branch nullable)
     for (const g of groupBranches) {
-      const ref  = g['@_ref'];
+      const ref = g['@_ref'];
       const gDef = ref ? this.resolver.getGroup(ref) : null;
       if (!gDef) continue;
       const refMax = _parseOccurs(g['@_maxOccurs'], 1);
@@ -519,22 +689,22 @@ class IRBuilder {
   // ── element processing ─────────────────────────────────────────────────────
 
   _processElement(entity, el, nullable = false) {
-    const elName    = el['@_name'];
-    const elRef     = el['@_ref'];
-    const typeName  = el['@_type'];
+    const elName = el['@_name'];
+    const elRef = el['@_ref'];
+    const typeName = el['@_type'];
     const minOccurs = _parseOccurs(el['@_minOccurs'], 1);
     const maxOccurs = _parseOccurs(el['@_maxOccurs'], 1);
 
     const effectiveName = elName || elRef;
     if (!effectiveName) return;
 
-    const isOptional  = nullable || minOccurs === 0;
+    const isOptional = nullable || minOccurs === 0;
     const isRepeating = maxOccurs === 'unbounded' || maxOccurs > 1;
 
     // ── inline anonymous complexType ─────────────────────────────────────────
     const anonCTs = el.complexType || [];
     if (anonCTs.length > 0) {
-      const anonName = toPascal(entity.name + '_' + toPascal(effectiveName));
+      const anonName = toPascal(`${entity.name}_${toPascal(effectiveName)}`);
       for (const anonCT of anonCTs) {
         this._processComplexType(anonName, anonCT);
       }
@@ -557,91 +727,101 @@ class IRBuilder {
       if (resolved.kind === 'primitive') {
         if (isRepeating) {
           // Repeated primitive → child table (e.g. a list of codes)
-          const childName = toPascal(entity.name + '_' + toPascal(effectiveName));
+          const childName = toPascal(`${entity.name}_${toPascal(effectiveName)}`);
           if (!this.entities.has(childName)) {
             this.entities.set(childName, {
-              name         : childName,
-              tableName    : toSnake(childName),
-              columns      : [
+              name: childName,
+              tableName: toDbName(childName),
+              columns: [
                 _surrogateKey(),
                 {
-                  name        : toCamel(entity.name) + 'Id',
-                  columnName  : toSnake(entity.name) + '_id',
-                  sqlType     : 'BIGINT',
-                  jsonType    : 'integer',
-                  nullable    : false,
+                  name: `${toCamel(entity.name)}Id`,
+                  columnName: _shortenIdentifier(`${toSnake(entity.name)}_id`),
+                  ..._internalColumnMeta(),
+                  sqlType: 'BIGINT',
+                  jsonType: 'integer',
+                  nullable: false,
+                  defaultValue: null,
                   isPrimaryKey: false,
                   isForeignKey: true,
                   referencesEntity: entity.name,
-                  isEnum      : false,
-                  enumRef     : null,
-                  constraints : {},
+                  isEnum: false,
+                  enumRef: null,
+                  constraints: {},
                   documentation: `FK back to ${entity.name}`,
+                  xsdType: entity.name,
                 },
                 {
-                  name        : 'value',
-                  columnName  : 'value',
-                  sqlType     : resolved.sqlType,
-                  jsonType    : resolved.jsonType,
-                  nullable    : false,
+                  name: 'value',
+                  columnName: 'value',
+                  ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
+                  sqlType: resolved.sqlType,
+                  jsonType: resolved.jsonType,
+                  nullable: false,
+                  defaultValue: null,
                   isPrimaryKey: false,
                   isForeignKey: false,
                   referencesEntity: null,
-                  isEnum      : false,
-                  enumRef     : null,
-                  constraints : {},
+                  isEnum: false,
+                  enumRef: null,
+                  constraints: {},
                   documentation: null,
+                  xsdType: typeName,
                 },
               ],
-              relations    : [],
-              abstract     : false,
-              parentType   : null,
+              relations: [],
+              abstract: false,
+              parentType: null,
               documentation: `Repeated ${typeName} values for ${entity.name}.${effectiveName}`,
             });
           }
           entity.relations.push({
-            kind        : 'one-to-many',
-            fieldName   : effectiveName,
+            kind: 'one-to-many',
+            fieldName: effectiveName,
             targetEntity: childName,
-            joinTable   : null,
-            nullable    : isOptional,
+            joinTable: null,
+            parentColumn: _shortenIdentifier(`${toSnake(entity.name)}_id`),
+            nullable: isOptional,
             minOccurs,
             maxOccurs,
           });
         } else {
           // Simple scalar column
           entity.columns.push({
-            name        : toCamel(effectiveName),
-            columnName  : toSnake(effectiveName),
-            sqlType     : resolved.sqlType,
-            jsonType    : resolved.jsonType,
-            nullable    : isOptional,
+            name: toCamel(effectiveName),
+            columnName: toDbName(effectiveName),
+            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
+            sqlType: resolved.sqlType,
+            jsonType: resolved.jsonType,
+            nullable: isOptional,
+            defaultValue: null,
             isPrimaryKey: false,
-            isForeignKey: resolved.isIdRef  || false,
+            isForeignKey: resolved.isIdRef || false,
             referencesEntity: resolved.isIdRef ? null : null, // resolved later if needed
-            isEnum      : false,
-            enumRef     : null,
-            constraints : {
-              ...(resolved.minimum  != null ? { minimum:  resolved.minimum  } : {}),
-              ...(resolved.maximum  != null ? { maximum:  resolved.maximum  } : {}),
-              ...(resolved.format   != null ? { format:   resolved.format   } : {}),
-              ...(resolved.isId    ? { isId:    true } : {}),
+            isEnum: false,
+            enumRef: null,
+            constraints: {
+              ...(resolved.minimum != null ? { minimum: resolved.minimum } : {}),
+              ...(resolved.maximum != null ? { maximum: resolved.maximum } : {}),
+              ...(resolved.format != null ? { format: resolved.format } : {}),
+              ...(resolved.isId ? { isId: true } : {}),
               ...(resolved.isIdRef ? { isIdRef: true } : {}),
-              ...(resolved.isIdRefs? { isIdRefs:true } : {}),
+              ...(resolved.isIdRefs ? { isIdRefs: true } : {}),
             },
             documentation: _docs(el),
+            xsdType: typeName,
           });
 
           // IDREFS → join table
           if (resolved.isIdRefs) {
-            const joinName = `${entity.tableName}__${toSnake(effectiveName)}`;
+            const joinName = _shortenIdentifier(`${entity.tableName}__${toSnake(effectiveName)}`);
             this.joinTables.set(joinName, {
-              name       : joinName,
-              tableName  : joinName,
-              leftEntity : entity.name,
-              leftColumn : toSnake(entity.name) + '_id',
-              rightEntity: toPascal(effectiveName),   // best guess; override manually
-              rightColumn: toSnake(effectiveName) + '_id',
+              name: joinName,
+              tableName: joinName,
+              leftEntity: entity.name,
+              leftColumn: _shortenIdentifier(`${toSnake(entity.name)}_id`),
+              rightEntity: toPascal(effectiveName), // best guess; override manually
+              rightColumn: _shortenIdentifier(`${toSnake(effectiveName)}_id`),
               documentation: `Join table for IDREFS ${entity.name}.${effectiveName}`,
             });
           }
@@ -654,34 +834,40 @@ class IRBuilder {
         const enumDef = this.enums.get(typeName);
         if (enumDef) {
           entity.columns.push({
-            name        : toCamel(effectiveName),
-            columnName  : toSnake(effectiveName),
-            sqlType     : 'VARCHAR(64)',
-            jsonType    : 'string',
-            nullable    : isOptional,
+            name: toCamel(effectiveName),
+            columnName: toDbName(effectiveName),
+            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
+            sqlType: 'VARCHAR(64)',
+            jsonType: 'string',
+            nullable: isOptional,
+            defaultValue: null,
             isPrimaryKey: false,
             isForeignKey: false,
             referencesEntity: null,
-            isEnum      : true,
-            enumRef     : typeName,
-            constraints : { enum: enumDef.values },
+            isEnum: true,
+            enumRef: typeName,
+            constraints: { enum: enumDef.values },
             documentation: _docs(el),
+            xsdType: typeName,
           });
         } else {
           const stDef = this.simpleTypes.get(typeName);
           entity.columns.push({
-            name        : toCamel(effectiveName),
-            columnName  : toSnake(effectiveName),
-            sqlType     : stDef?.sqlType   || 'TEXT',
-            jsonType    : stDef?.jsonType  || 'string',
-            nullable    : isOptional,
+            name: toCamel(effectiveName),
+            columnName: toDbName(effectiveName),
+            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
+            sqlType: stDef?.sqlType || 'TEXT',
+            jsonType: stDef?.jsonType || 'string',
+            nullable: isOptional,
+            defaultValue: null,
             isPrimaryKey: false,
             isForeignKey: false,
             referencesEntity: null,
-            isEnum      : false,
-            enumRef     : null,
-            constraints : stDef?.constraints || {},
+            isEnum: false,
+            enumRef: null,
+            constraints: stDef?.constraints || {},
             documentation: _docs(el),
+            xsdType: typeName,
           });
         }
         return;
@@ -692,18 +878,21 @@ class IRBuilder {
         // Otherwise treat the nested type as an opaque JSON column.
         if (this._s3000lMode && !this._s3000lSet.has(typeName)) {
           entity.columns.push({
-            name        : toCamel(effectiveName),
-            columnName  : toSnake(effectiveName),
-            sqlType     : 'LONGTEXT',          // MariaDB: store JSON as LONGTEXT
-            jsonType    : 'object',
-            nullable    : isOptional,
+            name: toCamel(effectiveName),
+            columnName: toDbName(effectiveName),
+            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
+            sqlType: 'LONGTEXT', // MariaDB: store JSON as LONGTEXT
+            jsonType: 'object',
+            nullable: isOptional,
+            defaultValue: null,
             isPrimaryKey: false,
             isForeignKey: false,
             referencesEntity: null,
-            isEnum      : false,
-            enumRef     : null,
-            constraints : {},
+            isEnum: false,
+            enumRef: null,
+            constraints: {},
             documentation: `Inline complex type ${typeName} (not a real S3000L entity)`,
+            xsdType: typeName,
           });
           return;
         }
@@ -717,18 +906,21 @@ class IRBuilder {
 
       // kind === 'unknown' — treat as text column for now
       entity.columns.push({
-        name        : toCamel(effectiveName),
-        columnName  : toSnake(effectiveName),
-        sqlType     : 'TEXT',
-        jsonType    : 'string',
-        nullable    : isOptional,
+        name: toCamel(effectiveName),
+        columnName: toDbName(effectiveName),
+        ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
+        sqlType: 'TEXT',
+        jsonType: 'string',
+        nullable: isOptional,
+        defaultValue: null,
         isPrimaryKey: false,
         isForeignKey: false,
         referencesEntity: null,
-        isEnum      : false,
-        enumRef     : null,
-        constraints : {},
+        isEnum: false,
+        enumRef: null,
+        constraints: {},
         documentation: `Unresolved type: ${typeName}`,
+        xsdType: typeName,
       });
     }
   }
@@ -736,21 +928,27 @@ class IRBuilder {
   // ── attribute processing ───────────────────────────────────────────────────
 
   _processAttribute(entity, attr) {
-    const attrName  = attr['@_name'];
-    const attrRef   = attr['@_ref'];
-    const typeName  = attr['@_type'];
-    const use       = attr['@_use'] || 'optional';
-    const nullable  = use !== 'required';
+    const attrName = attr['@_name'];
+    const attrRef = attr['@_ref'];
+    const typeName = attr['@_type'];
+    const use = attr['@_use'] || 'optional';
 
     const effectiveName = attrName || attrRef;
     if (!effectiveName) return;
 
+    const isS3000LUid = this._s3000lMode && effectiveName === 'uid';
+    const isS3000LCrud = this._s3000lMode && effectiveName === 'crud';
+    const defaultValue = attr['@_default'] ?? (isS3000LCrud ? 'I' : null);
+    const nullable = isS3000LUid || isS3000LCrud ? false : use !== 'required';
+
     const resolved = typeName ? this.resolver.resolve(typeName) : { kind: 'primitive', sqlType: 'TEXT', jsonType: 'string' };
 
     const colBase = {
-      name        : toCamel(effectiveName),
-      columnName  : toSnake(effectiveName),
+      name: toCamel(effectiveName),
+      columnName: toDbName(effectiveName),
+      ..._attributeColumnMeta(effectiveName),
       nullable,
+      defaultValue,
       isPrimaryKey: false,
       isForeignKey: false,
       referencesEntity: null,
@@ -760,27 +958,29 @@ class IRBuilder {
     if (resolved.kind === 'primitive') {
       entity.columns.push({
         ...colBase,
-        sqlType    : resolved.sqlType,
-        jsonType   : resolved.jsonType,
-        isEnum     : false,
-        enumRef    : null,
+        sqlType: isS3000LUid ? 'VARCHAR(255)' : resolved.sqlType,
+        jsonType: resolved.jsonType,
+        isEnum: false,
+        enumRef: null,
         constraints: {
-          ...(resolved.minimum  != null ? { minimum:  resolved.minimum  } : {}),
-          ...(resolved.maximum  != null ? { maximum:  resolved.maximum  } : {}),
-          ...(resolved.format   != null ? { format:   resolved.format   } : {}),
-          ...(resolved.isId    ? { isId:    true } : {}),
+          ...(resolved.minimum != null ? { minimum: resolved.minimum } : {}),
+          ...(resolved.maximum != null ? { maximum: resolved.maximum } : {}),
+          ...(resolved.format != null ? { format: resolved.format } : {}),
+          ...(resolved.isId ? { isId: true } : {}),
           ...(resolved.isIdRef ? { isIdRef: true } : {}),
         },
+        xsdType: typeName || null,
       });
     } else {
       const enumDef = this.enums.get(typeName);
       entity.columns.push({
         ...colBase,
-        sqlType    : enumDef ? 'VARCHAR(64)' : 'TEXT',
-        jsonType   : 'string',
-        isEnum     : !!enumDef,
-        enumRef    : enumDef ? typeName : null,
+        sqlType: enumDef ? 'VARCHAR(64)' : 'TEXT',
+        jsonType: 'string',
+        isEnum: !!enumDef,
+        enumRef: enumDef ? typeName : null,
         constraints: enumDef ? { enum: enumDef.values } : {},
+        xsdType: typeName || null,
       });
     }
   }
@@ -789,13 +989,17 @@ class IRBuilder {
 
   _addRelation(entity, fieldName, targetEntity, nullable, minOccurs, maxOccurs) {
     const isRepeating = maxOccurs === 'unbounded' || maxOccurs > 1;
-    const kind        = isRepeating ? 'one-to-many' : 'one-to-one';
+    const kind = isRepeating ? 'one-to-many' : 'one-to-one';
+    const parentColumn = isRepeating
+      ? this._ensureRelationParentColumn(entity.name, fieldName, targetEntity)
+      : null;
 
     entity.relations.push({
       kind,
       fieldName,
       targetEntity,
-      joinTable : null,
+      joinTable: null,
+      parentColumn,
       nullable,
       minOccurs,
       maxOccurs,
@@ -804,35 +1008,113 @@ class IRBuilder {
     // For one-to-one, add the FK column on this side
     if (!isRepeating) {
       entity.columns.push({
-        name        : toCamel(fieldName) + 'Id',
-        columnName  : toSnake(fieldName) + '_id',
-        sqlType     : 'BIGINT',
-        jsonType    : 'integer',
+        name: `${toCamel(fieldName)}Id`,
+        columnName: _shortenIdentifier(`${toSnake(fieldName)}_id`),
+        ..._relationColumnMeta(fieldName, minOccurs, maxOccurs),
+        sqlType: 'BIGINT',
+        jsonType: 'integer',
         nullable,
+        defaultValue: null,
         isPrimaryKey: false,
         isForeignKey: true,
         referencesEntity: targetEntity,
-        isEnum      : false,
-        enumRef     : null,
-        constraints : {},
+        isEnum: false,
+        enumRef: null,
+        constraints: {},
         documentation: `FK → ${targetEntity}`,
+        xsdType: targetEntity,
       });
     }
+  }
+
+  _ensureRelationParentColumn(parentEntity, fieldName, targetEntity) {
+    const child = this.entities.get(targetEntity);
+    if (!child) return null;
+
+    const columnName = _shortenIdentifier(
+      `${toSnake(parentEntity)}_${toSnake(fieldName)}_parent_id`,
+    );
+    if (child.columns.some((c) => c.columnName === columnName)) return columnName;
+
+    child.columns.push({
+      name: `${toCamel(parentEntity)}${toPascal(fieldName)}ParentId`,
+      columnName,
+      ..._internalColumnMeta(),
+      sqlType: 'BIGINT',
+      jsonType: 'integer',
+      nullable: true,
+      defaultValue: null,
+      isPrimaryKey: false,
+      isForeignKey: true,
+      referencesEntity: parentEntity,
+      isEnum: false,
+      enumRef: null,
+      constraints: {},
+      documentation: `FK back to parent ${parentEntity}.${fieldName}`,
+      xsdType: parentEntity,
+    });
+
+    return columnName;
   }
 }
 
 // ─── private helpers ──────────────────────────────────────────────────────────
 
+function _shortenIdentifier(name, maxLength = 64) {
+  if (!name || name.length <= maxLength) return name;
+
+  const hash = crypto.createHash('sha1').update(name).digest('hex').slice(0, 10);
+  const prefixLength = maxLength - hash.length - 1;
+  const prefix = name.slice(0, prefixLength).replace(/_+$/g, '');
+  return `${prefix}_${hash}`;
+}
+
+function _elementColumnMeta(xmlName, minOccurs = 1, maxOccurs = 1) {
+  return {
+    xmlName,
+    xmlKind: 'element',
+    minOccurs,
+    maxOccurs,
+  };
+}
+
+function _attributeColumnMeta(xmlName) {
+  return {
+    xmlName,
+    xmlKind: 'attribute',
+    minOccurs: 0,
+    maxOccurs: 1,
+  };
+}
+
+function _relationColumnMeta(xmlName, minOccurs = 1, maxOccurs = 1) {
+  return {
+    xmlName,
+    xmlKind: 'relation',
+    minOccurs,
+    maxOccurs,
+  };
+}
+
+function _internalColumnMeta() {
+  return {
+    xmlName: null,
+    xmlKind: 'internal',
+    minOccurs: 0,
+    maxOccurs: 1,
+  };
+}
+
 function _parseOccurs(val, defaultVal) {
   if (val === undefined || val === null) return defaultVal;
   if (val === 'unbounded') return 'unbounded';
   const n = parseInt(val, 10);
-  return isNaN(n) ? defaultVal : n;
+  return Number.isNaN(n) ? defaultVal : n;
 }
 
 function _docs(node) {
   try {
-    const ann  = (node.annotation  || [])[0];
+    const ann = (node.annotation || [])[0];
     const docs = (ann?.documentation || [])[0];
     if (!docs) return null;
     if (typeof docs === 'string') return docs.trim();
@@ -857,27 +1139,30 @@ function _dig(node, ...keys) {
 function _extractConstraints(restriction) {
   const pick = (k) => restriction[k]?.[0]?.['@_value'];
   return Object.fromEntries(
-    ['minLength','maxLength','minInclusive','maxInclusive',
-     'minExclusive','maxExclusive','pattern','totalDigits','fractionDigits']
-      .map(k => [k, pick(k)])
-      .filter(([, v]) => v !== undefined)
+    ['minLength', 'maxLength', 'minInclusive', 'maxInclusive',
+      'minExclusive', 'maxExclusive', 'pattern', 'totalDigits', 'fractionDigits']
+      .map((k) => [k, pick(k)])
+      .filter(([, v]) => v !== undefined),
   );
 }
 
 function _surrogateKey() {
   return {
-    name        : 'id',
-    columnName  : 'id',
-    sqlType     : 'BIGINT',        // MariaDB: BIGINT AUTO_INCREMENT
-    jsonType    : 'integer',
-    nullable    : false,
+    name: 'id',
+    columnName: 'id',
+    ..._internalColumnMeta(),
+    sqlType: 'BIGINT', // MariaDB: BIGINT AUTO_INCREMENT
+    jsonType: 'integer',
+    nullable: false,
+    defaultValue: null,
     isPrimaryKey: true,
     isForeignKey: false,
     referencesEntity: null,
-    isEnum      : false,
-    enumRef     : null,
-    constraints : {},
+    isEnum: false,
+    enumRef: null,
+    constraints: {},
     documentation: 'Surrogate primary key',
+    xsdType: null,
   };
 }
 
@@ -890,12 +1175,23 @@ function _s3000lTechColumns() {
   const base = {
     isPrimaryKey: false, isForeignKey: false,
     referencesEntity: null, isEnum: false, enumRef: null, constraints: {},
+    xsdType: null,
+    ..._internalColumnMeta(),
+    defaultValue: null,
   };
   return [
-    { ...base, name: '_createdAt',  columnName: '_created_at',  sqlType: 'DATETIME(3)', jsonType: 'string',  nullable: false, documentation: 'Technical: row insert timestamp' },
-    { ...base, name: '_updatedAt',  columnName: '_updated_at',  sqlType: 'DATETIME(3)', jsonType: 'string',  nullable: false, documentation: 'Technical: row last-update timestamp' },
-    { ...base, name: '_deletedAt',  columnName: '_deleted_at',  sqlType: 'DATETIME(3)', jsonType: 'string',  nullable: true,  documentation: 'Technical: soft-delete (crud=D)' },
-    { ...base, name: '_msgSeq',     columnName: '_msg_seq',     sqlType: 'BIGINT',      jsonType: 'integer', nullable: false, documentation: 'Technical: last export message sequence — used for net-change delta' },
+    {
+      ...base, name: '_createdAt', columnName: '_created_at', sqlType: 'DATETIME(3)', jsonType: 'string', nullable: false, documentation: 'Technical: row insert timestamp',
+    },
+    {
+      ...base, name: '_updatedAt', columnName: '_updated_at', sqlType: 'DATETIME(3)', jsonType: 'string', nullable: false, documentation: 'Technical: row last-update timestamp',
+    },
+    {
+      ...base, name: '_deletedAt', columnName: '_deleted_at', sqlType: 'DATETIME(3)', jsonType: 'string', nullable: true, documentation: 'Technical: soft-delete (crud=D)',
+    },
+    {
+      ...base, name: '_msgSeq', columnName: '_msg_seq', sqlType: 'BIGINT', jsonType: 'integer', nullable: false, documentation: 'Technical: last export message sequence — used for net-change delta',
+    },
   ];
 }
 

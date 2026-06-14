@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict';
 
 /**
  * index.js  –  CLI entry point
@@ -18,45 +17,37 @@
  *
  * Outputs (in <out>/):
  *   ir.json                The Intermediate Representation
- *   schema.sql             PostgreSQL CREATE TABLE DDL
+ *   schema.sql             MariaDB CREATE TABLE DDL
  *   json-schema.json       JSON Schema draft-07 validator
  */
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 
-const { parseXSD }            = require('./src/xsd-parser');
-const { IRBuilder }           = require('./src/ir-builder');
-const { generateSQL }         = require('./src/sql-generator');
-const { generateJSONSchema }  = require('./src/json-schema-generator');
+const { parseXSD } = require('./src/xsd-parser');
+const { IRBuilder } = require('./src/ir-builder');
+const { generateSQL } = require('./src/sql-generator');
+const { generateJSONSchema } = require('./src/json-schema-generator');
 
 // ─── arg parsing (no external dep) ───────────────────────────────────────────
 
 function parseArgs(argv) {
   const args = argv.slice(2);
   const opts = {
-    xsdFile  : null,
-    out      : './output',
-    root     : null,
-    schemaId : 'https://example.com/generated-schema.json',
-    sql      : true,
-    json     : true,
-    ir       : true,
-    pretty   : true,
-    verbose  : false,
+    xsdFile: null,
+    out: './output',
+    root: null,
+    schemaId: 'https://example.com/generated-schema.json',
+    sql: true,
+    json: true,
+    ir: true,
+    pretty: true,
+    verbose: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === '--out')       { opts.out       = args[++i]; }
-    else if (a === '--root') { opts.root       = args[++i]; }
-    else if (a === '--schema-id') { opts.schemaId  = args[++i]; }
-    else if (a === '--no-sql')  { opts.sql   = false; }
-    else if (a === '--no-json') { opts.json  = false; }
-    else if (a === '--no-ir')   { opts.ir    = false; }
-    else if (a === '--no-pretty') { opts.pretty = false; }
-    else if (a === '--verbose')   { opts.verbose = true; }
-    else if (!a.startsWith('--')) { opts.xsdFile = a; }
+    if (a === '--out') { opts.out = args[++i]; } else if (a === '--root') { opts.root = args[++i]; } else if (a === '--schema-id') { opts.schemaId = args[++i]; } else if (a === '--no-sql') { opts.sql = false; } else if (a === '--no-json') { opts.json = false; } else if (a === '--no-ir') { opts.ir = false; } else if (a === '--no-pretty') { opts.pretty = false; } else if (a === '--verbose') { opts.verbose = true; } else if (!a.startsWith('--')) { opts.xsdFile = a; }
   }
   return opts;
 }
@@ -65,10 +56,16 @@ function parseArgs(argv) {
 
 function irToJSON(ir) {
   return {
-    entities   : Object.fromEntries(ir.entities),
-    joinTables : Object.fromEntries(ir.joinTables),
-    enums      : Object.fromEntries(ir.enums),
+    entities: Object.fromEntries(ir.entities),
+    joinTables: Object.fromEntries(ir.joinTables),
+    enums: Object.fromEntries(ir.enums),
     simpleTypes: Object.fromEntries(ir.simpleTypes),
+    assertions: Object.fromEntries(ir.assertions),
+    assertionPaths: Object.fromEntries(ir.assertionPaths),
+    s3000lMode: !!ir.s3000lMode,
+    s3000lCollections: ir.s3000lCollections instanceof Map
+      ? Object.fromEntries(ir.s3000lCollections)
+      : (ir.s3000lCollections || {}),
   };
 }
 
@@ -91,23 +88,25 @@ function main() {
     console.error(`\n❌  Parse error: ${err.message}`);
     process.exit(1);
   }
-  console.log(`✅  Parsed OK (${(schema.complexType||[]).length} complexTypes merged)`);
+  console.log(`✅  Parsed OK (${(schema.complexType || []).length} complexTypes merged)`);
 
   // ── build IR ───────────────────────────────────────────────────────────────
-  console.log(`\n🔨  Building Intermediate Representation…`);
+  console.log('\n🔨  Building Intermediate Representation…');
   const ir = new IRBuilder(schema).build();
 
   if (ir.s3000lMode) {
-    console.log(`   ✦  S3000L mode: filtering to uid+crud entities only`);
+    console.log('   ✦  S3000L mode: filtering to uid+crud entities only');
   }
 
   const stats = {
-    entities   : ir.entities.size,
-    joinTables : ir.joinTables.size,
-    enums      : ir.enums.size,
+    entities: ir.entities.size,
+    joinTables: ir.joinTables.size,
+    enums: ir.enums.size,
     simpleTypes: ir.simpleTypes.size,
-    columns    : [...ir.entities.values()].reduce((n, e) => n + e.columns.length, 0),
-    relations  : [...ir.entities.values()].reduce((n, e) => n + e.relations.length, 0),
+    assertions: ir.assertions.size,
+    assertionPaths: ir.assertionPaths.size,
+    columns: [...ir.entities.values()].reduce((n, e) => n + e.columns.length, 0),
+    relations: [...ir.entities.values()].reduce((n, e) => n + e.relations.length, 0),
   };
 
   console.log(`   Entities   : ${stats.entities}`);
@@ -116,6 +115,8 @@ function main() {
   console.log(`   Join tables: ${stats.joinTables}`);
   console.log(`   Enums      : ${stats.enums}`);
   console.log(`   SimpleTypes: ${stats.simpleTypes}`);
+  console.log(`   Assertions : ${stats.assertions}`);
+  console.log(`   AssertPaths: ${stats.assertionPaths}`);
 
   // ── ensure output directory ────────────────────────────────────────────────
   const outDir = path.resolve(opts.out);
@@ -133,7 +134,7 @@ function main() {
 
   // ── write SQL ──────────────────────────────────────────────────────────────
   if (opts.sql) {
-    const sql     = generateSQL(ir);
+    const sql = generateSQL(ir);
     const sqlPath = path.join(outDir, 'schema.sql');
     fs.writeFileSync(sqlPath, sql, 'utf8');
     console.log(`✅  SQL DDL written     → ${sqlPath}`);
@@ -141,7 +142,7 @@ function main() {
 
   // ── write JSON Schema ──────────────────────────────────────────────────────
   if (opts.json) {
-    const jsonSchema     = generateJSONSchema(ir, { rootEntity: opts.root, schemaId: opts.schemaId });
+    const jsonSchema = generateJSONSchema(ir, { rootEntity: opts.root, schemaId: opts.schemaId });
     const jsonSchemaPath = path.join(outDir, 'json-schema.json');
     fs.writeFileSync(jsonSchemaPath, JSON.stringify(jsonSchema, null, indent), 'utf8');
     console.log(`✅  JSON Schema written → ${jsonSchemaPath}`);

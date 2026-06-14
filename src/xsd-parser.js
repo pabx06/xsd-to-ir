@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * xsd-parser.js
  *
@@ -16,7 +14,7 @@
  * works with plain tag names.
  */
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
 const { XMLParser } = require('fast-xml-parser');
 
@@ -27,18 +25,18 @@ const ARRAY_TAGS = new Set([
   'sequence', 'choice', 'all', 'group', 'attributeGroup',
   'enumeration', 'extension', 'restriction',
   'complexContent', 'simpleContent',
-  'annotation', 'documentation',
+  'annotation', 'documentation', 'assert',
   'import', 'include',
 ]);
 
 function makeParser() {
   return new XMLParser({
-    ignoreAttributes   : false,
+    ignoreAttributes: false,
     attributeNamePrefix: '@_',
-    isArray            : (tagName) => ARRAY_TAGS.has(stripNs(tagName)),
+    isArray: (tagName) => ARRAY_TAGS.has(stripNs(tagName)),
     parseAttributeValue: false,
-    trimValues         : true,
-    processEntities    : false,
+    trimValues: true,
+    processEntities: false,
   });
 }
 
@@ -55,7 +53,7 @@ function deepStripNs(node) {
   if (node && typeof node === 'object') {
     const out = {};
     for (const [k, v] of Object.entries(node)) {
-      const cleanKey = k.startsWith('@_') ? '@_' + stripNs(k.slice(2)) : stripNs(k);
+      const cleanKey = k.startsWith('@_') ? `@_${stripNs(k.slice(2))}` : stripNs(k);
       const cleanVal = typeof v === 'string' ? stripNs(v) : deepStripNs(v);
       out[cleanKey] = cleanVal;
     }
@@ -81,7 +79,7 @@ function mergeSchema(target, src) {
     if (!target[key]) target[key] = [];
     // Avoid adding the exact same named definition twice (re-inclusion guard)
     const existingNames = new Set(
-      target[key].filter(n => n['@_name']).map(n => n['@_name'])
+      target[key].filter((n) => n['@_name']).map((n) => n['@_name']),
     );
     for (const item of src[key]) {
       if (!item['@_name'] || !existingNames.has(item['@_name'])) {
@@ -99,10 +97,10 @@ function mergeSchema(target, src) {
  * Does NOT follow includes/imports — that is done by parseXSD.
  */
 function parseSingleFile(absPath) {
-  const xml    = fs.readFileSync(absPath, 'utf8');
+  const xml = fs.readFileSync(absPath, 'utf8');
   const parser = makeParser();
-  const raw    = parser.parse(xml);
-  const nsKey  = Object.keys(raw).find(k => stripNs(k) === 'schema');
+  const raw = parser.parse(xml);
+  const nsKey = Object.keys(raw).find((k) => stripNs(k) === 'schema');
   if (!nsKey) throw new Error(`No <xs:schema> root in ${absPath}`);
   return deepStripNs(raw[nsKey]);
 }
@@ -122,8 +120,7 @@ function parseXSD(filePath, opts = {}) {
   const absPath = path.resolve(filePath);
   if (!fs.existsSync(absPath)) throw new Error(`XSD file not found: ${absPath}`);
 
-  const visited = new Set();   // guard against circular includes
-  const baseDir = path.dirname(absPath);
+  const visited = new Set(); // guard against circular includes
 
   function load(p) {
     const abs = path.resolve(p);
@@ -133,12 +130,12 @@ function parseXSD(filePath, opts = {}) {
     if (opts.verbose) process.stderr.write(`  ↳ loading ${path.relative(process.cwd(), abs)}\n`);
 
     const schema = parseSingleFile(abs);
-    const dir    = path.dirname(abs);
+    const dir = path.dirname(abs);
 
     // Follow xs:include and xs:import with local schemaLocation
     const refs = [
       ...(schema.include || []),
-      ...(schema.import  || []),
+      ...(schema.import || []),
     ];
 
     for (const ref of refs) {

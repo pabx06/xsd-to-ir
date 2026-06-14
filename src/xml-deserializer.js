@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * xml-deserializer.js
  *
@@ -10,7 +8,7 @@
  *     lsaPrimaryData / lsaSupportingData → collections → records)
  *   - The crud attribute per record (I / U / D)
  *   - IR-driven column coercion (XML string → correct JS type for the DB)
- *   - JSONB columns (nested complex types stored as JSON)
+ *   - LONGTEXT JSON columns (nested complex types stored as JSON strings)
  *   - Relations (FK columns populated from nested entity uid attributes)
  *
  * Output shape:
@@ -26,38 +24,17 @@
  */
 
 const { XMLParser } = require('fast-xml-parser');
-
-// ─── S3000L envelope constants ────────────────────────────────────────────────
-
-// Collections that live under lsaPrimaryData
-const PRIMARY_COLLECTIONS = new Set([
-  'breakdownElements', 'parts', 'productOperationalRoleKits',
-  'products', 'taskRequirements', 'tasks',
-]);
-
-// Singular name for each collection key  (pluralCollection → singularRecord)
-// Built lazily from the IR entity names; overrides for irregular plurals:
-const IRREGULAR_SINGULAR = {
-  breakdownElements         : 'breakdownElement',
-  productOperationalRoleKits: 'productOperationalRoleKit',
-  facilities                : 'facility',
-  countries                 : 'country',
-  trades                    : 'trade',
-  skills                    : 'skill',
-  contracts                 : 'contract',
-  projects                  : 'project',
-  documents                 : 'document',
-  organizations             : 'organization',
-  infrastructures           : 'infrastructure',
-  substances                : 'substance',
-};
-
-function _singularOf(pluralKey) {
-  if (IRREGULAR_SINGULAR[pluralKey]) return IRREGULAR_SINGULAR[pluralKey];
-  // Standard rule: strip trailing 's'
-  if (pluralKey.endsWith('s')) return pluralKey.slice(0, -1);
-  return pluralKey;
-}
+const { validateValueAssertions } = require('./assertion-validator');
+const {
+  IRREGULAR_SINGULAR,
+  PRIMARY_COLLECTIONS,
+  collectionEntries,
+  isXmlImportColumn,
+  readColumnField,
+  readField,
+  relationColumn,
+  singularOf,
+} = require('./s3000l-xml-metadata');
 
 // ─── type coercion ────────────────────────────────────────────────────────────
 
@@ -67,39 +44,21 @@ function _singularOf(pluralKey) {
 function _coerce(value, sqlType) {
   if (value === undefined || value === null || value === '') return null;
 
-  const v   = String(value).trim();
+  const v = String(value).trim();
   const sql = (sqlType || '').toUpperCase();
 
-  if (sql === 'BOOLEAN')  return v === 'true' || v === '1';
-  if (sql === 'INTEGER' || sql === 'BIGINT' || sql === 'SMALLINT' ||
-      sql === 'BIGSERIAL') return parseInt(v, 10);
+  if (sql === 'BOOLEAN') return v === 'true' || v === '1';
+  if (sql === 'INTEGER' || sql === 'BIGINT' || sql === 'SMALLINT'
+      || sql === 'BIGSERIAL') return parseInt(v, 10);
   if (sql === 'DECIMAL' || sql === 'FLOAT' || sql.startsWith('DOUBLE')) return parseFloat(v);
-  if (sql === 'JSONB')    return typeof value === 'object' ? value : _tryParseJson(v);
-  if (sql === 'BYTEA')    return Buffer.from(v, 'base64');
+  if (sql === 'JSONB') return typeof value === 'object' ? value : _tryParseJson(v);
+  if (sql === 'BYTEA') return Buffer.from(v, 'base64');
   // TEXT, VARCHAR, CHAR, DATE, TIMESTAMP, etc. → keep as string
   return v;
 }
 
 function _tryParseJson(str) {
   try { return JSON.parse(str); } catch { return str; }
-}
-
-// ─── XML attribute / element reader ──────────────────────────────────────────
-
-/**
- * Read a value from a parsed XML node.
- * fast-xml-parser puts XML attributes under "@_name" and child elements
- * under their plain name.  We check both.
- */
-function _readField(node, fieldName) {
-  if (node === null || typeof node !== 'object') return undefined;
-  // Try as XML attribute first
-  const attrVal = node[`@_${fieldName}`];
-  if (attrVal !== undefined) return attrVal;
-  // Then as child element
-  const elemVal = node[fieldName];
-  if (elemVal !== undefined) return elemVal;
-  return undefined;
 }
 
 // ─── Deserializer ─────────────────────────────────────────────────────────────
@@ -110,17 +69,33 @@ class XMLDeserializer {
    */
   constructor(ir) {
     this.ir = ir;
+    this._collectionRecords = this._buildCollectionRecordMap();
     // Build a quick lookup: collectionKey → entityName
     this._collectionMap = this._buildCollectionMap();
   }
 
   // ── collection → entity name map ─────────────────────────────────────────
 
+  _buildCollectionRecordMap() {
+    const map = new Map();
+    for (const meta of collectionEntries(this.ir)) {
+      if (!this.ir.entities.has(meta.entityName)) continue;
+      if (!map.has(meta.collectionName)) map.set(meta.collectionName, new Map());
+      map.get(meta.collectionName).set(meta.recordName, meta.entityName);
+    }
+    return map;
+  }
+
   _buildCollectionMap() {
     const map = new Map();
+    for (const [collectionName, records] of this._collectionRecords) {
+      if (records.size === 1) {
+        map.set(collectionName, [...records.values()][0]);
+      }
+    }
     for (const [entityName] of this.ir.entities) {
       // Pluralise simply for lookup
-      map.set(entityName + 's', entityName);
+      map.set(`${entityName}s`, entityName);
       // Also index by exact name (for single-record collections)
       map.set(entityName, entityName);
     }
@@ -136,7 +111,7 @@ class XMLDeserializer {
       return this._collectionMap.get(collectionKey);
     }
     // Try singular
-    const singular = _singularOf(collectionKey);
+    const singular = singularOf(collectionKey);
     if (this.ir.entities.has(singular)) return singular;
     // Try as-is
     if (this.ir.entities.has(collectionKey)) return collectionKey;
@@ -153,7 +128,7 @@ class XMLDeserializer {
    */
   deserialize(parsed) {
     // Strip namespace prefix on root key if present
-    const rootKey = Object.keys(parsed).find(k => {
+    const rootKey = Object.keys(parsed).find((k) => {
       const bare = k.includes(':') ? k.split(':').pop() : k;
       return bare === 'lsaDataset';
     });
@@ -167,8 +142,8 @@ class XMLDeserializer {
 
     // ── 2. Navigate to data containers ────────────────────────────────────
     const lsaData = root.logisticsSupportAnalysisData ?? {};
-    const primary  = lsaData.lsaPrimaryData    ?? {};
-    const support  = lsaData.lsaSupportingData ?? {};
+    const primary = lsaData.lsaPrimaryData ?? {};
+    const support = lsaData.lsaSupportingData ?? {};
 
     // ── 3. Process all collections ─────────────────────────────────────────
     const batches = new Map();
@@ -196,14 +171,14 @@ class XMLDeserializer {
 
     const related = root.relatedMsg;
     const relatedMsgId = Array.isArray(related)
-      ? related.map(r => r.msgRef).filter(Boolean)
+      ? related.map((r) => r.msgRef).filter(Boolean)
       : related?.msgRef ?? null;
 
     return {
-      msgId       : get('msgId'),
-      msgType     : get('msgType'),     // 'B' or 'U'
-      msgStatus   : get('msgStatus'),   // 'D','P','F'
-      msgDate     : get('msgDate'),
+      msgId: get('msgId'),
+      msgType: get('msgType'), // 'B' or 'U'
+      msgStatus: get('msgStatus'), // 'D','P','F'
+      msgDate: get('msgDate'),
       relatedMsgId,
     };
   }
@@ -213,19 +188,34 @@ class XMLDeserializer {
   _processCollection(collKey, collValue, batches) {
     if (!collValue || typeof collValue !== 'object') return;
 
+    const recordMap = this._collectionRecords.get(collKey);
+    if (recordMap) {
+      let matched = false;
+      for (const [recordName, entityName] of recordMap) {
+        const records = this._extractRecordsByName(collValue, recordName);
+        if (records.length === 0) continue;
+        matched = true;
+        this._processRecords(entityName, records, batches);
+      }
+      if (matched) return;
+    }
+
     const entityName = this._resolveEntity(collKey);
     if (!entityName) return; // unknown collection, skip silently
-
-    const entity = this.ir.entities.get(entityName);
-    if (!entity) return;
 
     // Collection value can be:
     //   - an object with a single child key (the record element name)
     //   - directly an array of records
     //   - a single record object
 
-    let records = this._extractRecords(collValue, entityName);
+    const records = this._extractRecords(collValue, entityName);
     if (records.length === 0) return;
+    this._processRecords(entityName, records, batches);
+  }
+
+  _processRecords(entityName, records, batches, parentContext = null) {
+    const entity = this.ir.entities.get(entityName);
+    if (!entity) return;
 
     if (!batches.has(entityName)) {
       batches.set(entityName, { insert: [], update: [], delete: [] });
@@ -234,7 +224,7 @@ class XMLDeserializer {
 
     for (const xmlRecord of records) {
       const crud = (xmlRecord['@_crud'] ?? 'I').toUpperCase();
-      const uid  = xmlRecord['@_uid'] ?? xmlRecord['@_id'] ?? null;
+      const uid = xmlRecord['@_uid'] ?? xmlRecord['@_id'] ?? null;
 
       if (crud === 'D') {
         if (uid) batch.delete.push(uid);
@@ -242,6 +232,15 @@ class XMLDeserializer {
       }
 
       const row = this._xmlRecordToRow(entity, xmlRecord);
+      if (parentContext?.fkColumn) {
+        row._xmlParent = {
+          entityName: parentContext.entityName,
+          uid: parentContext.uid,
+          fkColumn: parentContext.fkColumn,
+        };
+      }
+
+      this._attachOneToOneRelationRefs(entity, xmlRecord, row, batches);
 
       if (crud === 'U') {
         row._xmlUid = uid; // preserve for UPDATE WHERE uid = ?
@@ -250,7 +249,116 @@ class XMLDeserializer {
         // 'I' or any other value → insert
         batch.insert.push(row);
       }
+
+      this._processRecordRelations(entity, xmlRecord, batches, uid);
     }
+  }
+
+  _processRecordRelations(entity, xmlRecord, batches, parentUid) {
+    for (const relation of (entity.relations || [])) {
+      if (!relation.parentColumn) continue;
+
+      const childRecords = this._extractRelationRecords(xmlRecord, relation);
+      if (childRecords.length === 0) continue;
+      if (!parentUid) {
+        throw new Error(
+          `Cannot persist nested ${relation.fieldName} records for `
+          + `${entity.name}: parent record has no uid`,
+        );
+      }
+
+      this._processRecords(relation.targetEntity, childRecords, batches, {
+        entityName: entity.name,
+        uid: parentUid,
+        fkColumn: relation.parentColumn,
+      });
+    }
+  }
+
+  _attachOneToOneRelationRefs(entity, xmlRecord, row, batches) {
+    for (const relation of (entity.relations || [])) {
+      if (relation.parentColumn || relation.kind !== 'one-to-one') continue;
+
+      const childRecords = this._extractRelationRecords(xmlRecord, relation);
+      if (childRecords.length === 0) continue;
+
+      const relationCol = relationColumn(entity, relation);
+      if (!relationCol) continue;
+
+      const childRecord = childRecords[0];
+      const childUid = childRecord['@_uid'] ?? childRecord['@_id'] ?? null;
+      if (!childUid) {
+        throw new Error(
+          `Cannot persist nested ${entity.name}.${relation.fieldName}: `
+          + 'child record has no uid',
+        );
+      }
+
+      if (!row._xmlRelations) row._xmlRelations = [];
+      row._xmlRelations.push({
+        entityName: relation.targetEntity,
+        uid: childUid,
+        fkColumn: relationCol.columnName,
+      });
+
+      if (entity.columns.some((c) => c.columnName === 'choice_type')) {
+        row.choice_type = relation.fieldName;
+      }
+
+      this._processRecords(relation.targetEntity, childRecords, batches);
+    }
+  }
+
+  _extractRelationRecords(xmlRecord, relation) {
+    if (relation.flattened) {
+      return this._extractFlattenedGroupRecords(xmlRecord, relation);
+    }
+
+    const raw = readField(xmlRecord, relation.fieldName, 'element')
+             ?? readField(xmlRecord, relation.fieldName);
+    if (raw === undefined || raw === null) return [];
+    if (Array.isArray(raw)) return raw.filter((v) => v && typeof v === 'object');
+    return typeof raw === 'object' ? [raw] : [];
+  }
+
+  _extractFlattenedGroupRecords(xmlRecord, relation) {
+    const helperEntity = this.ir.entities.get(relation.targetEntity);
+    if (!helperEntity) return [];
+
+    const records = [];
+    for (const branch of (helperEntity.relations || [])) {
+      const raw = readField(xmlRecord, branch.fieldName, 'element')
+               ?? readField(xmlRecord, branch.fieldName);
+      if (raw === undefined || raw === null) continue;
+
+      const values = Array.isArray(raw) ? raw : [raw];
+      for (const value of values) {
+        if (value && typeof value === 'object') {
+          records.push({ [branch.fieldName]: value });
+        }
+      }
+    }
+
+    return records;
+  }
+
+  _extractRecordsByName(collValue, recordName) {
+    if (Array.isArray(collValue)) {
+      return collValue.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        if (item[recordName] !== undefined) {
+          const child = item[recordName];
+          return Array.isArray(child) ? child : [child];
+        }
+        return item['@_uid'] !== undefined || item['@_id'] !== undefined ? [item] : [];
+      });
+    }
+    if (!collValue || typeof collValue !== 'object') return [];
+
+    const child = collValue[recordName];
+    if (Array.isArray(child)) return child;
+    if (child && typeof child === 'object') return [child];
+    return [];
   }
 
   _extractRecords(collValue, entityName) {
@@ -259,13 +367,13 @@ class XMLDeserializer {
 
     // If it's an object, look for the singular child key
     if (typeof collValue === 'object') {
-      const singular = _singularOf(entityName);
+      const singular = singularOf(entityName);
       // Try entityName and singular as child keys
       for (const key of [entityName, singular, ...Object.keys(collValue)]) {
         const child = collValue[key];
         if (child === undefined) continue;
-        if (Array.isArray(child))          return child;
-        if (typeof child === 'object')     return [child];
+        if (Array.isArray(child)) return child;
+        if (typeof child === 'object') return [child];
       }
     }
     return [];
@@ -278,18 +386,21 @@ class XMLDeserializer {
 
     for (const col of entity.columns) {
       // Never map surrogate PK or technical tracking cols from XML
-      if (col.columnName === 'id')           continue;
-      if (col.columnName.startsWith('_'))    continue;
+      if (col.columnName === 'id') continue;
+      if (col.columnName.startsWith('_')) continue;
+      if (!isXmlImportColumn(col)) continue;
 
-      const raw = _readField(xmlRecord, col.name)
-               ?? _readField(xmlRecord, col.columnName);
+      const raw = readColumnField(xmlRecord, col);
 
       if (raw === undefined) {
-        row[col.columnName] = null;
+        row[col.columnName] = col.defaultValue !== undefined && col.defaultValue !== null
+          ? col.defaultValue
+          : null;
         continue;
       }
 
       if (col.sqlType === 'LONGTEXT' && typeof raw === 'object') {
+        this._validateColumnAssertions(entity, col, raw);
         // Store the nested XML subtree as JSON string (LONGTEXT column)
         row[col.columnName] = JSON.stringify(raw);
       } else {
@@ -299,15 +410,27 @@ class XMLDeserializer {
 
     return row;
   }
+
+  _validateColumnAssertions(entity, col, raw) {
+    if (!col.xsdType) return;
+    const result = validateValueAssertions(this.ir, col.xsdType, raw);
+    if (!result.valid) {
+      const err = result.errors[0];
+      throw new Error(
+        `XSD assertion failed while deserializing ${entity.name}.${col.name} `
+        + `as ${col.xsdType}: ${err.message}`,
+      );
+    }
+  }
 }
 
 // ─── standalone parse helper ──────────────────────────────────────────────────
 
 const _xmlParser = new XMLParser({
-  ignoreAttributes   : false,
+  ignoreAttributes: false,
   attributeNamePrefix: '@_',
   parseAttributeValue: false,
-  trimValues         : true,
+  trimValues: true,
   isArray: (tag) => {
     // Collections and their records should always be arrays
     const bare = tag.includes(':') ? tag.split(':').pop() : tag;

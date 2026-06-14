@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * db-adapter.js
  *
@@ -11,11 +9,11 @@
  *   - Query rows for XML serialization (with optional delta filter)
  *   - Bump _msg_seq after a successful export
  *
- * The adapter is DB-agnostic: any knex-supported dialect works
- * (PostgreSQL recommended for production, SQLite for dev/test).
+ * The production target is MariaDB via knex/mysql2. The implementation keeps
+ * the SQL surface small so SQLite can still be used for lightweight tests.
  *
  * Usage:
- *   const knex   = require('knex')({ client: 'pg', connection: { ... } });
+ *   const knex   = require('knex')({ client: 'mysql2', connection: { ... } });
  *   const db     = new DBAdapter(knex, ir);
  *
  *   // Persist a full deserialized message
@@ -24,7 +22,7 @@
  *   // Query all rows for a given entity (for XML export)
  *   const rows = await db.queryEntity('task');
  *
- *   // Query only rows changed since msg seq 42 (delta / net-change)
+ *   // Query dirty rows for net-change export
  *   const rows = await db.queryEntity('task', { since: 42 });
  *
  *   // After export: mark rows as exported at this seq number
@@ -37,6 +35,25 @@ const TECH_COLS = new Set([
   'id', '_created_at', '_updated_at', '_deleted_at', '_msg_seq',
 ]);
 
+const { DBRelationResolver } = require('./db-relation-resolver');
+
+function _isIgnorableDDLExistsError(err) {
+  const msg = String(err?.message || '').toLowerCase();
+  const code = err?.code;
+  const errno = err?.errno;
+
+  return code === 'ER_TABLE_EXISTS_ERROR'
+    || code === 'ER_DUP_KEYNAME'
+    || code === 'ER_FK_DUP_NAME'
+    || errno === 1050
+    || errno === 1061
+    || errno === 1826
+    || msg.includes('already exists')
+    || msg.includes('duplicate key name')
+    || msg.includes('duplicate foreign key constraint name')
+    || msg.includes('duplicate key on write or update');
+}
+
 // ─── DBAdapter ────────────────────────────────────────────────────────────────
 
 class DBAdapter {
@@ -46,7 +63,11 @@ class DBAdapter {
    */
   constructor(knex, ir) {
     this.knex = knex;
-    this.ir   = ir;
+    this.ir = ir;
+    this.relationResolver = new DBRelationResolver({
+      entityForName: (name) => this._entity(name),
+      activeByUid: (entity, uid, trx) => this._activeByUid(entity, uid, trx),
+    });
   }
 
   // ── schema bootstrap ──────────────────────────────────────────────────────
@@ -61,15 +82,15 @@ class DBAdapter {
   async applyDDL(ddlSQL) {
     const statements = ddlSQL
       .split(';')
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
 
     for (const stmt of statements) {
       try {
-        await this.knex.raw(stmt + ';');
+        await this.knex.raw(`${stmt};`);
       } catch (err) {
-        // Skip "already exists" errors — useful for idempotent migration
-        if (!err.message.includes('already exists')) throw err;
+        // Skip "already exists" errors — useful for idempotent generated DDL.
+        if (!_isIgnorableDDLExistsError(err)) throw err;
       }
     }
   }
@@ -87,19 +108,24 @@ class DBAdapter {
    */
   async insert(entityName, row, opts = {}) {
     const entity = this._entity(entityName);
-    const clean  = this._stripTechCols(row);
-    const now    = new Date();
+    const clean = this._stripTechCols(row);
+    const now = new Date();
 
-    const payload = {
-      ...clean,
-      _created_at: now,
-      _updated_at: now,
-      _msg_seq   : 0,
-    };
+    const payload = { ...clean };
+    if (this._hasColumn(entity, '_created_at')) payload._created_at = now;
+    if (this._hasColumn(entity, '_updated_at')) payload._updated_at = now;
+    if (this._hasColumn(entity, '_msg_seq')) payload._msg_seq = 0;
 
-    const qb = (opts.trx ?? this.knex)(entity.tableName);
-    const [inserted] = await qb.insert(payload).returning('*');
-    return inserted;
+    const db = opts.trx ?? this.knex;
+    const result = await db(entity.tableName).insert(payload);
+    const insertedId = Array.isArray(result) ? result[0] : result;
+
+    if (insertedId !== undefined && insertedId !== null) {
+      const [inserted] = await db(entity.tableName).where('id', insertedId).select('*');
+      return inserted ?? { id: insertedId, ...payload };
+    }
+
+    return payload;
   }
 
   /**
@@ -114,15 +140,16 @@ class DBAdapter {
    */
   async update(entityName, uid, row, opts = {}) {
     const entity = this._entity(entityName);
-    const clean  = this._stripTechCols(row);
+    const clean = this._stripTechCols(row);
 
-    const payload = {
-      ...clean,
-      _updated_at: new Date(),
-    };
+    const payload = { ...clean };
+    if (this._hasColumn(entity, '_updated_at')) payload._updated_at = new Date();
+    if (this._hasColumn(entity, '_msg_seq')) payload._msg_seq = 0;
 
     const qb = (opts.trx ?? this.knex)(entity.tableName);
-    return qb.where('uid', uid).whereNull('_deleted_at').update(payload);
+    let query = qb.where('uid', uid);
+    if (this._hasColumn(entity, '_deleted_at')) query = query.whereNull('_deleted_at');
+    return query.update(payload);
   }
 
   /**
@@ -136,11 +163,14 @@ class DBAdapter {
    */
   async softDelete(entityName, uid, opts = {}) {
     const entity = this._entity(entityName);
-    const qb     = (opts.trx ?? this.knex)(entity.tableName);
-    return qb.where('uid', uid).whereNull('_deleted_at').update({
-      _deleted_at: new Date(),
-      _updated_at: new Date(),
-    });
+    const qb = (opts.trx ?? this.knex)(entity.tableName);
+    if (!this._hasColumn(entity, '_deleted_at')) return 0;
+
+    const payload = { _deleted_at: new Date() };
+    if (this._hasColumn(entity, '_updated_at')) payload._updated_at = new Date();
+    if (this._hasColumn(entity, '_msg_seq')) payload._msg_seq = 0;
+
+    return qb.where('uid', uid).whereNull('_deleted_at').update(payload);
   }
 
   // ── batch / message persistence ───────────────────────────────────────────
@@ -152,17 +182,28 @@ class DBAdapter {
    * @param {object} msgMeta   Output of XMLDeserializer.deserialize().msgMeta
    * @returns {{ inserted: number, updated: number, deleted: number }}
    */
-  async persistMessage(batches, msgMeta) {
-    let inserted = 0, updated = 0, deleted = 0;
+  async persistMessage(batches, _msgMeta) {
+    let inserted = 0;
+    let updated = 0;
+    let deleted = 0;
 
     await this.knex.transaction(async (trx) => {
+      const pendingRelations = [];
       // Optionally log the message header itself
       // (you could persist msgMeta to a messages_log table here)
 
       for (const [entityName, batch] of batches) {
         // INSERT
         for (const row of batch.insert) {
-          await this.insert(entityName, row, { trx });
+          const relationRefs = row._xmlRelations || [];
+          const resolved = await this.relationResolver.resolveParentRef(row, trx);
+          const insertedRow = await this.insert(entityName, resolved, { trx });
+          this.relationResolver.queueRelationRefs(
+            pendingRelations,
+            entityName,
+            insertedRow.id,
+            relationRefs,
+          );
           inserted++;
         }
 
@@ -170,8 +211,16 @@ class DBAdapter {
         for (const row of batch.update) {
           const uid = row._xmlUid;
           if (!uid) continue;
+          const relationRefs = row._xmlRelations || [];
           const { _xmlUid, ...clean } = row; // eslint-disable-line no-unused-vars
-          await this.update(entityName, uid, clean, { trx });
+          const resolved = await this.relationResolver.resolveParentRef(clean, trx);
+          await this.update(entityName, uid, resolved, { trx });
+          if (relationRefs.length > 0) {
+            const source = await this._activeByUid(this._entity(entityName), uid, trx);
+            if (source) {
+              this.relationResolver.queueRelationRefs(pendingRelations, entityName, source.id, relationRefs);
+            }
+          }
           updated++;
         }
 
@@ -181,6 +230,8 @@ class DBAdapter {
           deleted++;
         }
       }
+
+      await this.relationResolver.applyPendingRelationRefs(pendingRelations, trx);
     });
 
     return { inserted, updated, deleted };
@@ -193,25 +244,27 @@ class DBAdapter {
    *
    * @param {string} entityName
    * @param {object} [opts]
-   * @param {number} [opts.since]       _msg_seq threshold for net-change export
+   * @param {number} [opts.since]       Enables dirty-row filtering for net-change export
    * @param {string} [opts.msgStatus]   Filter by status column if present
    * @returns {object[]}  Array of DB rows
    */
   async queryEntity(entityName, opts = {}) {
     const entity = this._entity(entityName);
 
-    let qb = this.knex(entity.tableName).whereNull('_deleted_at');
+    let qb = this.knex(entity.tableName);
+    if (this._hasColumn(entity, '_deleted_at')) {
+      qb = qb.whereNull('_deleted_at');
+    }
 
-    // Net-change: rows whose _msg_seq is less than or equal to the
-    // *current* export sequence are "already exported".
-    // We want rows modified AFTER the last export → _msg_seq > since
-    if (opts.since !== undefined && opts.since !== null) {
-      qb = qb.where('_msg_seq', '>', opts.since);
+    // Net-change: _msg_seq = 0 means dirty/unexported. markExported()
+    // stamps exported rows with the message sequence after the XML is sent.
+    if (opts.since !== undefined && opts.since !== null && this._hasColumn(entity, '_msg_seq')) {
+      qb = qb.where('_msg_seq', 0);
     }
 
     // Optionally filter by a status column (not all entities have one)
     if (opts.msgStatus) {
-      const hasStatus = entity.columns.some(c => c.columnName === 'status');
+      const hasStatus = entity.columns.some((c) => c.columnName === 'status');
       if (hasStatus) qb = qb.where('status', opts.msgStatus);
     }
 
@@ -219,18 +272,74 @@ class DBAdapter {
   }
 
   /**
-   * Query rows that were soft-deleted since a given _msg_seq.
+   * Query active child rows that belong to a parent row through an IR-generated
+   * relationship FK column.
+   *
+   * @param {string} entityName
+   * @param {string} parentColumn
+   * @param {number|string} parentId
+   * @param {object} [opts]
+   * @param {number} [opts.since]  Enables dirty-row filtering for net-change export
+   * @returns {object[]}
+   */
+  async queryRelated(entityName, parentColumn, parentId, opts = {}) {
+    const entity = this._entity(entityName);
+
+    let qb = this.knex(entity.tableName)
+      .where(parentColumn, parentId);
+
+    if (this._hasColumn(entity, '_deleted_at')) {
+      qb = qb.whereNull('_deleted_at');
+    }
+
+    if (opts.since !== undefined && opts.since !== null && this._hasColumn(entity, '_msg_seq')) {
+      qb = qb.where('_msg_seq', 0);
+    }
+
+    return qb.select('*');
+  }
+
+  /**
+   * Query one row by surrogate id for relation reconstruction.
+   *
+   * @param {string} entityName
+   * @param {number|string} id
+   * @param {object} [opts]
+   * @param {number} [opts.since]  Enables dirty-row filtering for net-change export
+   * @returns {object|null}
+   */
+  async queryById(entityName, id, opts = {}) {
+    const entity = this._entity(entityName);
+    let qb = this.knex(entity.tableName).where('id', id);
+
+    if (this._hasColumn(entity, '_deleted_at')) {
+      qb = qb.whereNull('_deleted_at');
+    }
+
+    if (opts.since !== undefined && opts.since !== null && this._hasColumn(entity, '_msg_seq')) {
+      qb = qb.where('_msg_seq', 0);
+    }
+
+    const [row] = await qb.select('*');
+    return row || null;
+  }
+
+  /**
+   * Query dirty rows that were soft-deleted and still need export.
    * These must be included in net-change exports with crud="D".
    *
    * @param {string} entityName
-   * @param {number} since   _msg_seq baseline
+   * @param {number} since   Last exported sequence. Kept for API symmetry.
    * @returns {object[]}
    */
-  async queryDeleted(entityName, since) {
+  async queryDeleted(entityName, _since) {
     const entity = this._entity(entityName);
+    if (!this._hasColumn(entity, '_deleted_at') || !this._hasColumn(entity, '_msg_seq')) {
+      return [];
+    }
     return this.knex(entity.tableName)
       .whereNotNull('_deleted_at')
-      .where('_msg_seq', '>', since)
+      .where('_msg_seq', 0)
       .select('id', 'uid', '_deleted_at');
   }
 
@@ -249,9 +358,9 @@ class DBAdapter {
     await this.knex.transaction(async (trx) => {
       for (const entityName of entityNames) {
         const entity = this._entity(entityName);
+        if (!this._hasColumn(entity, '_msg_seq')) continue;
         await trx(entity.tableName)
-          .where('_msg_seq', '<', newSeq)
-          .whereNull('_deleted_at')
+          .where('_msg_seq', 0)
           .update({ _msg_seq: newSeq });
       }
     });
@@ -267,7 +376,7 @@ class DBAdapter {
     let max = 0;
     for (const [entityName] of this.ir.entities) {
       const entity = this.ir.entities.get(entityName);
-      const hasSeq = entity.columns.some(c => c.columnName === '_msg_seq');
+      const hasSeq = entity.columns.some((c) => c.columnName === '_msg_seq');
       if (!hasSeq) continue;
       const [row] = await this.knex(entity.tableName).max('_msg_seq as m');
       const v = Number(row?.m ?? 0);
@@ -284,12 +393,25 @@ class DBAdapter {
     return e;
   }
 
+  _hasColumn(entity, columnName) {
+    return entity.columns.some((c) => c.columnName === columnName);
+  }
+
   _stripTechCols(row) {
     const out = {};
     for (const [k, v] of Object.entries(row)) {
-      if (!TECH_COLS.has(k) && k !== '_xmlUid') out[k] = v;
+      if (!TECH_COLS.has(k) && !k.startsWith('_xml')) out[k] = v;
     }
     return out;
+  }
+
+  async _activeByUid(entity, uid, trx) {
+    let query = trx(entity.tableName).where('uid', uid);
+    if (this._hasColumn(entity, '_deleted_at')) {
+      query = query.whereNull('_deleted_at');
+    }
+    const [row] = await query.select('id');
+    return row || null;
   }
 }
 

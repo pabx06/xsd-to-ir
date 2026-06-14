@@ -1,0 +1,39 @@
+stages:
+  - quality
+  - integration
+
+default:
+  image: node:22-bookworm
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+      - .cache/xsd11/
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+
+quality:
+  stage: quality
+  before_script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends openjdk-17-jdk-headless
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run ci
+
+mariadb:
+  stage: integration
+  services:
+    - name: mariadb:10.11
+      alias: mariadb
+  variables:
+    MARIADB_DATABASE: xsd_to_ir_test
+    MARIADB_USER: xsd
+    MARIADB_PASSWORD: xsdpass
+    MARIADB_ROOT_PASSWORD: xsdtest
+    MARIADB_TEST_URL: mysql://xsd:xsdpass@mariadb:3306/xsd_to_ir_test
+  script:
+    - node scripts/wait-for-mariadb.js
+    - npm run test:mariadb

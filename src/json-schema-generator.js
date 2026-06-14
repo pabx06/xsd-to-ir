@@ -1,5 +1,3 @@
-'use strict';
-
 /**
  * json-schema-generator.js
  *
@@ -22,7 +20,7 @@
 function generateJSONSchema(ir, options = {}) {
   const {
     rootEntity = null,
-    schemaId   = 'https://example.com/schema.json',
+    schemaId = 'https://example.com/schema.json',
   } = options;
 
   const defs = {};
@@ -30,10 +28,10 @@ function generateJSONSchema(ir, options = {}) {
   // ── enum definitions ────────────────────────────────────────────────────────
   for (const [name, enumDef] of ir.enums) {
     defs[name] = {
-      title      : name,
+      title: name,
       description: enumDef.docs || undefined,
-      type       : 'string',
-      enum       : enumDef.values,
+      type: 'string',
+      enum: enumDef.values,
     };
   }
 
@@ -49,18 +47,18 @@ function generateJSONSchema(ir, options = {}) {
 
   // ── root schema ─────────────────────────────────────────────────────────────
   const schema = {
-    $schema    : 'http://json-schema.org/draft-07/schema#',
-    $id        : schemaId,
-    title      : 'XSD-derived schema',
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    $id: schemaId,
+    title: 'XSD-derived schema',
     description: 'Auto-generated from XSD via xsd-to-ir',
-    $defs      : defs,
+    $defs: defs,
   };
 
   if (rootEntity && ir.entities.has(rootEntity)) {
     schema.$ref = `#/$defs/${rootEntity}`;
   } else {
     // Default: union of all top-level entities
-    schema.oneOf = [...ir.entities.keys()].map(name => ({ $ref: `#/$defs/${name}` }));
+    schema.oneOf = [...ir.entities.keys()].map((name) => ({ $ref: `#/$defs/${name}` }));
   }
 
   return schema;
@@ -70,17 +68,17 @@ function generateJSONSchema(ir, options = {}) {
 
 function _simpleTypeDef(name, st) {
   const def = {
-    title      : name,
+    title: name,
     description: st.docs || undefined,
-    type       : st.jsonType,
+    type: st.jsonType,
   };
   _applyConstraints(def, st.constraints);
   return def;
 }
 
 function _entityDef(entity, ir) {
-  const properties  = {};
-  const required    = [];
+  const properties = {};
+  const required = [];
 
   // Columns → JSON Schema properties
   for (const col of entity.columns) {
@@ -106,9 +104,9 @@ function _entityDef(entity, ir) {
   }
 
   const def = {
-    title      : entity.name,
+    title: entity.name,
     description: entity.documentation || undefined,
-    type       : 'object',
+    type: 'object',
     properties,
   };
 
@@ -127,28 +125,28 @@ function _entityDef(entity, ir) {
   return def;
 }
 
-function _columnToProp(col, ir) {
+function _columnToProp(col, _ir) {
   if (col.isEnum && col.enumRef) {
     return {
       description: col.documentation || undefined,
-      $ref       : `#/$defs/${col.enumRef}`,
+      $ref: `#/$defs/${col.enumRef}`,
     };
   }
 
   const prop = {
     description: col.documentation || undefined,
-    type       : col.nullable ? [col.jsonType, 'null'] : col.jsonType,
+    type: col.nullable ? [col.jsonType, 'null'] : col.jsonType,
   };
 
   // Constraints
   const c = col.constraints || {};
-  if (c.format)      prop.format      = c.format;
-  if (c.minimum   != null) prop.minimum   = Number(c.minimum);
-  if (c.maximum   != null) prop.maximum   = Number(c.maximum);
+  if (c.format) prop.format = c.format;
+  if (c.minimum != null) prop.minimum = Number(c.minimum);
+  if (c.maximum != null) prop.maximum = Number(c.maximum);
   if (c.minLength != null) prop.minLength = Number(c.minLength);
   if (c.maxLength != null) prop.maxLength = Number(c.maxLength);
-  if (c.pattern)     prop.pattern     = c.pattern;
-  if (c.enum)        prop.enum        = c.enum;
+  if (c.pattern) prop.pattern = c.pattern;
+  if (c.enum) prop.enum = c.enum;
   if (c.contentEncoding) prop.contentEncoding = c.contentEncoding;
 
   return _clean(prop);
@@ -161,10 +159,10 @@ function _relationToProp(rel, ir) {
 
   if (rel.kind === 'one-to-many') {
     const prop = {
-      type    : 'array',
-      items   : refSchema,
+      type: 'array',
+      items: refSchema,
     };
-    if (rel.minOccurs > 0)            prop.minItems = rel.minOccurs;
+    if (rel.minOccurs > 0) prop.minItems = rel.minOccurs;
     if (rel.maxOccurs !== 'unbounded') prop.maxItems = rel.maxOccurs;
     return prop;
   }
@@ -175,11 +173,11 @@ function _relationToProp(rel, ir) {
 
 function _applyConstraints(def, constraints = {}) {
   if (!constraints) return;
-  if (constraints.minLength  != null) def.minLength  = Number(constraints.minLength);
-  if (constraints.maxLength  != null) def.maxLength  = Number(constraints.maxLength);
-  if (constraints.pattern)   def.pattern   = constraints.pattern;
-  if (constraints.minInclusive != null) def.minimum  = Number(constraints.minInclusive);
-  if (constraints.maxInclusive != null) def.maximum  = Number(constraints.maxInclusive);
+  if (constraints.minLength != null) def.minLength = Number(constraints.minLength);
+  if (constraints.maxLength != null) def.maxLength = Number(constraints.maxLength);
+  if (constraints.pattern) def.pattern = constraints.pattern;
+  if (constraints.minInclusive != null) def.minimum = Number(constraints.minInclusive);
+  if (constraints.maxInclusive != null) def.maximum = Number(constraints.maxInclusive);
   if (constraints.minExclusive != null) def.exclusiveMinimum = Number(constraints.minExclusive);
   if (constraints.maxExclusive != null) def.exclusiveMaximum = Number(constraints.maxExclusive);
 }
