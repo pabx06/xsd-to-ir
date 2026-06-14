@@ -76,6 +76,18 @@ const {
   extractAssertionPaths,
   extractAssertionSets,
 } = require('./xsd-assertion-metadata');
+const {
+  detectS3000LEntities,
+  extractS3000LCollections,
+} = require('./s3000l-ir-metadata');
+const {
+  addChoiceDiscriminator,
+  addRelationToEntity,
+  choiceBranchNames,
+  ensureSyntheticGroupEntity,
+  flattenedGroupRelation,
+  isRepeating,
+} = require('./ir-relation-helpers');
 
 // ─── naming helpers ───────────────────────────────────────────────────────────
 
@@ -129,11 +141,15 @@ class IRBuilder {
     //    uid AND crud attributes.  When such a set exists we restrict
     //    entity generation to that list so envelope/wrapper types are
     //    never turned into DB tables.
-    const s3000lRealTypes = this._detectS3000LEntities();
+    const s3000lRealTypes = detectS3000LEntities(this.schema);
     this._s3000lMode = s3000lRealTypes !== null;
     this._s3000lSet = s3000lRealTypes ?? new Set();
     this._s3000lCollections = this._s3000lMode
-      ? this._extractS3000LCollections()
+      ? extractS3000LCollections({
+        schema: this.schema,
+        resolver: this.resolver,
+        entityTypes: this._s3000lSet,
+      })
       : new Map();
 
     // 3. Collect all named complexTypes → entities
@@ -211,125 +227,6 @@ class IRBuilder {
 
     walk(node);
     return out.filter((child) => child.name && child.type);
-  }
-
-  /**
-   * Detect whether this schema uses the S3000L uid+crud pattern.
-   * Returns a Set of type names that have both attributes, or null if
-   * the pattern is absent (non-S3000L schema).
-   */
-  _detectS3000LEntities() {
-    const candidates = [];
-    for (const ct of (this.schema.complexType || [])) {
-      const name = ct['@_name'];
-      if (!name) continue;
-      const attrs = this._flatAttributes(ct);
-      const hasUid = attrs.some((a) => a['@_name'] === 'uid');
-      const hasCrud = attrs.some((a) => a['@_name'] === 'crud');
-      if (hasUid && hasCrud) candidates.push(name);
-    }
-    return candidates.length > 0 ? new Set(candidates) : null;
-  }
-
-  /**
-   * Extract the S3000L envelope map:
-   *   lsaPrimaryData.products.prod -> product
-   *   lsaPrimaryData.taskRequirements.taskReq -> taskRequirement
-   *
-   * The serializer needs the collection and record element names; they are
-   * not reliably derivable from the entity type name.
-   */
-  _extractS3000LCollections() {
-    const map = new Map();
-    const msgContent = (this.schema.complexType || [])
-      .find((ct) => ct['@_name'] === 'logisticsSupportAnalysisMessageContent');
-
-    if (!msgContent) return map;
-
-    for (const section of this._childElements(msgContent)) {
-      const sectionName = section['@_name'];
-      if (sectionName !== 'lsaPrimaryData' && sectionName !== 'lsaSupportingData') {
-        continue;
-      }
-
-      for (const collection of this._childElements(section)) {
-        const collectionName = collection['@_name'];
-        if (!collectionName) continue;
-
-        for (const record of this._recordElements(collection)) {
-          if (!record.type || !this._s3000lSet.has(record.type)) continue;
-          map.set(record.type, {
-            entityName: record.type,
-            section: sectionName,
-            collectionName,
-            recordName: record.name || record.type,
-          });
-        }
-      }
-    }
-
-    return map;
-  }
-
-  _childElements(node) {
-    const out = [];
-    const walk = (cur) => {
-      if (!cur || typeof cur !== 'object') return;
-      for (const el of (cur.element || [])) out.push(el);
-      for (const ct of (cur.complexType || [])) walk(ct);
-      for (const seq of (cur.sequence || [])) walk(seq);
-      for (const all of (cur.all || [])) walk(all);
-    };
-    walk(node);
-    return out;
-  }
-
-  _recordElements(collectionNode) {
-    const records = [];
-    const walk = (cur, seenGroups = new Set()) => {
-      if (!cur || typeof cur !== 'object') return;
-
-      for (const el of (cur.element || [])) {
-        if (el['@_type']) {
-          records.push({ name: el['@_name'] || el['@_ref'], type: el['@_type'] });
-        } else {
-          walk(el, seenGroups);
-        }
-      }
-
-      for (const groupRef of (cur.group || [])) {
-        const ref = groupRef['@_ref'];
-        if (!ref || seenGroups.has(ref)) continue;
-        const group = this.resolver.getGroup(ref);
-        if (!group) continue;
-        const nextSeen = new Set(seenGroups);
-        nextSeen.add(ref);
-        walk(group, nextSeen);
-      }
-
-      for (const ct of (cur.complexType || [])) walk(ct, seenGroups);
-      for (const seq of (cur.sequence || [])) walk(seq, seenGroups);
-      for (const choice of (cur.choice || [])) walk(choice, seenGroups);
-      for (const all of (cur.all || [])) walk(all, seenGroups);
-    };
-
-    walk(collectionNode);
-    return records;
-  }
-
-  /** Collect all attribute nodes shallowly in a complexType (not nested). */
-  _flatAttributes(ct) {
-    const attrs = [];
-    const walk = (node) => {
-      if (!node || typeof node !== 'object') return;
-      for (const a of (node.attribute || [])) attrs.push(a);
-      for (const cc of (node.complexContent || [])) walk(cc);
-      for (const sc of (node.simpleContent || [])) walk(sc);
-      for (const ext of (node.extension || [])) walk(ext);
-      for (const res of (node.restriction || [])) walk(res);
-    };
-    walk(ct);
-    return attrs;
   }
 
   // ── simpleType processing ──────────────────────────────────────────────────
@@ -499,7 +396,7 @@ class IRBuilder {
       const refMin = _parseOccurs(g['@_minOccurs'], 1);
       const refMax = _parseOccurs(g['@_maxOccurs'], 1);
 
-      if (refMax === 'unbounded' || refMax > 1) {
+      if (isRepeating(refMax)) {
         // The whole group is repeating → treat it as a virtual child entity
         // so the one-to-many relationship is preserved.
         this._walkGroupAsRelation(entity, ref, gDef, refMin, refMax);
@@ -541,52 +438,23 @@ class IRBuilder {
    * the parent via a one-to-many.
    */
   _walkGroupAsRelation(entity, groupName, gDef, minOccurs, maxOccurs) {
-    const childName = toPascal(`${entity.name}_${toPascal(groupName)}`);
-    if (!this.entities.has(childName)) {
-      // Build the synthetic entity
-      const child = {
-        name: childName,
-        tableName: toDbName(childName),
-        columns: [
-          _surrogateKey(),
-          {
-            name: `${toCamel(entity.name)}Id`,
-            columnName: _shortenIdentifier(`${toSnake(entity.name)}_id`),
-            ..._internalColumnMeta(),
-            sqlType: 'BIGINT',
-            jsonType: 'integer',
-            nullable: false,
-            defaultValue: null,
-            isPrimaryKey: false,
-            isForeignKey: true,
-            referencesEntity: entity.name,
-            isEnum: false,
-            enumRef: null,
-            constraints: {},
-            documentation: `FK back to ${entity.name} (from group ${groupName})`,
-            xsdType: entity.name,
-          },
-        ],
-        relations: [],
-        abstract: false,
-        parentType: null,
-        documentation: `Synthetic entity for repeated xs:group "${groupName}" in ${entity.name}`,
-      };
-      this.entities.set(childName, child);
-      // Now populate the child with the group's inner content
-      this._walkGroupInline(child, gDef);
+    const { childName, createdEntity } = ensureSyntheticGroupEntity({
+      entities: this.entities,
+      parentEntity: entity,
+      groupName,
+      helpers: _relationHelperOptions(),
+    });
+    if (createdEntity) {
+      this._walkGroupInline(createdEntity, gDef);
     }
-    entity.relations.push({
-      kind: 'one-to-many',
-      fieldName: groupName,
-      targetEntity: childName,
-      joinTable: null,
-      parentColumn: _shortenIdentifier(`${toSnake(entity.name)}_id`),
-      flattened: true,
-      nullable: minOccurs === 0,
+    entity.relations.push(flattenedGroupRelation({
+      parentEntity: entity,
+      groupName,
+      childName,
       minOccurs,
       maxOccurs,
-    });
+      helpers: _relationHelperOptions(),
+    }));
   }
 
   _walkSequence(entity, seq, insideChoice) {
@@ -612,7 +480,7 @@ class IRBuilder {
       if (!gDef) continue;
       const refMin = _parseOccurs(g['@_minOccurs'], 1);
       const refMax = _parseOccurs(g['@_maxOccurs'], 1);
-      if (refMax === 'unbounded' || refMax > 1) {
+      if (isRepeating(refMax)) {
         this._walkGroupAsRelation(entity, ref, gDef, refMin, refMax);
       } else {
         this._walkGroupInline(entity, gDef);
@@ -630,33 +498,7 @@ class IRBuilder {
     const elementBranches = (choice.element || []);
     const groupBranches = (choice.group || []);
 
-    // Build discriminator values from both element names and group refs
-    const allBranchNames = [
-      ...elementBranches.map((b) => b['@_name']).filter(Boolean),
-      ...groupBranches.map((b) => b['@_ref']).filter(Boolean),
-    ];
-
-    // Add choice_type discriminator only once per entity (avoid duplicates
-    // when there are multiple xs:choice blocks in the same complexType)
-    const alreadyHasDiscriminator = entity.columns.some((c) => c.columnName === 'choice_type');
-    if (allBranchNames.length > 1 && !alreadyHasDiscriminator) {
-      entity.columns.push({
-        name: 'choiceType',
-        columnName: 'choice_type',
-        ..._internalColumnMeta(),
-        sqlType: 'VARCHAR(64)',
-        jsonType: 'string',
-        nullable: true,
-        defaultValue: null,
-        isPrimaryKey: false,
-        isForeignKey: false,
-        referencesEntity: null,
-        isEnum: false,
-        enumRef: null,
-        constraints: { enum: allBranchNames },
-        documentation: 'Discriminator for xs:choice',
-      });
-    }
+    addChoiceDiscriminator(entity, choiceBranchNames(choice), _relationHelperOptions());
 
     // Element branches are all nullable (only one fires at runtime)
     for (const el of elementBranches) {
@@ -669,7 +511,7 @@ class IRBuilder {
       const gDef = ref ? this.resolver.getGroup(ref) : null;
       if (!gDef) continue;
       const refMax = _parseOccurs(g['@_maxOccurs'], 1);
-      if (refMax === 'unbounded' || refMax > 1) {
+      if (isRepeating(refMax)) {
         this._walkGroupAsRelation(entity, ref, gDef, 0, refMax);
       } else {
         this._walkGroupInline(entity, gDef);
@@ -699,7 +541,7 @@ class IRBuilder {
     if (!effectiveName) return;
 
     const isOptional = nullable || minOccurs === 0;
-    const isRepeating = maxOccurs === 'unbounded' || maxOccurs > 1;
+    const repeating = isRepeating(maxOccurs);
 
     // ── inline anonymous complexType ─────────────────────────────────────────
     const anonCTs = el.complexType || [];
@@ -725,7 +567,7 @@ class IRBuilder {
       const resolved = this.resolver.resolve(typeName);
 
       if (resolved.kind === 'primitive') {
-        if (isRepeating) {
+        if (repeating) {
           // Repeated primitive → child table (e.g. a list of codes)
           const childName = toPascal(`${entity.name}_${toPascal(effectiveName)}`);
           if (!this.entities.has(childName)) {
@@ -988,73 +830,16 @@ class IRBuilder {
   // ── relation helper ────────────────────────────────────────────────────────
 
   _addRelation(entity, fieldName, targetEntity, nullable, minOccurs, maxOccurs) {
-    const isRepeating = maxOccurs === 'unbounded' || maxOccurs > 1;
-    const kind = isRepeating ? 'one-to-many' : 'one-to-one';
-    const parentColumn = isRepeating
-      ? this._ensureRelationParentColumn(entity.name, fieldName, targetEntity)
-      : null;
-
-    entity.relations.push({
-      kind,
+    addRelationToEntity({
+      entity,
+      entities: this.entities,
       fieldName,
       targetEntity,
-      joinTable: null,
-      parentColumn,
       nullable,
       minOccurs,
       maxOccurs,
+      helpers: _relationHelperOptions(),
     });
-
-    // For one-to-one, add the FK column on this side
-    if (!isRepeating) {
-      entity.columns.push({
-        name: `${toCamel(fieldName)}Id`,
-        columnName: _shortenIdentifier(`${toSnake(fieldName)}_id`),
-        ..._relationColumnMeta(fieldName, minOccurs, maxOccurs),
-        sqlType: 'BIGINT',
-        jsonType: 'integer',
-        nullable,
-        defaultValue: null,
-        isPrimaryKey: false,
-        isForeignKey: true,
-        referencesEntity: targetEntity,
-        isEnum: false,
-        enumRef: null,
-        constraints: {},
-        documentation: `FK → ${targetEntity}`,
-        xsdType: targetEntity,
-      });
-    }
-  }
-
-  _ensureRelationParentColumn(parentEntity, fieldName, targetEntity) {
-    const child = this.entities.get(targetEntity);
-    if (!child) return null;
-
-    const columnName = _shortenIdentifier(
-      `${toSnake(parentEntity)}_${toSnake(fieldName)}_parent_id`,
-    );
-    if (child.columns.some((c) => c.columnName === columnName)) return columnName;
-
-    child.columns.push({
-      name: `${toCamel(parentEntity)}${toPascal(fieldName)}ParentId`,
-      columnName,
-      ..._internalColumnMeta(),
-      sqlType: 'BIGINT',
-      jsonType: 'integer',
-      nullable: true,
-      defaultValue: null,
-      isPrimaryKey: false,
-      isForeignKey: true,
-      referencesEntity: parentEntity,
-      isEnum: false,
-      enumRef: null,
-      constraints: {},
-      documentation: `FK back to parent ${parentEntity}.${fieldName}`,
-      xsdType: parentEntity,
-    });
-
-    return columnName;
   }
 }
 
@@ -1067,6 +852,19 @@ function _shortenIdentifier(name, maxLength = 64) {
   const prefixLength = maxLength - hash.length - 1;
   const prefix = name.slice(0, prefixLength).replace(/_+$/g, '');
   return `${prefix}_${hash}`;
+}
+
+function _relationHelperOptions() {
+  return {
+    internalColumnMeta: _internalColumnMeta,
+    relationColumnMeta: _relationColumnMeta,
+    shortenIdentifier: _shortenIdentifier,
+    surrogateKey: _surrogateKey,
+    toCamel,
+    toDbName,
+    toPascal,
+    toSnake,
+  };
 }
 
 function _elementColumnMeta(xmlName, minOccurs = 1, maxOccurs = 1) {

@@ -7,6 +7,7 @@ const { IRBuilder } = require('../src/ir-builder');
 const { generateSQL } = require('../src/sql-generator');
 const { deserializeXML } = require('../src/xml-deserializer');
 const { XMLSerializer } = require('../src/xml-serializer');
+const { detectS3000LEntities } = require('../src/s3000l-ir-metadata');
 const {
   relationshipHeavyPrimaryXml,
   s3000lEnvelope,
@@ -77,9 +78,8 @@ test('IR contains S3000L collection metadata from the real Issue 2.0 XSD', () =>
 });
 
 test('S3000L entity totals distinguish direct uid+crud types from synthetic helpers', () => {
-  const builder = new IRBuilder(loadSchema());
-  const directEntities = builder._detectS3000LEntities();
-  const ir = builder.build();
+  const directEntities = detectS3000LEntities(loadSchema());
+  const ir = buildIr();
 
   const synthetic = [...ir.entities.keys()]
     .filter((entityName) => !directEntities.has(entityName))

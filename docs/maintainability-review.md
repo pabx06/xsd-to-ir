@@ -1,46 +1,45 @@
-# Maintainability Review: Post-Refactor Snapshot
+# Maintainability Review: Post-P1 Refactor Snapshot
 
 Date: 2026-06-14
 
-Scope: quick-win maintainability and simplification review after the safe
-refactor pass. Public behavior remains unchanged: CLI commands, IR shape,
-serializer/deserializer APIs, DB adapter API, and validation policy are still
-the same.
+Scope: maintainability state after the P1 `ir-builder.js` refactor. Public
+behavior remains unchanged: CLI commands, IR shape, serializer/deserializer
+APIs, DB adapter API, and validation policy are still the same.
 
 ## Resolved In This Pass
 
 | Area | Result |
 |---|---|
-| Shared XML metadata | Added `src/s3000l-xml-metadata.js` for S3000L collection names, fallback collection naming, XML field kind/name lookup, XML field reads, and relation-column lookup. Serializer and deserializer now share the same metadata source while preserving their intentional import/export differences. |
-| Assertion metadata | Added `src/xsd-assertion-metadata.js` for XSD assertion-set extraction, exactly-one classification, and persisted `LONGTEXT` assertion-path discovery. `IRBuilder` still returns the same `assertions` and `assertionPaths` `Map` shapes. |
-| DB deferred relation resolution | Added `src/db-relation-resolver.js` and moved nested parent FK and one-to-one relation FK resolution out of `DBAdapter.persistMessage()`. Error messages still include entity/FK/UID context. |
-| Test fixtures | Added `test/helpers/s3000l-fixtures.js` for repeated S3000L envelope and relationship-heavy XML fixtures. The tests still keep their assertions local. |
-| Test coverage | Added metadata helper tests, assertion-path count regression checks, and DB negative tests for missing/unresolved parent and relation UIDs. |
-| Tooling | Updated `npm run check` to syntax-check nested JS/CJS files under `src`, `test`, and `scripts`. |
-| Archived snapshot | `xsd-to-ir-complete.md` remains explicitly stale and now points to `docs/developer-guide.md` plus live source files instead of acting as a source of truth. |
+| Baseline safety | Committed the verified production baseline before this refactor as `chore: harden s3000l production baseline`. |
+| S3000L IR metadata | Added `src/s3000l-ir-metadata.js` for uid+crud entity detection and S3000L collection/record-name extraction. `IRBuilder` no longer owns the S3000L envelope discovery logic. |
+| Relation/group metadata | Added `src/ir-relation-helpers.js` for choice discriminator columns, one-to-one FK columns, repeating parent FK columns, synthetic group entities, and flattened group relation metadata. Traversal remains in `IRBuilder`. |
+| Regression tests | Added focused tests for S3000L metadata detection/extraction and relation helper output, including exact FK names, `choice_type`, and synthetic group entity metadata. |
+| Comment policy | New code avoids textbook mechanics comments; existing comments are kept where they explain S3000L compatibility or XSD modelling decisions. |
 
 ## Current Hotspots
 
-Measured with `wc -l` on 2026-06-14. Line count is only a size signal, not a
+Measured with `wc -l` on 2026-06-14. Line count is a size signal, not a
 quality score.
 
 | File | Lines | Current responsibility |
 |---|---:|---|
-| `src/ir-builder.js` | 1198 | Still the largest hotspot: S3000L entity detection, collection extraction, particle/group traversal, relation construction, naming, and column synthesis. Assertion logic has been removed. |
-| `src/xml-deserializer.js` | 453 | XML envelope traversal, record extraction, nested relation discovery, coercion, and assertion calls. Shared metadata has been removed from this file. |
-| `src/xml-serializer.js` | 398 | XML envelope reconstruction, row-to-node conversion, relation traversal, and assertion calls. Shared metadata has been removed from this file. |
-| `src/db-adapter.js` | 418 | Row operations, message persistence orchestration, query/export helpers, and export bookkeeping. Deferred relation resolution has been removed. |
-| `test/s3000l-roundtrip.test.js` | 446 | Broad real-S3000L IR, serializer, deserializer, and relationship behavior coverage. |
-| `test/mariadb-integration.test.js` | 369 | MariaDB DDL, lifecycle, and XML round-trip integration coverage. |
+| `src/ir-builder.js` | 996 | Still the largest module: generic type/entity traversal, scalar column synthesis, primitive repeated child entities, inheritance, and final IR assembly. |
+| `src/xml-deserializer.js` | 453 | XML envelope traversal, record extraction, nested relation discovery, coercion, and assertion calls. |
+| `src/db-adapter.js` | 418 | Row operations, message persistence orchestration, query/export helpers, and export bookkeeping. |
+| `src/xml-serializer.js` | 398 | XML envelope reconstruction, row-to-node conversion, relation traversal, and assertion calls. |
+| `src/ir-relation-helpers.js` | 215 | Pure relation metadata builders extracted from `IRBuilder`. |
+| `src/xsd-assertion-metadata.js` | 193 | XSD assertion extraction and direct persisted assertion-path discovery. |
+| `src/s3000l-xml-metadata.js` | 168 | Shared serializer/deserializer XML naming and field metadata. |
+| `src/s3000l-ir-metadata.js` | 109 | S3000L uid+crud detection and collection metadata extraction. |
 
 ## Remaining Quick Wins
 
 | Priority | Area | Change | Why |
 |---|---|---|---|
-| P1 | IR builder | Split S3000L collection extraction and uid+crud entity detection into a focused `s3000l-ir-metadata` helper. | This is now the cleanest next reduction in `ir-builder.js` without changing IR output. |
-| P1 | IR builder | Extract group/choice/relation construction helpers from particle traversal. | Group handling and relation synthesis are intertwined; isolating them would make future relationship fixes less risky. |
-| P2 | XML import/export | Consider small `xml-record-reader` and `xml-record-writer` helpers if serializer/deserializer grow again. | Metadata duplication is gone; the next complexity is traversal, not naming. |
-| P2 | DB adapter | Split query/export read helpers from mutation/persistence helpers if DB behavior expands. | `DBAdapter` is smaller now, but it still owns both write orchestration and export queries. |
+| P2 | IR builder | Extract primitive/simple/complex element column construction from `_processElement()`. | `_processElement()` is now the densest remaining method and mixes type resolution with column construction. |
+| P2 | IR builder | Move naming and column factory helpers into a shared IR metadata helper if another IR refactor needs them. | Avoid doing this only for tidiness; it is useful once more builders need the same functions. |
+| P2 | XML import/export | Consider small `xml-record-reader` and `xml-record-writer` helpers if serializer/deserializer grow again. | Shared metadata is already extracted; traversal complexity is the next likely duplication point. |
+| P2 | DB adapter | Split query/export read helpers from mutation/persistence helpers if DB behavior expands. | The adapter still owns both write orchestration and export queries. |
 | P2 | Validator docs/comments | Continue using precise wording: runtime lightweight validation is not full XSD 1.1 validation. | Prevents future developers from treating `xml-validator.js` fallback mode as schema acceptance. |
 
 ## Next Test Gaps
