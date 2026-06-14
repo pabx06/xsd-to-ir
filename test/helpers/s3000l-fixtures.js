@@ -88,8 +88,53 @@ function relationshipHeavyRoundTripXml(msgId = 'MSG-ROUNDTRIP-IN') {
   });
 }
 
+function relationshipMissingParentUidXml(msgId = 'MSG-REL-MISSING-PARENT-UID') {
+  return s3000lEnvelope({
+    msgId,
+    primary: [
+      '<products><prod crud="I">',
+      '<prodId><id>PROD-1</id></prodId>',
+      '<prodVar uid="prodv1" crud="I"><prodVarId><id>PV-1</id></prodVarId></prodVar>',
+      '</prod></products>',
+    ].join(''),
+  });
+}
+
+function relationshipMissingChoiceBranchUidXml(msgId = 'MSG-REL-MISSING-BRANCH-UID') {
+  return s3000lEnvelope({
+    msgId,
+    primary: [
+      '<tasks><opTask uid="task1" crud="I">',
+      '<taskId><id>TASK-1</id></taskId>',
+      '<taskRev uid="taskrev1" crud="I">',
+      '<revId><id>REV-1</id></revId>',
+      '<subtByDef crud="I"><subtId><id>SUBT-1</id></subtId></subtByDef>',
+      '</taskRev>',
+      '</opTask></tasks>',
+    ].join(''),
+  });
+}
+
+function relationshipUnsupportedChoiceBranchXml(msgId = 'MSG-REL-UNSUPPORTED-BRANCH') {
+  return s3000lEnvelope({
+    msgId,
+    primary: [
+      '<tasks><opTask uid="task1" crud="I">',
+      '<taskId><id>TASK-1</id></taskId>',
+      '<taskRev uid="taskrev1" crud="I">',
+      '<revId><id>REV-1</id></revId>',
+      '<subtByDef>not-a-record</subtByDef>',
+      '</taskRev>',
+      '</opTask></tasks>',
+    ].join(''),
+  });
+}
+
 module.exports = {
   relationshipHeavyPrimaryXml,
   relationshipHeavyRoundTripXml,
+  relationshipMissingChoiceBranchUidXml,
+  relationshipMissingParentUidXml,
+  relationshipUnsupportedChoiceBranchXml,
   s3000lEnvelope,
 };

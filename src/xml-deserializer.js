@@ -61,6 +61,12 @@ function _tryParseJson(str) {
   try { return JSON.parse(str); } catch { return str; }
 }
 
+function _valueType(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
 // ─── Deserializer ─────────────────────────────────────────────────────────────
 
 class XMLDeserializer {
@@ -258,7 +264,7 @@ class XMLDeserializer {
     for (const relation of (entity.relations || [])) {
       if (!relation.parentColumn) continue;
 
-      const childRecords = this._extractRelationRecords(xmlRecord, relation);
+      const childRecords = this._extractRelationRecords(entity, xmlRecord, relation);
       if (childRecords.length === 0) continue;
       if (!parentUid) {
         throw new Error(
@@ -279,7 +285,7 @@ class XMLDeserializer {
     for (const relation of (entity.relations || [])) {
       if (relation.parentColumn || relation.kind !== 'one-to-one') continue;
 
-      const childRecords = this._extractRelationRecords(xmlRecord, relation);
+      const childRecords = this._extractRelationRecords(entity, xmlRecord, relation);
       if (childRecords.length === 0) continue;
 
       const relationCol = relationColumn(entity, relation);
@@ -309,19 +315,18 @@ class XMLDeserializer {
     }
   }
 
-  _extractRelationRecords(xmlRecord, relation) {
+  _extractRelationRecords(entity, xmlRecord, relation) {
     if (relation.flattened) {
-      return this._extractFlattenedGroupRecords(xmlRecord, relation);
+      return this._extractFlattenedGroupRecords(entity, xmlRecord, relation);
     }
 
     const raw = readField(xmlRecord, relation.fieldName, 'element')
              ?? readField(xmlRecord, relation.fieldName);
     if (raw === undefined || raw === null) return [];
-    if (Array.isArray(raw)) return raw.filter((v) => v && typeof v === 'object');
-    return typeof raw === 'object' ? [raw] : [];
+    return this._objectRelationRecords(raw, `${entity.name}.${relation.fieldName}`);
   }
 
-  _extractFlattenedGroupRecords(xmlRecord, relation) {
+  _extractFlattenedGroupRecords(entity, xmlRecord, relation) {
     const helperEntity = this.ir.entities.get(relation.targetEntity);
     if (!helperEntity) return [];
 
@@ -335,10 +340,31 @@ class XMLDeserializer {
       for (const value of values) {
         if (value && typeof value === 'object') {
           records.push({ [branch.fieldName]: value });
+        } else {
+          throw new Error(
+            `Unsupported XML relation shape for ${entity.name}.${branch.fieldName}: `
+            + `expected object record, got ${_valueType(value)}`,
+          );
         }
       }
     }
 
+    return records;
+  }
+
+  _objectRelationRecords(raw, relationPath) {
+    const values = Array.isArray(raw) ? raw : [raw];
+    const records = [];
+    for (const value of values) {
+      if (value && typeof value === 'object') {
+        records.push(value);
+      } else {
+        throw new Error(
+          `Unsupported XML relation shape for ${relationPath}: `
+          + `expected object record, got ${_valueType(value)}`,
+        );
+      }
+    }
     return records;
   }
 

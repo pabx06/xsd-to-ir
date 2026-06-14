@@ -10,6 +10,9 @@ const { XMLSerializer } = require('../src/xml-serializer');
 const { detectS3000LEntities } = require('../src/s3000l-ir-metadata');
 const {
   relationshipHeavyPrimaryXml,
+  relationshipMissingChoiceBranchUidXml,
+  relationshipMissingParentUidXml,
+  relationshipUnsupportedChoiceBranchXml,
   s3000lEnvelope,
 } = require('./helpers/s3000l-fixtures');
 
@@ -334,6 +337,33 @@ test('deserializer flattens nested relationship records with parent markers', ()
   assert.deepEqual(JSON.parse(batches.get('subtaskByDefinition').insert[0].subt_id), {
     id: 'SUBT-1',
   });
+});
+
+test('deserializer rejects nested relationship records when parent uid is missing', () => {
+  const ir = buildIr();
+
+  assert.throws(
+    () => deserializeXML(relationshipMissingParentUidXml(), ir),
+    /Cannot persist nested prodVar records for product: parent record has no uid/,
+  );
+});
+
+test('deserializer rejects flattened relationship branch records without child uid', () => {
+  const ir = buildIr();
+
+  assert.throws(
+    () => deserializeXML(relationshipMissingChoiceBranchUidXml(), ir),
+    /Cannot persist nested TaskRevisionSubtaskNonAbstractClasses\.subtByDef: child record has no uid/,
+  );
+});
+
+test('deserializer rejects unsupported flattened relationship branch shapes', () => {
+  const ir = buildIr();
+
+  assert.throws(
+    () => deserializeXML(relationshipUnsupportedChoiceBranchXml(), ir),
+    /Unsupported XML relation shape for taskRevision\.subtByDef: expected object record, got string/,
+  );
 });
 
 test('serializer reconstructs nested relationship records from parent FK columns', async () => {

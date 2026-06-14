@@ -4,9 +4,10 @@ Date: 2026-06-14
 
 Scope: maintainability state after the P1 `ir-builder.js` refactor, two P2 IR
 construction cleanups, the real-schema negative XSD 1.1 acceptance fixture, and
-the real S3000L `xs:assert` negative fixture. Public behavior remains
-unchanged: CLI commands, IR shape, serializer/deserializer APIs, DB adapter API,
-and validation policy are still the same.
+the real S3000L `xs:assert` negative fixture, plus relationship-heavy import
+negative coverage. Public behavior remains unchanged: CLI commands, IR shape,
+serializer/deserializer APIs, DB adapter API, and validation policy are still
+the same.
 
 ## Resolved In This Pass
 
@@ -19,6 +20,7 @@ and validation policy are still the same.
 | Attribute construction metadata | Added `src/ir-attribute-builders.js` for primitive, enum, and fallback attribute column metadata. `_processAttribute()` now owns S3000L/default/type dispatch, while the helper owns output shape. |
 | XSD 1.1 negative acceptance | Added a deliberately invalid S3000L fixture and `npm run test:xsd11:invalid`, proving Java Xerces rejects real-schema occurrence/content violations. The validator self-test remains the explicit `xs:assert` engine check. |
 | Real S3000L assertion acceptance | Added `test/fixtures/s3000l-assert-invalid-organization-ref.xml` and `npm run test:xsd11:assert-invalid`, proving Java Xerces rejects an actual S3000L `organizationRef` exactly-one `xs:assert` violation. |
+| Relationship-heavy import negatives | Added reusable XML fixtures and tests for missing nested parent UID, missing flattened branch child UID, and unsupported scalar relation branch content. Present relation branches now fail before persistence when they are not object records. |
 | Regression tests | Added focused tests for S3000L metadata detection/extraction, relation helper output, element builder output, and attribute builder output, including exact FK names, `choice_type`, synthetic group entity metadata, IDREFS join table names, inline `LONGTEXT` contracts, S3000L `uid`, `crud`, and enum attributes. |
 | Comment policy | New code avoids textbook mechanics comments; existing comments are kept where they explain S3000L compatibility or XSD modelling decisions. |
 
@@ -30,7 +32,7 @@ quality score.
 | File | Lines | Current responsibility |
 |---|---:|---|
 | `src/ir-builder.js` | 873 | Still the largest module: generic type/entity traversal, type-resolution dispatch, inheritance, and final IR assembly. |
-| `src/xml-deserializer.js` | 453 | XML envelope traversal, record extraction, nested relation discovery, coercion, and assertion calls. |
+| `src/xml-deserializer.js` | 479 | XML envelope traversal, record extraction, nested relation discovery, unsupported relation-shape rejection, coercion, and assertion calls. |
 | `src/db-adapter.js` | 418 | Row operations, message persistence orchestration, query/export helpers, and export bookkeeping. |
 | `src/xml-serializer.js` | 398 | XML envelope reconstruction, row-to-node conversion, relation traversal, and assertion calls. |
 | `src/ir-element-builders.js` | 229 | Pure element column/entity metadata builders extracted from `IRBuilder`. |
@@ -54,7 +56,6 @@ quality score.
 
 | Gap | Suggested test |
 |---|---|
-| More relationship-heavy import negatives | Add XML fixtures for missing nested child UID during deserialization and unsupported branch shapes before persistence. |
 | Net-change XML acceptance | Validate a generated net-change XML fixture with `npm run test:xsd11` or `scripts/validate-xsd11.js` once a representative delta fixture is stable. |
 | Recursive assertion paths | Current app-level assertion enforcement covers direct asserted paths under persisted inline value types. Add tests before expanding to deeper recursive paths. |
 
