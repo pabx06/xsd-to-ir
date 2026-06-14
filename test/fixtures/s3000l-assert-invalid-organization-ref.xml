@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s3000l:lsaDataset xmlns:s3000l="http://www.asd-europe.org/s-series/s3000l">
+  <msgId>
+    <id>XSD11-ASSERT-INVALID</id>
+  </msgId>
+  <logisticsSupportAnalysisData>
+    <lsaPrimaryData>
+      <products>
+        <prod uid="prod1" crud="I">
+          <prodId>
+            <id>PROD-1</id>
+            <setBy uriRef="https://example.test/org1">
+              <orgId>
+                <id>ORG-1</id>
+              </orgId>
+            </setBy>
+          </prodId>
+        </prod>
+      </products>
+    </lsaPrimaryData>
+  </logisticsSupportAnalysisData>
+</s3000l:lsaDataset>
