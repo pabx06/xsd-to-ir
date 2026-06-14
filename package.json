@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node index.js",
-    "ci": "npm run lint && npm run check && npm test && npm run test:generate && npm run test:xsd11 && npm audit --omit=optional && npm audit",
+    "ci": "npm run lint && npm run check && npm test && npm run test:generate && npm run test:xsd11 && npm run test:xsd11:invalid && npm audit --omit=optional && npm audit",
     "lint": "eslint . --ext .js,.cjs",
     "lint:fix": "npm run lint -- --fix",
     "test": "node --test",
@@ -16,6 +16,7 @@
     "test:mariadb": "MARIADB_TEST_URL=${MARIADB_TEST_URL:-mysql://xsd:xsdpass@127.0.0.1:3307/xsd_to_ir_test} node --test test/mariadb-integration.test.js",
     "test:mariadb:docker": "npm run mariadb:start && npm run test:mariadb",
     "test:xsd11": "node scripts/validate-xsd11.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-valid.xml",
+    "test:xsd11:invalid": "node scripts/expect-xsd11-failure.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-invalid-missing-msg-id.xml",
     "mariadb:start": "bash scripts/start-mariadb-test.sh",
     "mariadb:stop": "docker rm -f ${MARIADB_TEST_CONTAINER:-xsd-to-ir-mariadb-test}",
     "check": "node --check index.js && find src test scripts -type f \\( -name '*.js' -o -name '*.cjs' \\) -print0 | xargs -0 -n1 node --check",

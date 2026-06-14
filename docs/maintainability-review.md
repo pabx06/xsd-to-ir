@@ -2,10 +2,11 @@
 
 Date: 2026-06-14
 
-Scope: maintainability state after the P1 `ir-builder.js` refactor and two P2
-IR construction cleanups: element metadata and attribute metadata. Public
-behavior remains unchanged: CLI commands, IR shape, serializer/deserializer
-APIs, DB adapter API, and validation policy are still the same.
+Scope: maintainability state after the P1 `ir-builder.js` refactor, two P2 IR
+construction cleanups, and the real-schema negative XSD 1.1 acceptance fixture.
+Public behavior remains unchanged: CLI commands, IR shape,
+serializer/deserializer APIs, DB adapter API, and validation policy are still
+the same.
 
 ## Resolved In This Pass
 
@@ -16,6 +17,7 @@ APIs, DB adapter API, and validation policy are still the same.
 | Relation/group metadata | Added `src/ir-relation-helpers.js` for choice discriminator columns, one-to-one FK columns, repeating parent FK columns, synthetic group entities, and flattened group relation metadata. Traversal remains in `IRBuilder`. |
 | Element construction metadata | Added `src/ir-element-builders.js` for primitive, simple, inline complex, unknown, IDREFS, and repeated primitive element metadata. `_processElement()` now owns dispatch, while pure builders own output shape. |
 | Attribute construction metadata | Added `src/ir-attribute-builders.js` for primitive, enum, and fallback attribute column metadata. `_processAttribute()` now owns S3000L/default/type dispatch, while the helper owns output shape. |
+| XSD 1.1 negative acceptance | Added a deliberately invalid S3000L fixture and `npm run test:xsd11:invalid`, proving Java Xerces rejects real-schema occurrence/content violations. The validator self-test remains the explicit `xs:assert` engine check. |
 | Regression tests | Added focused tests for S3000L metadata detection/extraction, relation helper output, element builder output, and attribute builder output, including exact FK names, `choice_type`, synthetic group entity metadata, IDREFS join table names, inline `LONGTEXT` contracts, S3000L `uid`, `crud`, and enum attributes. |
 | Comment policy | New code avoids textbook mechanics comments; existing comments are kept where they explain S3000L compatibility or XSD modelling decisions. |
 
@@ -51,7 +53,7 @@ quality score.
 
 | Gap | Suggested test |
 |---|---|
-| Real invalid S3000L XSD 1.1 acceptance fixture | Add an S3000L-shaped invalid XML fixture that Java Xerces rejects against the real schema, beyond the synthetic `xs:assert` smoke fixture. |
+| Real S3000L `xs:assert` negative fixture | Add a compact real S3000L instance that violates an actual S3000L `xs:assert` once a stable assertion-bearing fixture is identified. |
 | More relationship-heavy import negatives | Add XML fixtures for missing nested child UID during deserialization and unsupported branch shapes before persistence. |
 | Net-change XML acceptance | Validate a generated net-change XML fixture with `npm run test:xsd11` or `scripts/validate-xsd11.js` once a representative delta fixture is stable. |
 | Recursive assertion paths | Current app-level assertion enforcement covers direct asserted paths under persisted inline value types. Add tests before expanding to deeper recursive paths. |

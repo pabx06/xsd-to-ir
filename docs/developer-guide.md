@@ -45,6 +45,13 @@ Run real XSD 1.1 validation against the bundled smoke XML fixture:
 npm run test:xsd11
 ```
 
+Run the negative XSD 1.1 acceptance check against a deliberately invalid
+S3000L fixture:
+
+```bash
+npm run test:xsd11:invalid
+```
+
 Validate a custom XML instance against the S3000L XSD:
 
 ```bash
@@ -74,7 +81,7 @@ well designed.
 | XML well-formedness | `fast-xml-parser` through `src/xml-validator.js` | XML syntax, one root element, closed tags | XSD types, order, occurrence rules, enums, `xs:assert` |
 | Runtime lightweight validation | `validateXML()` / `validateXMLSync()` in `src/xml-validator.js` | Well-formedness, root `<lsaDataset>`, required envelope elements, optional `libxmljs2` XSD 1.0-style validation when available | Full S3000L XSD 1.1; `xs:assert` is not guaranteed here |
 | App-level assertion subset | `src/assertion-validator.js` during import/export | Extracted S3000L exactly-one reference assertions for persisted inline values and direct nested asserted paths | Arbitrary XPath, full XSD 1.1 schema semantics |
-| Real XSD 1.1 acceptance validation | `npm run test:xsd11` or `node scripts/validate-xsd11.js --xsd ... --xml ...` | XML against the real S3000L XSD using Java Xerces XSD 1.1, including order, occurrence, datatypes, enums, and `xs:assert` | It is an acceptance/CI gate by default, not automatically called by every runtime import |
+| Real XSD 1.1 acceptance validation | `npm run test:xsd11`, `npm run test:xsd11:invalid`, or `node scripts/validate-xsd11.js --xsd ... --xml ...` | XML against the real S3000L XSD using Java Xerces XSD 1.1, including order, occurrence, datatypes, enums, and `xs:assert` | It is an acceptance/CI gate by default, not automatically called by every runtime import |
 
 Current policy: Java-backed XSD 1.1 validation is the source of truth for
 acceptance and CI. Runtime import/export code remains lightweight unless a
@@ -84,6 +91,11 @@ caller explicitly runs `scripts/validate-xsd11.js`.
 `.cache/xsd11`, verifies SHA-256 checksums, compiles
 `scripts/Xsd11Validator.java`, runs an intentional `xs:assert` self-test, and
 then validates the requested XML instance.
+
+`scripts/expect-xsd11-failure.js` is the companion negative acceptance wrapper.
+It passes only when the requested XML is rejected with a schema validation
+error, so infrastructure failures such as a missing JDK do not masquerade as a
+successful negative test.
 
 ## API Usage
 
