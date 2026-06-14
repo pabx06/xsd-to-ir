@@ -200,8 +200,9 @@ Use these files as source of truth:
 
 - live code under `src/`
 - package scripts in `package.json`
-- current state in `handover.md`
 - this developer guide
+- current refactor backlog in `docs/maintainability-review.md`
+- project state and history in `handover.md`
 
 Do not use `xsd-to-ir-complete.md` as a source of truth. It is an archived
 snapshot and may be stale.

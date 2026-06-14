@@ -88,6 +88,15 @@ const {
   flattenedGroupRelation,
   isRepeating,
 } = require('./ir-relation-helpers');
+const {
+  ensureRepeatedPrimitiveEntity,
+  idRefsJoinTable,
+  inlineComplexElementColumn,
+  primitiveElementColumn,
+  repeatedPrimitiveRelation,
+  simpleElementColumn,
+  unknownElementColumn,
+} = require('./ir-element-builders');
 
 // ─── naming helpers ───────────────────────────────────────────────────────────
 
@@ -442,7 +451,7 @@ class IRBuilder {
       entities: this.entities,
       parentEntity: entity,
       groupName,
-      helpers: _relationHelperOptions(),
+      helpers: _irBuilderHelperOptions(),
     });
     if (createdEntity) {
       this._walkGroupInline(createdEntity, gDef);
@@ -453,7 +462,7 @@ class IRBuilder {
       childName,
       minOccurs,
       maxOccurs,
-      helpers: _relationHelperOptions(),
+      helpers: _irBuilderHelperOptions(),
     }));
   }
 
@@ -498,7 +507,7 @@ class IRBuilder {
     const elementBranches = (choice.element || []);
     const groupBranches = (choice.group || []);
 
-    addChoiceDiscriminator(entity, choiceBranchNames(choice), _relationHelperOptions());
+    addChoiceDiscriminator(entity, choiceBranchNames(choice), _irBuilderHelperOptions());
 
     // Element branches are all nullable (only one fires at runtime)
     for (const el of elementBranches) {
@@ -568,150 +577,63 @@ class IRBuilder {
 
       if (resolved.kind === 'primitive') {
         if (repeating) {
-          // Repeated primitive → child table (e.g. a list of codes)
-          const childName = toPascal(`${entity.name}_${toPascal(effectiveName)}`);
-          if (!this.entities.has(childName)) {
-            this.entities.set(childName, {
-              name: childName,
-              tableName: toDbName(childName),
-              columns: [
-                _surrogateKey(),
-                {
-                  name: `${toCamel(entity.name)}Id`,
-                  columnName: _shortenIdentifier(`${toSnake(entity.name)}_id`),
-                  ..._internalColumnMeta(),
-                  sqlType: 'BIGINT',
-                  jsonType: 'integer',
-                  nullable: false,
-                  defaultValue: null,
-                  isPrimaryKey: false,
-                  isForeignKey: true,
-                  referencesEntity: entity.name,
-                  isEnum: false,
-                  enumRef: null,
-                  constraints: {},
-                  documentation: `FK back to ${entity.name}`,
-                  xsdType: entity.name,
-                },
-                {
-                  name: 'value',
-                  columnName: 'value',
-                  ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
-                  sqlType: resolved.sqlType,
-                  jsonType: resolved.jsonType,
-                  nullable: false,
-                  defaultValue: null,
-                  isPrimaryKey: false,
-                  isForeignKey: false,
-                  referencesEntity: null,
-                  isEnum: false,
-                  enumRef: null,
-                  constraints: {},
-                  documentation: null,
-                  xsdType: typeName,
-                },
-              ],
-              relations: [],
-              abstract: false,
-              parentType: null,
-              documentation: `Repeated ${typeName} values for ${entity.name}.${effectiveName}`,
-            });
-          }
-          entity.relations.push({
-            kind: 'one-to-many',
+          const childName = ensureRepeatedPrimitiveEntity({
+            entities: this.entities,
+            parentEntity: entity,
             fieldName: effectiveName,
-            targetEntity: childName,
-            joinTable: null,
-            parentColumn: _shortenIdentifier(`${toSnake(entity.name)}_id`),
+            typeName,
+            resolved,
+            minOccurs,
+            maxOccurs,
+            helpers: _irBuilderHelperOptions(),
+          });
+          entity.relations.push(repeatedPrimitiveRelation({
+            parentEntity: entity,
+            fieldName: effectiveName,
+            childName,
             nullable: isOptional,
             minOccurs,
             maxOccurs,
-          });
+            helpers: _irBuilderHelperOptions(),
+          }));
         } else {
-          // Simple scalar column
-          entity.columns.push({
-            name: toCamel(effectiveName),
-            columnName: toDbName(effectiveName),
-            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
-            sqlType: resolved.sqlType,
-            jsonType: resolved.jsonType,
+          entity.columns.push(primitiveElementColumn({
+            fieldName: effectiveName,
+            typeName,
+            resolved,
             nullable: isOptional,
-            defaultValue: null,
-            isPrimaryKey: false,
-            isForeignKey: resolved.isIdRef || false,
-            referencesEntity: resolved.isIdRef ? null : null, // resolved later if needed
-            isEnum: false,
-            enumRef: null,
-            constraints: {
-              ...(resolved.minimum != null ? { minimum: resolved.minimum } : {}),
-              ...(resolved.maximum != null ? { maximum: resolved.maximum } : {}),
-              ...(resolved.format != null ? { format: resolved.format } : {}),
-              ...(resolved.isId ? { isId: true } : {}),
-              ...(resolved.isIdRef ? { isIdRef: true } : {}),
-              ...(resolved.isIdRefs ? { isIdRefs: true } : {}),
-            },
+            minOccurs,
+            maxOccurs,
             documentation: _docs(el),
-            xsdType: typeName,
-          });
+            helpers: _irBuilderHelperOptions(),
+          }));
 
           // IDREFS → join table
           if (resolved.isIdRefs) {
-            const joinName = _shortenIdentifier(`${entity.tableName}__${toSnake(effectiveName)}`);
-            this.joinTables.set(joinName, {
-              name: joinName,
-              tableName: joinName,
-              leftEntity: entity.name,
-              leftColumn: _shortenIdentifier(`${toSnake(entity.name)}_id`),
-              rightEntity: toPascal(effectiveName), // best guess; override manually
-              rightColumn: _shortenIdentifier(`${toSnake(effectiveName)}_id`),
-              documentation: `Join table for IDREFS ${entity.name}.${effectiveName}`,
+            const joinTable = idRefsJoinTable({
+              entity,
+              fieldName: effectiveName,
+              helpers: _irBuilderHelperOptions(),
             });
+            this.joinTables.set(joinTable.name, joinTable);
           }
         }
         return;
       }
 
       if (resolved.kind === 'simple') {
-        // Check if it's an enum
         const enumDef = this.enums.get(typeName);
-        if (enumDef) {
-          entity.columns.push({
-            name: toCamel(effectiveName),
-            columnName: toDbName(effectiveName),
-            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
-            sqlType: 'VARCHAR(64)',
-            jsonType: 'string',
-            nullable: isOptional,
-            defaultValue: null,
-            isPrimaryKey: false,
-            isForeignKey: false,
-            referencesEntity: null,
-            isEnum: true,
-            enumRef: typeName,
-            constraints: { enum: enumDef.values },
-            documentation: _docs(el),
-            xsdType: typeName,
-          });
-        } else {
-          const stDef = this.simpleTypes.get(typeName);
-          entity.columns.push({
-            name: toCamel(effectiveName),
-            columnName: toDbName(effectiveName),
-            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
-            sqlType: stDef?.sqlType || 'TEXT',
-            jsonType: stDef?.jsonType || 'string',
-            nullable: isOptional,
-            defaultValue: null,
-            isPrimaryKey: false,
-            isForeignKey: false,
-            referencesEntity: null,
-            isEnum: false,
-            enumRef: null,
-            constraints: stDef?.constraints || {},
-            documentation: _docs(el),
-            xsdType: typeName,
-          });
-        }
+        entity.columns.push(simpleElementColumn({
+          fieldName: effectiveName,
+          typeName,
+          simpleType: this.simpleTypes.get(typeName),
+          enumDef,
+          nullable: isOptional,
+          minOccurs,
+          maxOccurs,
+          documentation: _docs(el),
+          helpers: _irBuilderHelperOptions(),
+        }));
         return;
       }
 
@@ -719,23 +641,14 @@ class IRBuilder {
         // In S3000L mode, only create a relation if the target is a real entity.
         // Otherwise treat the nested type as an opaque JSON column.
         if (this._s3000lMode && !this._s3000lSet.has(typeName)) {
-          entity.columns.push({
-            name: toCamel(effectiveName),
-            columnName: toDbName(effectiveName),
-            ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
-            sqlType: 'LONGTEXT', // MariaDB: store JSON as LONGTEXT
-            jsonType: 'object',
+          entity.columns.push(inlineComplexElementColumn({
+            fieldName: effectiveName,
+            typeName,
             nullable: isOptional,
-            defaultValue: null,
-            isPrimaryKey: false,
-            isForeignKey: false,
-            referencesEntity: null,
-            isEnum: false,
-            enumRef: null,
-            constraints: {},
-            documentation: `Inline complex type ${typeName} (not a real S3000L entity)`,
-            xsdType: typeName,
-          });
+            minOccurs,
+            maxOccurs,
+            helpers: _irBuilderHelperOptions(),
+          }));
           return;
         }
         // Make sure the referenced entity is built
@@ -747,23 +660,14 @@ class IRBuilder {
       }
 
       // kind === 'unknown' — treat as text column for now
-      entity.columns.push({
-        name: toCamel(effectiveName),
-        columnName: toDbName(effectiveName),
-        ..._elementColumnMeta(effectiveName, minOccurs, maxOccurs),
-        sqlType: 'TEXT',
-        jsonType: 'string',
+      entity.columns.push(unknownElementColumn({
+        fieldName: effectiveName,
+        typeName,
         nullable: isOptional,
-        defaultValue: null,
-        isPrimaryKey: false,
-        isForeignKey: false,
-        referencesEntity: null,
-        isEnum: false,
-        enumRef: null,
-        constraints: {},
-        documentation: `Unresolved type: ${typeName}`,
-        xsdType: typeName,
-      });
+        minOccurs,
+        maxOccurs,
+        helpers: _irBuilderHelperOptions(),
+      }));
     }
   }
 
@@ -838,7 +742,7 @@ class IRBuilder {
       nullable,
       minOccurs,
       maxOccurs,
-      helpers: _relationHelperOptions(),
+      helpers: _irBuilderHelperOptions(),
     });
   }
 }
@@ -854,8 +758,9 @@ function _shortenIdentifier(name, maxLength = 64) {
   return `${prefix}_${hash}`;
 }
 
-function _relationHelperOptions() {
+function _irBuilderHelperOptions() {
   return {
+    elementColumnMeta: _elementColumnMeta,
     internalColumnMeta: _internalColumnMeta,
     relationColumnMeta: _relationColumnMeta,
     shortenIdentifier: _shortenIdentifier,
