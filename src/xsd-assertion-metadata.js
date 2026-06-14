@@ -1,3 +1,5 @@
+const MAX_ASSERTION_PATH_DEPTH = 2;
+
 function extractAssertionSets(schema) {
   const assertions = new Map();
 
@@ -30,7 +32,6 @@ function extractAssertionPaths({
   entities,
   resolver,
   assertions,
-  typedChildElements,
 }) {
   const assertionPaths = new Map();
   const typeNames = new Set();
@@ -48,27 +49,12 @@ function extractAssertionPaths({
     const ct = resolver.getComplexType(typeName);
     if (!ct) return [];
 
-    const paths = [];
-    for (const child of typedChildElements(ct)) {
-      if (!child.name || !child.type) continue;
-
-      const step = {
-        kind: 'element',
-        name: child.name,
-        xmlName: child.name,
-        minOccurs: child.minOccurs,
-        maxOccurs: child.maxOccurs,
-      };
-
-      if (assertions.has(child.type)) {
-        paths.push({
-          path: [step],
-          typeName: child.type,
-          direct: true,
-          ruleIds: assertions.get(child.type).rules.map((rule) => rule.id),
-        });
-      }
-    }
+    const paths = assertionChildPaths({
+      resolver,
+      assertions,
+      node: ct,
+      seenTypes: new Set([typeName]),
+    });
 
     pathCache.set(typeName, paths);
     return paths;
@@ -82,6 +68,99 @@ function extractAssertionPaths({
   }
 
   return assertionPaths;
+}
+
+function assertionChildPaths({
+  resolver,
+  assertions,
+  node,
+  seenTypes,
+  prefix = [],
+  seenGroups = new Set(),
+}) {
+  const paths = [];
+
+  for (const child of directTypedChildElements(node, resolver, seenGroups)) {
+    if (!child.name) continue;
+
+    const step = {
+      kind: 'element',
+      name: child.name,
+      xmlName: child.name,
+      minOccurs: child.minOccurs,
+      maxOccurs: child.maxOccurs,
+    };
+    const childPath = [...prefix, step];
+
+    if (child.type && assertions.has(child.type)) {
+      paths.push({
+        path: childPath,
+        typeName: child.type,
+        direct: childPath.length === 1,
+        ruleIds: assertions.get(child.type).rules.map((rule) => rule.id),
+      });
+    }
+
+    const childNode = child.type ? resolver.getComplexType(child.type) : child.node;
+    if (!childNode || !child.type || seenTypes.has(child.type)) continue;
+    if (childPath.length >= MAX_ASSERTION_PATH_DEPTH) continue;
+
+    paths.push(...assertionChildPaths({
+      resolver,
+      assertions,
+      node: childNode,
+      seenTypes: new Set([...seenTypes, child.type]),
+      prefix: childPath,
+      seenGroups: new Set(),
+    }));
+  }
+
+  return paths;
+}
+
+function directTypedChildElements(node, resolver, seenGroups = new Set()) {
+  const out = [];
+  if (!node || typeof node !== 'object') return out;
+
+  for (const el of (node.element || [])) {
+    const name = el['@_name'] || el['@_ref'];
+    if (!name) continue;
+
+    const anonComplexType = (el.complexType || [])[0] || null;
+    out.push({
+      name,
+      type: el['@_type'],
+      node: anonComplexType,
+      minOccurs: parseOccurs(el['@_minOccurs'], 1),
+      maxOccurs: parseOccurs(el['@_maxOccurs'], 1),
+    });
+  }
+
+  for (const groupRef of (node.group || [])) {
+    const ref = groupRef['@_ref'];
+    if (!ref || seenGroups.has(ref)) continue;
+    const group = resolver.getGroup(ref);
+    if (!group) continue;
+
+    seenGroups.add(ref);
+    out.push(...directTypedChildElements(group, resolver, seenGroups));
+    seenGroups.delete(ref);
+  }
+
+  for (const key of ['sequence', 'choice', 'all', 'complexContent', 'simpleContent', 'extension', 'restriction']) {
+    for (const child of (node[key] || [])) {
+      out.push(...directTypedChildElements(child, resolver, seenGroups));
+    }
+  }
+
+  return out.filter((child) => child.name && (child.type || child.node));
+}
+
+function parseOccurs(val, defaultVal) {
+  if (val === undefined || val === null) return defaultVal;
+  if (val === 'unbounded') return 'unbounded';
+  const n = parseInt(val, 10);
+  return Number.isNaN(n) ? defaultVal : n;
 }
 
 function classifyAssert(test) {

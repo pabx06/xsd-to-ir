@@ -152,9 +152,9 @@ A bidirectional prototype with parser, IR, MariaDB DDL generation, structural XM
 
 4. **XML serialization (xml-serializer.js).** Reverse of deserializer for top-level S3000L collection records. It uses XSD-derived metadata such as `lsaPrimaryData.products.prod -> product` and per-column `xmlName` / `xmlKind`, maps rows back to XML nodes (with `@_crud`, `@_uid` as XML attributes), re-expands `LONGTEXT` JSON back into nested XML child nodes, and reconstructs envelope nodes from scratch.
 
-5. **Validation.** `xml-validator.js` remains the lightweight in-process path: it uses `libxmljs2` for XSD 1.0 validation when available and usable, and falls back to `fast-xml-parser` well-formedness validation plus required-envelope checks when native validation is unavailable or the S3000L XSD 1.1 grammar is rejected by libxml. Full XSD 1.1 acceptance validation is now handled by `scripts/validate-xsd11.js`, which provisions pinned Xerces XSD 1.1 Java artifacts, verifies SHA-256 checksums, compiles `scripts/Xsd11Validator.java`, runs an `xs:assert` self-test, and validates `test/fixtures/s3000l-minimal-valid.xml` against the real S3000L Issue 2.0 schema.
+5. **Validation.** `xml-validator.js` remains the lightweight in-process path: it uses `libxmljs2` for XSD 1.0 validation when available and usable, and falls back to `fast-xml-parser` well-formedness validation plus required-envelope checks when native validation is unavailable or the S3000L XSD 1.1 grammar is rejected by libxml. Full XSD 1.1 acceptance validation is now handled by `scripts/validate-xsd11.js`, which provisions pinned Xerces XSD 1.1 Java artifacts, verifies SHA-256 checksums, compiles `scripts/Xsd11Validator.java`, runs an `xs:assert` self-test, and validates the real S3000L Issue 2.0 schema through positive, schema-negative, and assertion-negative fixtures.
 
-6. **XSD assertion inventory and inline enforcement.** The IR extracts the 200 `xsd:assert` rules in the Issue 2.0 schema. All current rules classify as an enforceable `exactlyOne` reference pattern, such as exactly one of `@uidRef`, a natural-key child element, or `@uriRef`. `assertion-validator.js` evaluates those rules, and import/export now apply them to direct asserted `LONGTEXT` inline objects plus directly nested asserted child references under persisted inline value types.
+6. **XSD assertion inventory and inline enforcement.** The IR extracts the 200 `xsd:assert` rules in the Issue 2.0 schema. All current rules classify as an enforceable `exactlyOne` reference pattern, such as exactly one of `@uidRef`, a natural-key child element, or `@uriRef`. `assertion-validator.js` evaluates those rules, and import/export now apply them to direct asserted `LONGTEXT` inline objects, directly nested asserted child references, and bounded two-step recursive asserted paths under persisted inline value types.
 
 7. **Delta / Net-Change support.** Each entity table carries a `_msg_seq BIGINT` column. `_msg_seq = 0` means dirty/unexported. `insert`, `update`, and `softDelete` mark rows dirty; `markExported()` stamps exported rows with the confirmed message sequence. Soft-deleted dirty rows are included in net-change exports with `crud="D"`.
 
@@ -344,9 +344,9 @@ Each record inside a collection carries `crud="I|U|D"` and `uid="..."` as XML at
 | Priority | Task |
 |---|---|
 | 🟡 Medium | **Observe first GitLab pipeline** — push the `.gitlab-ci.yml`, confirm the `quality` and `mariadb` jobs pass on the actual runner, then adjust service startup/cache settings if needed |
-| 🟡 Medium | **Expand XSD 1.1 acceptance corpus** — add representative valid and invalid S3000L XML fixtures beyond the current minimal envelope smoke fixture |
-| 🟡 Medium | **Broader negative import coverage** — add tests for missing required XML fields, missing parent/branch `uid` values, and unresolved relationship references |
-| 🟡 Medium | **Compact recursive type graph** — replace one-level nested assertion paths with lazy recursive traversal if deeper app-level assertion coverage is required |
+| 🟡 Medium | **Expand XSD 1.1 acceptance corpus** — add a representative generated net-change XML fixture after the exporter delta shape is stable |
+| 🟡 Medium | **Broader negative import coverage** — add unresolved relationship-reference cases that require DB persistence, beyond the current deserializer-level parent/branch UID and shape checks |
+| 🟢 Low | **Compact recursive type graph** — current assertion-path discovery is bounded to two-step recursive paths; revisit only if production data requires deeper local app-level assertion enforcement |
 | 🟡 Medium | **knex migration file** — convert `schema.sql` output to version-controlled schema evolution |
 | 🟢 Low | **Delta tracking improvement** — add `_first_exported_seq` to replace the `_created_at` vs `_updated_at` heuristic |
 
@@ -482,8 +482,9 @@ xsd-to-ir/
 | Top-level S3000L collection record mappings | 42 |
 | XSD 1.1 assert rules extracted | 200 |
 | Assert rules classified as exactly-one references | 200 |
-| Inline column types with direct nested assert paths | 209 |
+| Inline column types with assertion paths | 381 |
 | Direct nested assert paths | 308 |
+| Bounded recursive nested assert paths | 463 |
 | Enums from valid_values.xsd | 192 |
 | IR columns (all entities) | 3,327 |
 | IR relations | 166 |

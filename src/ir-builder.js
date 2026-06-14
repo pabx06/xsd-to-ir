@@ -189,7 +189,6 @@ class IRBuilder {
       entities: this.entities,
       resolver: this.resolver,
       assertions: this.assertions,
-      typedChildElements: (node) => this._typedChildElements(node),
     });
 
     return {
@@ -202,41 +201,6 @@ class IRBuilder {
       s3000lMode: this._s3000lMode,
       s3000lCollections: this._s3000lCollections,
     };
-  }
-
-  _typedChildElements(node, seenGroups = new Set()) {
-    const out = [];
-    const walk = (cur) => {
-      if (!cur || typeof cur !== 'object') return;
-
-      for (const el of (cur.element || [])) {
-        out.push({
-          name: el['@_name'] || el['@_ref'],
-          type: el['@_type'],
-          minOccurs: _parseOccurs(el['@_minOccurs'], 1),
-          maxOccurs: _parseOccurs(el['@_maxOccurs'], 1),
-        });
-
-        for (const anonCT of (el.complexType || [])) walk(anonCT);
-      }
-
-      for (const groupRef of (cur.group || [])) {
-        const ref = groupRef['@_ref'];
-        if (!ref || seenGroups.has(ref)) continue;
-        const group = this.resolver.getGroup(ref);
-        if (!group) continue;
-        seenGroups.add(ref);
-        walk(group);
-        seenGroups.delete(ref);
-      }
-
-      for (const key of ['sequence', 'choice', 'all', 'complexContent', 'simpleContent', 'extension', 'restriction']) {
-        for (const child of (cur[key] || [])) walk(child);
-      }
-    };
-
-    walk(node);
-    return out.filter((child) => child.name && child.type);
   }
 
   // ── simpleType processing ──────────────────────────────────────────────────

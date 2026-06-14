@@ -1,13 +1,13 @@
 # Maintainability Review: Post-P2 IR Builder Snapshot
 
-Date: 2026-06-14
+Date: 2026-06-15
 
 Scope: maintainability state after the P1 `ir-builder.js` refactor, two P2 IR
 construction cleanups, the real-schema negative XSD 1.1 acceptance fixture, and
 the real S3000L `xs:assert` negative fixture, plus relationship-heavy import
-negative coverage. Public behavior remains unchanged: CLI commands, IR shape,
-serializer/deserializer APIs, DB adapter API, and validation policy are still
-the same.
+negative coverage and bounded recursive assertion-path enforcement. Public
+behavior remains unchanged: CLI commands, IR shape, serializer/deserializer
+APIs, DB adapter API, and validation policy are still the same.
 
 ## Resolved In This Pass
 
@@ -21,23 +21,24 @@ the same.
 | XSD 1.1 negative acceptance | Added a deliberately invalid S3000L fixture and `npm run test:xsd11:invalid`, proving Java Xerces rejects real-schema occurrence/content violations. The validator self-test remains the explicit `xs:assert` engine check. |
 | Real S3000L assertion acceptance | Added `test/fixtures/s3000l-assert-invalid-organization-ref.xml` and `npm run test:xsd11:assert-invalid`, proving Java Xerces rejects an actual S3000L `organizationRef` exactly-one `xs:assert` violation. |
 | Relationship-heavy import negatives | Added reusable XML fixtures and tests for missing nested parent UID, missing flattened branch child UID, and unsupported scalar relation branch content. Present relation branches now fail before persistence when they are not object records. |
+| Recursive assertion paths | `src/xsd-assertion-metadata.js` now discovers direct paths plus bounded two-step recursive assertion paths under persisted inline `LONGTEXT` values. Tests cover recursive validation, import rejection, and export rejection. |
 | Regression tests | Added focused tests for S3000L metadata detection/extraction, relation helper output, element builder output, and attribute builder output, including exact FK names, `choice_type`, synthetic group entity metadata, IDREFS join table names, inline `LONGTEXT` contracts, S3000L `uid`, `crud`, and enum attributes. |
 | Comment policy | New code avoids textbook mechanics comments; existing comments are kept where they explain S3000L compatibility or XSD modelling decisions. |
 
 ## Current Hotspots
 
-Measured with `wc -l` on 2026-06-14. Line count is a size signal, not a
+Measured with `wc -l` on 2026-06-15. Line count is a size signal, not a
 quality score.
 
 | File | Lines | Current responsibility |
 |---|---:|---|
-| `src/ir-builder.js` | 873 | Still the largest module: generic type/entity traversal, type-resolution dispatch, inheritance, and final IR assembly. |
+| `src/ir-builder.js` | 837 | Still the largest module: generic type/entity traversal, type-resolution dispatch, inheritance, and final IR assembly. |
 | `src/xml-deserializer.js` | 479 | XML envelope traversal, record extraction, nested relation discovery, unsupported relation-shape rejection, coercion, and assertion calls. |
 | `src/db-adapter.js` | 418 | Row operations, message persistence orchestration, query/export helpers, and export bookkeeping. |
 | `src/xml-serializer.js` | 398 | XML envelope reconstruction, row-to-node conversion, relation traversal, and assertion calls. |
 | `src/ir-element-builders.js` | 229 | Pure element column/entity metadata builders extracted from `IRBuilder`. |
 | `src/ir-relation-helpers.js` | 215 | Pure relation metadata builders extracted from `IRBuilder`. |
-| `src/xsd-assertion-metadata.js` | 193 | XSD assertion extraction and direct persisted assertion-path discovery. |
+| `src/xsd-assertion-metadata.js` | 272 | XSD assertion extraction and bounded recursive persisted assertion-path discovery. |
 | `src/s3000l-xml-metadata.js` | 168 | Shared serializer/deserializer XML naming and field metadata. |
 | `src/s3000l-ir-metadata.js` | 109 | S3000L uid+crud detection and collection metadata extraction. |
 | `src/ir-attribute-builders.js` | 58 | Pure attribute column metadata builder extracted from `IRBuilder`. |
@@ -57,7 +58,6 @@ quality score.
 | Gap | Suggested test |
 |---|---|
 | Net-change XML acceptance | Validate a generated net-change XML fixture with `npm run test:xsd11` or `scripts/validate-xsd11.js` once a representative delta fixture is stable. |
-| Recursive assertion paths | Current app-level assertion enforcement covers direct asserted paths under persisted inline value types. Add tests before expanding to deeper recursive paths. |
 
 ## Non-Goals
 

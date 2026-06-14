@@ -31,14 +31,22 @@ test('IR extracts and classifies S3000L xsd:assert rules', () => {
   assert.equal(rules.length, 200);
   assert.equal(rules.filter((rule) => rule.kind === 'exactlyOne').length, 200);
   assert.equal(rules.filter((rule) => rule.enforceable).length, 200);
-  assert.equal(assertionPathSets.length, 209);
-  assert.equal(assertionPaths.length, 308);
+  assert.equal(assertionPathSets.length, 381);
+  assert.equal(assertionPaths.length, 771);
+  assert.equal(assertionPaths.filter((path) => path.direct).length, 308);
+  assert.equal(assertionPaths.filter((path) => !path.direct).length, 463);
 
   assert.deepEqual(ir.assertions.get('aggregatedElementRef').rules[0].fields, [
     { kind: 'attribute', name: 'uidRef', xmlName: '@_uidRef' },
     { kind: 'element', name: 'beId', xmlName: 'beId' },
     { kind: 'attribute', name: 'uriRef', xmlName: '@_uriRef' },
   ]);
+
+  assert.ok(ir.assertionPaths.get('organizationRef').paths.some((path) => (
+    path.typeName === 'organizationRef'
+    && path.direct === false
+    && path.path.map((step) => step.name).join('.') === 'orgId.setBy'
+  )));
 });
 
 test('assertion validator accepts exactly one present reference field', () => {
@@ -75,6 +83,32 @@ test('assertion validator walks nested asserted reference paths', () => {
   assert.equal(invalid.valid, false);
   assert.deepEqual(invalid.errors[0].path, ['providedBy']);
   assert.equal(invalid.errors[0].typeName, 'organizationRef');
+});
+
+test('assertion validator walks recursive asserted reference paths', () => {
+  const ir = buildIr();
+
+  const valid = validateValueAssertions(ir, 'productIdentifier', {
+    id: 'PROD-1',
+    applic: {
+      applicDefRef: { '@_uidRef': 'applst1' },
+    },
+  });
+  assert.equal(valid.valid, true);
+
+  const invalid = validateValueAssertions(ir, 'productIdentifier', {
+    id: 'PROD-1',
+    applic: {
+      applicDefRef: {
+        '@_uidRef': 'applst1',
+        applicId: { id: 'APPLIC-1' },
+      },
+    },
+  });
+
+  assert.equal(invalid.valid, false);
+  assert.deepEqual(invalid.errors[0].path, ['applic', 'applicDefRef']);
+  assert.equal(invalid.errors[0].typeName, 'applicabilityStatementRef');
 });
 
 test('assertion validator rejects missing or multiple reference fields', () => {
@@ -148,6 +182,25 @@ test('deserializer rejects invalid nested asserted inline reference objects', ()
   );
 });
 
+test('deserializer rejects invalid recursive asserted inline reference objects', () => {
+  const ir = buildIr();
+  const xml = [
+    '<lsaDataset>',
+    '<msgId>MSG-ASSERT-RECURSIVE</msgId><msgDate>2026-06-13</msgDate><msgType><code>B</code></msgType>',
+    '<logisticsSupportAnalysisData><lsaPrimaryData><products>',
+    '<prod uid="prod1" crud="I">',
+    '<prodId><id>PROD-1</id><applic><applicDefRef uidRef="applst1"><applicId><id>APPLIC-1</id></applicId></applicDefRef></applic></prodId>',
+    '</prod>',
+    '</products></lsaPrimaryData></logisticsSupportAnalysisData>',
+    '</lsaDataset>',
+  ].join('');
+
+  assert.throws(
+    () => deserializeXML(xml, ir),
+    /XSD assertion failed while deserializing product\.prodId/,
+  );
+});
+
 test('serializer rejects invalid direct asserted inline reference JSON', async () => {
   const ir = buildIr();
   const fakeDb = {
@@ -207,5 +260,40 @@ test('serializer rejects invalid nested asserted inline reference JSON', async (
   await assert.rejects(
     () => new XMLSerializer(ir, fakeDb).serialize({ msgId: 'MSG-ASSERT-NESTED' }),
     /XSD assertion failed while serializing aggregatedElement\.beName/,
+  );
+});
+
+test('serializer rejects invalid recursive asserted inline reference JSON', async () => {
+  const ir = buildIr();
+  const fakeDb = {
+    async queryEntity(entityName) {
+      if (entityName !== 'product') return [];
+      return [{
+        id: 1,
+        uid: 'prod1',
+        crud: 'I',
+        prod_id: JSON.stringify({
+          id: 'PROD-1',
+          applic: {
+            applicDefRef: {
+              '@_uidRef': 'applst1',
+              applicId: { id: 'APPLIC-1' },
+            },
+          },
+        }),
+        _created_at: '2026-06-13T08:00:00.000Z',
+        _updated_at: '2026-06-13T08:00:00.000Z',
+        _deleted_at: null,
+        _msg_seq: 0,
+      }];
+    },
+    async queryDeleted() {
+      return [];
+    },
+  };
+
+  await assert.rejects(
+    () => new XMLSerializer(ir, fakeDb).serialize({ msgId: 'MSG-ASSERT-RECURSIVE' }),
+    /XSD assertion failed while serializing product\.prodId/,
   );
 });
