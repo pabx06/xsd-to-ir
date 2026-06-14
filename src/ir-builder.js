@@ -97,6 +97,7 @@ const {
   simpleElementColumn,
   unknownElementColumn,
 } = require('./ir-element-builders');
+const { attributeColumn } = require('./ir-attribute-builders');
 
 // ─── naming helpers ───────────────────────────────────────────────────────────
 
@@ -688,47 +689,17 @@ class IRBuilder {
     const nullable = isS3000LUid || isS3000LCrud ? false : use !== 'required';
 
     const resolved = typeName ? this.resolver.resolve(typeName) : { kind: 'primitive', sqlType: 'TEXT', jsonType: 'string' };
-
-    const colBase = {
-      name: toCamel(effectiveName),
-      columnName: toDbName(effectiveName),
-      ..._attributeColumnMeta(effectiveName),
+    entity.columns.push(attributeColumn({
+      fieldName: effectiveName,
+      typeName,
+      resolved,
+      enumDef: this.enums.get(typeName),
       nullable,
       defaultValue,
-      isPrimaryKey: false,
-      isForeignKey: false,
-      referencesEntity: null,
       documentation: _docs(attr),
-    };
-
-    if (resolved.kind === 'primitive') {
-      entity.columns.push({
-        ...colBase,
-        sqlType: isS3000LUid ? 'VARCHAR(255)' : resolved.sqlType,
-        jsonType: resolved.jsonType,
-        isEnum: false,
-        enumRef: null,
-        constraints: {
-          ...(resolved.minimum != null ? { minimum: resolved.minimum } : {}),
-          ...(resolved.maximum != null ? { maximum: resolved.maximum } : {}),
-          ...(resolved.format != null ? { format: resolved.format } : {}),
-          ...(resolved.isId ? { isId: true } : {}),
-          ...(resolved.isIdRef ? { isIdRef: true } : {}),
-        },
-        xsdType: typeName || null,
-      });
-    } else {
-      const enumDef = this.enums.get(typeName);
-      entity.columns.push({
-        ...colBase,
-        sqlType: enumDef ? 'VARCHAR(64)' : 'TEXT',
-        jsonType: 'string',
-        isEnum: !!enumDef,
-        enumRef: enumDef ? typeName : null,
-        constraints: enumDef ? { enum: enumDef.values } : {},
-        xsdType: typeName || null,
-      });
-    }
+      isS3000LUid,
+      helpers: _irBuilderHelperOptions(),
+    }));
   }
 
   // ── relation helper ────────────────────────────────────────────────────────
@@ -760,6 +731,7 @@ function _shortenIdentifier(name, maxLength = 64) {
 
 function _irBuilderHelperOptions() {
   return {
+    attributeColumnMeta: _attributeColumnMeta,
     elementColumnMeta: _elementColumnMeta,
     internalColumnMeta: _internalColumnMeta,
     relationColumnMeta: _relationColumnMeta,
