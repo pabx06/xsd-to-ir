@@ -12,6 +12,7 @@
     "lint": "eslint . --ext .js,.cjs",
     "lint:fix": "npm run lint -- --fix",
     "test": "node --test",
+    "fingerprint": "node scripts/semantic-fingerprint.js",
     "test:generate": "rm -rf ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} && node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} --verbose",
     "test:mariadb": "MARIADB_TEST_URL=${MARIADB_TEST_URL:-mysql://xsd:xsdpass@127.0.0.1:3307/xsd_to_ir_test} node --test test/mariadb-integration.test.js",
     "test:mariadb:docker": "npm run mariadb:start && npm run test:mariadb",
@@ -50,6 +51,7 @@
     "libxmljs2": "Native libxml2 bindings for XSD 1.0 validation (optionalDependencies). Requires node-gyp. Falls back to structural check if absent or unsupported."
   },
   "devDependencies": {
+    "espree": "9.6.1",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.32.0"
