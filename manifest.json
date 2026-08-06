@@ -1,0 +1,1071 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256",
+  "scope": {
+    "extensions": [
+      ".cjs",
+      ".js"
+    ],
+    "excludedDirectories": [
+      ".cache",
+      ".code-graph",
+      ".git",
+      "coverage",
+      "node_modules",
+      "output"
+    ]
+  },
+  "policy": {
+    "version": 1,
+    "comments": "ignored",
+    "formatting": "ignored",
+    "topLevelFunctionDeclarationOrder": "ignored when names are unique",
+    "allOtherOrder": "preserved"
+  },
+  "parser": {
+    "name": "espree",
+    "version": "9.6.1",
+    "ecmaVersion": "latest",
+    "sourceType": "script"
+  },
+  "sourceHash": "d4db551391541f55b95ea73b608ec237a5b4ad259345191948365daba0122ca1",
+  "orderedHash": "86fb427f56019dc323a13b107c1c2762841760371a3bb47863574006a1760c2d",
+  "semanticHash": "a37f85c178705766255558557b7163fadf35c9900831f078bafdeb8266f1ff23",
+  "fileCount": 34,
+  "functionCount": 183,
+  "files": [
+    {
+      "path": ".eslintrc.cjs",
+      "sourceHash": "be18d75f61575489e797ea3f5e85280dac339d854ccf99396f3dca1336464859",
+      "orderedHash": "601320f1d3a728c729689fe6d77332ae9b35d3addd7f9032aefe12a6129ccb37",
+      "semanticHash": "eec9d6253898076b1acb5a288b11384aff2fcf53aa903f9c28025c78bf29b6dc",
+      "nonFunctionHash": "403ba2a48c30b3dc743e078ccc432a0c74900ca6b1c8295615fe6b66f2753a01",
+      "functions": []
+    },
+    {
+      "path": "index.js",
+      "sourceHash": "4c6f6d529c14a4376f1884bdc300acee6835aefd9767a397d734453d629d5f60",
+      "orderedHash": "c8267b1efe42c49b1c348e7c38ff21519a1e884aeb5b9d1f8cf4eab31b844e94",
+      "semanticHash": "41e6ad68be2ba15f7fae821835a9e6d420fe90428f603bca8df92a8835b6cbe5",
+      "nonFunctionHash": "cd73d603b3d0273592ace506f20ff8e107c45dbc7c0232bd86300a985a63a4fe",
+      "functions": [
+        {
+          "hash": "1db3ccb771701a2bae43c0fe1f6fed993bd0ef462974143de12af9fc3cb3f573",
+          "name": "irToJSON"
+        },
+        {
+          "hash": "36e561da7b53d6740b1266ccba109e5a951e62df71b47340424362b544fa85b1",
+          "name": "main"
+        },
+        {
+          "hash": "b50c32ce799732f51283bd0c1a173024c02294504f9702243c3ea3ba2f165e1e",
+          "name": "parseArgs"
+        }
+      ]
+    },
+    {
+      "path": "scripts/expect-xsd11-failure.js",
+      "sourceHash": "2bc7df2f9c32c78391a6b1d1bbe5847607fd0a9db4bcd9a096cc66bd25be9b62",
+      "orderedHash": "ec7689f5721825d45861798b2c0b9a7e69a5f3492571bd03036cc50f072d308c",
+      "semanticHash": "399e10ae28a7d5e06efed987ff363129811a3d647f725153a3d1ba3a2d2252ef",
+      "nonFunctionHash": "b26506cc59afcc81d8bad1a5b83e5e4e48b1e0fa9d047122a963b4ce7df893ff",
+      "functions": [
+        {
+          "hash": "a15dc37bacee5681f7a337d853081421d132f7e70825ad82b76d2b2a3dddf31b",
+          "name": "main"
+        },
+        {
+          "hash": "1ec74bd9ed2d2351b9d086b63c18d4dcb6a58b8bfb1282ac287038682d8bc28b",
+          "name": "parseArgs"
+        },
+        {
+          "hash": "7a1d19663def63b6ae16744a0acffe78f48b1aaab26345890ed10a429959f9c3",
+          "name": "runInvalidValidation"
+        },
+        {
+          "hash": "841895380c433e23f507a39586b4065c76f53ff189a2ac534af82904007942f8",
+          "name": "usage"
+        }
+      ]
+    },
+    {
+      "path": "scripts/semantic-fingerprint.js",
+      "sourceHash": "1d04cc8d5f8361a1ba5297847f7db3f09dbc9653ceeea750c4c7faf4302f6757",
+      "orderedHash": "bb7ed8e0519d7c30140d1cc879512e1356aa5bd3c7cfa8564b49c472dc128856",
+      "semanticHash": "7fb0064b281820f28fd408f34f222971b3ddcaec6ec42f212b7d3281ea6648e6",
+      "nonFunctionHash": "de7883caf912926bbb85be60dda17eed1dc2711a52d00f888234f425291ee3e9",
+      "functions": [
+        {
+          "hash": "0bdc9fe82f29ac8e844e027cbbbc280faf8858816d5c7f7e27ffe556baa8f4c8",
+          "name": "collectDirectoryFiles"
+        },
+        {
+          "hash": "2c7e2d94c7f6a372dcbff6e77f6b3086a4c972475751c77a9767c750bccb3e84",
+          "name": "compareText"
+        },
+        {
+          "hash": "555c2c3e029244e55c1ead7f694580f0aecc25693e70b16c0669f59354fcfe7c",
+          "name": "digest"
+        },
+        {
+          "hash": "cf3ec494091ed00174c274f7ad419b1d4a88c00f736bcf8a3467ae7f22bfdd74",
+          "name": "extractHashbang"
+        },
+        {
+          "hash": "ff56211cd9cbe9ce6b18b38ab3ad414e9b944e533ab5255815a43b11eff9e3e1",
+          "name": "fingerprintFile"
+        },
+        {
+          "hash": "1a0f9093a429961b7ea5387bef9793ea201975ec18fac229c5cf7101de92e11d",
+          "name": "generateManifest"
+        },
+        {
+          "hash": "cca672cb613598b7a9a2ee51f04eeb710596a66cede6791cba666b8d8fd784a5",
+          "name": "hasSupportedExtension"
+        },
+        {
+          "hash": "ab127653c627c2258dd1716ead9a7dc24bc10d5a8494a4cd68495c58669b217d",
+          "name": "main"
+        },
+        {
+          "hash": "c4bad9bdb6728a9c473bfdaad912c681fc7d66163f9614413780894da9e96a47",
+          "name": "normalizeAstValue"
+        },
+        {
+          "hash": "4874440687ddb6f7d0a4f8b7ead106f5e1cd26508d4f347e3153567e7841b0bc",
+          "name": "parseArgs"
+        },
+        {
+          "hash": "55a9c96836cd07ea79f0afc948d9a42f979a74bd506706276720c7ac1be57b1b",
+          "name": "parseJavaScript"
+        },
+        {
+          "hash": "096bdfddf61215f80e6aee6148b2700b03afdf2d201de38dd69b918f321905d2",
+          "name": "portableRelativePath"
+        },
+        {
+          "hash": "737ce1494a65fa23d528dd2cd18b235beb4c389d916a2c56dfa7fbbc698b4622",
+          "name": "repositoryHash"
+        },
+        {
+          "hash": "7b020cf2295cfbf51f23b8391b84325372fb508a3e15114fabc2bd4570a294d8",
+          "name": "resolveInput"
+        },
+        {
+          "hash": "4b68fd313476f0a39906f6b41400e4dbfc64f4c8a961decd2bb32d4622f53ac1",
+          "name": "sha256"
+        },
+        {
+          "hash": "e7f77b75437fe52951bf8b45d2ee716b0ee10941da20c57abdc05ccc3a5ef66f",
+          "name": "sortedRegexFlags"
+        },
+        {
+          "hash": "059a399d32e7050c50be14fd25254fad4c988360e279a6d7eee9e0f813537000",
+          "name": "usage"
+        }
+      ]
+    },
+    {
+      "path": "scripts/validate-xsd11.js",
+      "sourceHash": "8738adade7a4dc65b7e2928a726a41e43cdddd4e23e86e0aafb7f1fbf175db75",
+      "orderedHash": "4ea3a56adddf890a944f495d6c24d1e5930ca7625453325a1272e1725aa9c344",
+      "semanticHash": "55d36dcb59f2609304866c0159884d0af8d13139c87c669483bd8d941e8391de",
+      "nonFunctionHash": "581f788e144331f0a0237c17fc293390ae8152391079664a7f6fc170c6a58a7b",
+      "functions": [
+        {
+          "hash": "686324fc6daf886ca388940d338d4df65fced5a007316420b8f0a93961759d2f",
+          "name": "assertFailedWithAssertion"
+        },
+        {
+          "hash": "fe39fc5d4909e446019a0c1aa6fc551cf561926e468bec09d79a01271622b9ec",
+          "name": "assertFile"
+        },
+        {
+          "hash": "4c69429e78856e1201f72c08d0c15086277f3c32cc6c4a130e5d0ebea8175c39",
+          "name": "assertPassed"
+        },
+        {
+          "hash": "962952a75bb53a7e580f1c854685edfab33ab758d7126463b9c6176678056879",
+          "name": "compileValidator"
+        },
+        {
+          "hash": "a961667143e02c2c0172d88d0a93c12af7f7974c7386437103cd861af3f53ec7",
+          "name": "download"
+        },
+        {
+          "hash": "d62912710abc2e458c5f24eebfbe4de97527f56404c3b3fcf307325e22f08a67",
+          "name": "ensureArtifact"
+        },
+        {
+          "hash": "166e53d54ba4a724f36d64e8f76aa8b0c8c1354f91e98f7485b03ab944faa1be",
+          "name": "ensureArtifacts"
+        },
+        {
+          "hash": "edbb8e823c947a6106acd7832ef6c5724ba9bc9de9172eceeb247879c00b44b3",
+          "name": "main"
+        },
+        {
+          "hash": "4507272b3a2f37fdc9b73686749de96a38005ef2bb223318f14049162cf4ddbf",
+          "name": "parseArgs"
+        },
+        {
+          "hash": "e7919bdfe91f4e6a64e68857589277c2fb5293b040c333e943ba26617148bf80",
+          "name": "requireTool"
+        },
+        {
+          "hash": "49fa8689732bfa2afe8405216aaa446325cce6e7b7f0445b27a346848a55cd65",
+          "name": "resolvePath"
+        },
+        {
+          "hash": "1184f76283166a77277b24306e47f06501ad3c7fa71d7faa7e0c33fca99307e5",
+          "name": "run"
+        },
+        {
+          "hash": "af7580709ed71b695c29ad6604d9eed1ada0e97e2c6a256b5092c8889f396b3d",
+          "name": "runJavaValidator"
+        },
+        {
+          "hash": "a8c283d7c573fffa79b333c99c2840691ac1a5bfc6f3f6f4cfdd41b04f0937e1",
+          "name": "runSelfTest"
+        },
+        {
+          "hash": "ae128d43bf323deb6d495ffe450c2f4fb55feb77cc132fc40bf62c43b2c7de31",
+          "name": "sha256File"
+        },
+        {
+          "hash": "a1c57637bcd91d2597ba8c7f9695e0748790a75dc81d021138453eb8cc3ee115",
+          "name": "usage"
+        }
+      ]
+    },
+    {
+      "path": "scripts/wait-for-mariadb.js",
+      "sourceHash": "c2a578fdcd9b610b40802adc904b12bfd1da6792d93956bee7f3cdbea805bc56",
+      "orderedHash": "ea2026709898017bd64beb9dd8b94f0a633fe84ace1823c5f662f5ae0c8a446c",
+      "semanticHash": "3a752f9e1a61b41580423375a7975c908fb9b40b04db9ec732aa0b3dff89a5cd",
+      "nonFunctionHash": "8c989f1a88be941ffbf1a21278d5a29d3ba2435561befd021ed58a55d4fdc2d1",
+      "functions": [
+        {
+          "hash": "f9fc3f2226c6b5bad1be7ef232d3e6c304c96d4a7dc225fbb0d1c8089b193df5",
+          "name": "main"
+        },
+        {
+          "hash": "cffa43199c97ebd8c5855f7805845530aae8436e6401e920f68745fb60ad7ad5",
+          "name": "probe"
+        },
+        {
+          "hash": "e635793707df0a0d36b567ce0211d559d18c349e44bd5c52e117a4dfbeec59bf",
+          "name": "sleep"
+        }
+      ]
+    },
+    {
+      "path": "src/assertion-validator.js",
+      "sourceHash": "f40f4ce45e5aab7f5999aff4ac44ea5d249480ea28933771156a188387c3553b",
+      "orderedHash": "72f890db26d6b4575fb1a22c70c194cb4dfea335c239e30d6b06cdc6ae5d6cd1",
+      "semanticHash": "c1f176baaee301f3c1101310bc6a23f03ba14f4ecf165422a7477fca08e8353b",
+      "nonFunctionHash": "1743ddae15e0d48b0ba6eb49df10eb012e00bc6e84383a7f77f0f8da523e841f",
+      "functions": [
+        {
+          "hash": "62268daf78d746459889cad4916a58ef18d06eebfa5a073016f8a3ba5fc043fe",
+          "name": "_assertionPathSet"
+        },
+        {
+          "hash": "856282db341f19c190fab35bea008511d0aaface9e3dcb299f34edcc385b2c12",
+          "name": "_assertionSet"
+        },
+        {
+          "hash": "f2f62d227a0a6989c316b3efba209b94ee78cf22fcb32e86686b7b94761044d8",
+          "name": "_fieldLabel"
+        },
+        {
+          "hash": "4e1813e47ed7d7329b5e71aca5e13bad9947bfe79c7eb875b8cc079d993912d6",
+          "name": "_hasField"
+        },
+        {
+          "hash": "103dd168f89aa46852ec4e3de5be01b028c61211ee3abd48a4ab9800066861c9",
+          "name": "_valuesAtPath"
+        },
+        {
+          "hash": "cdb564a72a00c9cb37cd2c334d153675194e5d6027f3778242649c4284a60a19",
+          "name": "validateNodeAssertions"
+        },
+        {
+          "hash": "ee70c0d3586d97f974706b2aff5b461c25d72953068992868b08b2cc355ce853",
+          "name": "validateValueAssertions"
+        }
+      ]
+    },
+    {
+      "path": "src/db-adapter.js",
+      "sourceHash": "5b0324a24ae078a39220e39690bf36bd6bcae1700535002fccfa72b03705d000",
+      "orderedHash": "48b756634d005f735bc1aaeb022c78172de1c67d495c81f34a8396e0c157348f",
+      "semanticHash": "7076a3e00828258fae9966de5d260f20b7de338164b2ac8ce35a05dd712bb5fe",
+      "nonFunctionHash": "ca072ddb878fe59946a37799359c77371a27154ec527f46eb08663fae21ef228",
+      "functions": [
+        {
+          "hash": "f193fc0f2248b186355a22c31d81a9c2bc374b8bc0fbc761ad8d78d485928aa7",
+          "name": "_isIgnorableDDLExistsError"
+        }
+      ]
+    },
+    {
+      "path": "src/db-relation-resolver.js",
+      "sourceHash": "946f9ab0c7d7484d89f2bdf6613e4a3e1fa8af49bab36d0427a379bb0d2ae6c9",
+      "orderedHash": "196e4569bd7ef3a8728396585e8faaba00277f8a8e72cb278747e83f54d3e980",
+      "semanticHash": "a0ab0ee62bb749fb317e91f098651ecccc961a2b806c664b2f6e7712957a0da5",
+      "nonFunctionHash": "4d855b18939fe7c9ca9c1a2c6ece3e767a12e7dc4c6322f8d763eb0becdd1904",
+      "functions": []
+    },
+    {
+      "path": "src/ir-attribute-builders.js",
+      "sourceHash": "0373c8bbc43fd2905ae8343c4a0a8276c9ded5ab8a671bebf31d463adce3e1ab",
+      "orderedHash": "7b9c256e19651351da449742cc0635f573c85a113243c5ebbf786329b6cb5280",
+      "semanticHash": "6074fac78b6fed4b04361e2a31e919ae5799a0ef97c5f621f66415c21ece1457",
+      "nonFunctionHash": "e7318b2d2ceaf8e69f6338013dec484f37894a87c18653722256116010519fb7",
+      "functions": [
+        {
+          "hash": "868d02b517d782f793dd2ec9f47b116eac787c92ece21b78d5b282e982fa67eb",
+          "name": "attributeColumn"
+        },
+        {
+          "hash": "1287810dc2ccab732f8042cb3c0fe9e71d3620c9a4fbf38baf8b858a50f69f70",
+          "name": "primitiveAttributeConstraints"
+        }
+      ]
+    },
+    {
+      "path": "src/ir-builder.js",
+      "sourceHash": "d7a13d586ab095ce3aebffe969b78870e13d7f284da924c395c466d6ef82f881",
+      "orderedHash": "dc1ad50ba5ba8c8c536cb2992ed08b6f9c403926f361edd59e65468fb2eea8a9",
+      "semanticHash": "43a59b8022f1b135c608562573bd89ed9e1849855f5d402332469098c70b4189",
+      "nonFunctionHash": "62169aaa472648c8303c7a4444cba1906540f08d28ed96adbc136f23cd1737f0",
+      "functions": [
+        {
+          "hash": "ccde407e63cc292d52e86362bc0d3389af1ea8195180a0ed3a2e395417c41fbc",
+          "name": "_attributeColumnMeta"
+        },
+        {
+          "hash": "0c8c82c241b157d25bc902b5ce012e4c9d0e32ef7e4f102928186c7f47726c8e",
+          "name": "_dig"
+        },
+        {
+          "hash": "1d29b16b6fa8c51a83178df4bf2bd42a02bbfcdff38f6d94c4171fefa6838774",
+          "name": "_docs"
+        },
+        {
+          "hash": "dde0f471741dcbdd9b57d7d17e7b2bac858a57a6f5caf07ce5a9704a1f2ea75c",
+          "name": "_elementColumnMeta"
+        },
+        {
+          "hash": "af0b85b9ecaa4a0970e57dde18e450b52dff42a27c2a6d0d43a50b02a54871a7",
+          "name": "_extractConstraints"
+        },
+        {
+          "hash": "a2094fcdf12ccb95ad6a8ecdb77bee9a46b6ae483c3d8d6bef475ecc2e36562b",
+          "name": "_internalColumnMeta"
+        },
+        {
+          "hash": "2151a4cbc32b7887782a06caee1baa2ba33c590c9bc94c400e3516b2fbf6c45b",
+          "name": "_irBuilderHelperOptions"
+        },
+        {
+          "hash": "2506b60d87da495333ec02df61a4d6fa41646e4b8181caac64a0a77e6b7a9112",
+          "name": "_parseOccurs"
+        },
+        {
+          "hash": "e13a475f72fe0dd6522e70a38de89a05b689539109b903a3c927de4547f92609",
+          "name": "_relationColumnMeta"
+        },
+        {
+          "hash": "7bb78070112856376c98f436650b3c011c8c68e9791e13e44681ebfc3ae33c78",
+          "name": "_s3000lTechColumns"
+        },
+        {
+          "hash": "b182b4adb0985194499b2d88e161a5c4f1b8ff86aa061c08388724d5a3db4bb3",
+          "name": "_shortenIdentifier"
+        },
+        {
+          "hash": "6411985bfb3d384fce4e4f6f400440cdc3fc0438a9f5daf68767b77125cdae89",
+          "name": "_surrogateKey"
+        }
+      ]
+    },
+    {
+      "path": "src/ir-element-builders.js",
+      "sourceHash": "fc96fa038a52c989a5f814b3d4ec4641aa688a109eca02b714f35861a22cf7fc",
+      "orderedHash": "48ef1666d9fdd938ae0c0579887d648d3fcd9e4c56e967c3048b335188417760",
+      "semanticHash": "4fbf0d35ff6386e106aa273a7a95dc5a265a43af2ed7ca171331e901916d4c44",
+      "nonFunctionHash": "c4253c0a41568c2b7aa84a605566435289549e7c8b6b9a8eab48f58c91d140c4",
+      "functions": [
+        {
+          "hash": "c8bd57c63a937129f06eeb28095bfce2d9a39e0cce8e4d9251ba12499e089812",
+          "name": "ensureRepeatedPrimitiveEntity"
+        },
+        {
+          "hash": "30e621d64fd781ff4a9e71cbf843f3035ce019d64088e3721ec27bad00fa3f83",
+          "name": "idRefsJoinTable"
+        },
+        {
+          "hash": "0274fbcb0246f6f1ffc1cc9e8cea927ec3927f1679be15e47a4ae416d2b99a29",
+          "name": "inlineComplexElementColumn"
+        },
+        {
+          "hash": "cd9047ebd91d512bba89402087a1c2f11029f567952c4ca3921e226541236098",
+          "name": "primitiveConstraints"
+        },
+        {
+          "hash": "049646209eb56c1b75df0ac55475a175993d06ba50fd66ea5149a84f81bfc8a3",
+          "name": "primitiveElementColumn"
+        },
+        {
+          "hash": "e22493c0f87a716c4227970bfb3e66a784198de17fdf124b7a4921f70d26dd2b",
+          "name": "repeatedPrimitiveRelation"
+        },
+        {
+          "hash": "d4bb55c48584e7544541ff7e97da98af94293a9ab4777fa0b05b88fcd6f55675",
+          "name": "simpleElementColumn"
+        },
+        {
+          "hash": "388e00618bb753fa25f06893654d706e05008037cdabe1a0f1872c7a1cb0990f",
+          "name": "unknownElementColumn"
+        }
+      ]
+    },
+    {
+      "path": "src/ir-relation-helpers.js",
+      "sourceHash": "51b6f570e66db184e3678755fd0fbb0bca2db0366ec8cb75d5abc46ca7149621",
+      "orderedHash": "4e3bee9c33c83b328a1fc10bde335e77088f79032ef68699e7cef269e0b1cfa2",
+      "semanticHash": "84504cf6d3db17df7f2ca427851ff25fe33881eae5aa1b399e87d953bf6be98b",
+      "nonFunctionHash": "d1c38b54cafd91abb8a8142657c44a7fc3afc6607d0f1c8a86aa74fe6091e0ce",
+      "functions": [
+        {
+          "hash": "226e4b5b84d01155dc29acd23169e32dd7aebafdd21f6ce1d07241e8a136a439",
+          "name": "addChoiceDiscriminator"
+        },
+        {
+          "hash": "125db0b27ba98caa93d201aba9ff857bdde11ac53ccf3dab66f81b3a0c664866",
+          "name": "addRelationToEntity"
+        },
+        {
+          "hash": "eb834b6f57e2892d2b6e769f55d81f24536a8a8da0249605be96394f4abff3ae",
+          "name": "choiceBranchNames"
+        },
+        {
+          "hash": "6820745bf69a2c5530a68407ba2f02d96befed1a24c3298531b79c261b0023d4",
+          "name": "ensureRelationParentColumn"
+        },
+        {
+          "hash": "396e986d5f5425581d0e04be5e98456f043f6c5d562ff51fff796320662a6979",
+          "name": "ensureSyntheticGroupEntity"
+        },
+        {
+          "hash": "5b4e37f25fa7616609184c25347748f54c1d991437356a0a9c05d03f2c2660a1",
+          "name": "flattenedGroupRelation"
+        },
+        {
+          "hash": "04e81df1925f6d444b33d5713582690ca0fff7862b53f6f2e015932d93969f8f",
+          "name": "isRepeating"
+        },
+        {
+          "hash": "19bcfbbea28548b272eb70cdc3c652dca88cab62a85d4638eed98e2b3150dc6c",
+          "name": "oneToOneRelationColumn"
+        }
+      ]
+    },
+    {
+      "path": "src/json-schema-generator.js",
+      "sourceHash": "c2ba0b1f2789c17be2bdba30afffc1ac1012783eca68e15e5289efbdfa845746",
+      "orderedHash": "c442831f2002d2301eabf7a063c8075a3e16983c82074f57666d06d45ac1ee81",
+      "semanticHash": "c232f0451230ed28019e60d3049d38e4493b5d9ad197d021a86e3ed94faa31ba",
+      "nonFunctionHash": "a486d19039609c1ab592d5363f70e8eb71621e0c73d98d1a2dc30a2d0cfe904a",
+      "functions": [
+        {
+          "hash": "f209cd73a835156a5b615bab7bdf426abe9abc374b477cf7f5950a7816f148cc",
+          "name": "_applyConstraints"
+        },
+        {
+          "hash": "4d6941f3839cf044aae255b124344973a35f74de6a8a8c0de486da57738e4e12",
+          "name": "_clean"
+        },
+        {
+          "hash": "9ff4f69c3e18c33b74afe778c51a65d92fdabac73a57c23a903eb698c65f13c5",
+          "name": "_columnToProp"
+        },
+        {
+          "hash": "98d1f670aae48daf1a6c2512e9735dd992981948fbe97ec06457ae652ff9a612",
+          "name": "_entityDef"
+        },
+        {
+          "hash": "2583e95a639916d82ee356d091d2062c8714bf4f8db9491b4dc03aea6fa8c6ea",
+          "name": "_relationToProp"
+        },
+        {
+          "hash": "3f867464477783de68e97319f9eeae65ea257e815102b8107dc4f64492883c74",
+          "name": "_simpleTypeDef"
+        },
+        {
+          "hash": "9c90bc392fc103b58835564334943a68df818c4f89be9b002b6c5f9f782dbe01",
+          "name": "generateJSONSchema"
+        }
+      ]
+    },
+    {
+      "path": "src/s3000l-ir-metadata.js",
+      "sourceHash": "01640eba327d63a8d9663c240b4bd436584d1b253e346d0ebd6ab8f1c4db0079",
+      "orderedHash": "370271d53ebdd64bc0dd51eee8b82e91e6dc01c6040863df4fc4f06c23d0dfc7",
+      "semanticHash": "6f26123f1063e4dd2e72451ece7c1acf3f224fbc6fb0e366f1e40202bdc1c944",
+      "nonFunctionHash": "5b97c66c2351d75e446a9c4cf96abd97e454f9823045466dd7f8eb36af80d79b",
+      "functions": [
+        {
+          "hash": "3a8dbc098040e9405302ba5e04940d10db931340c760f800030d6b046715f6b7",
+          "name": "childElements"
+        },
+        {
+          "hash": "5794d6856d5b68e848ccf8bab1309427d360dd59580d2be01107054a6b606bbb",
+          "name": "detectS3000LEntities"
+        },
+        {
+          "hash": "931045795bda9287b82210ccb8d22ee71479fb508d5fc841f933d2924ca3318c",
+          "name": "extractS3000LCollections"
+        },
+        {
+          "hash": "1cd854b257775349af457e62152491af9943f7ada7e47cb9547d75e30ac11064",
+          "name": "flatAttributes"
+        },
+        {
+          "hash": "daeee7b67a2bb32818a848f03a20bfc120126ab57cb405c39e00ea5b1f88e1e3",
+          "name": "recordElements"
+        }
+      ]
+    },
+    {
+      "path": "src/s3000l-xml-metadata.js",
+      "sourceHash": "f7ea193e8807c56db1549dcd19f3128d24d8764df87c9525e516e4ac27eb4ada",
+      "orderedHash": "f5a241fa1f91c1f380a5993cec163f862743e50d1650dd79bc5d9c155ece8ea0",
+      "semanticHash": "61741ef42efafe4b7f3b14f9786afdf233ff134bd14e98a2882a5466afa68549",
+      "nonFunctionHash": "857cd31c58a6b152da499369dfbf53d3ce6d991c31e2ab161d5f0e3d107543b6",
+      "functions": [
+        {
+          "hash": "9c25b91478a63bf3b47d7e17857989d4a0bc5acae322f75d2f0161d73ddcbb35",
+          "name": "collectionEntries"
+        },
+        {
+          "hash": "27c7928283dd7fef3461951bcd5cce620e0188f85b5b07cc305e26a25ba56f02",
+          "name": "collectionKey"
+        },
+        {
+          "hash": "e4972f8666c8e4cbc2f123fd20f81dd83fe61fa03f6d7ed2577391c2d60d0b03",
+          "name": "columnXmlKindForExport"
+        },
+        {
+          "hash": "cd356034754df66f3a39f31da8245d35c27c8a11811f7656e6ba7d8a3fb94f37",
+          "name": "columnXmlKindForImport"
+        },
+        {
+          "hash": "e958b34a52488d6017f060047a6c17b4ac6378d400abcf118760095db2e542fc",
+          "name": "columnXmlNameForExport"
+        },
+        {
+          "hash": "8abfa43d12e98e274dd7153b747f1d8c3585c7167ced7dea50b60b02755a0cc1",
+          "name": "columnXmlNameForImport"
+        },
+        {
+          "hash": "c5d34a1c2355ff8cb625ebee1a04e8e7b36ed8b04952c27152b408254f2b09e3",
+          "name": "fallbackCollectionMeta"
+        },
+        {
+          "hash": "3fc77918a7c60d1eaba6aeab339078e13d38e67ddd5a7159ffa7c5418375d807",
+          "name": "isXmlImportColumn"
+        },
+        {
+          "hash": "9e50521c3a1c0c27c0fa69640b5001c69a9da212d4748cd1c012a542326dcfd0",
+          "name": "readColumnField"
+        },
+        {
+          "hash": "5ace6955b0ca84bd3f1f570301c046ea40485b476e46fde1521b59c972dc1b2b",
+          "name": "readField"
+        },
+        {
+          "hash": "fa73a164a49acebf1c724aa419ffdc253cf31efd57b7c175c51140508b930caf",
+          "name": "relationColumn"
+        },
+        {
+          "hash": "1c875fbd7f351f3fccc7c48a1416c0fd3a0287514e66a027926a2d244a2f058a",
+          "name": "singularOf"
+        },
+        {
+          "hash": "2d15d568c4bcaa2f0aff2d96064a590d33e4ef690ed829892df4d4d07ac199bc",
+          "name": "toCamel"
+        }
+      ]
+    },
+    {
+      "path": "src/sql-generator.js",
+      "sourceHash": "fe9c896aacc9bc4b35aefaa1846ba9579d291e53957953f8a43083eba0039ede",
+      "orderedHash": "52a11ec0767b0107041b704e3bb39172c3da205e7ea561f99b09add4c4a0affb",
+      "semanticHash": "acafa0444321cd84af556a8ad3fc66e25b14ce964bd54e5bbbc7a4fa01950b5d",
+      "nonFunctionHash": "bf22b2e355a1af589f3e1c3c35db957dec1ebf60d10209de32533e6047d95294",
+      "functions": [
+        {
+          "hash": "8904b9e86dfb7f9474f61833f58568438e399a0b89df2d7507c274e66b542e76",
+          "name": "_columnDDL"
+        },
+        {
+          "hash": "d39e25741937a9dc0bcbffe8903298c776d5dee7cf02d220f745ab61348354af",
+          "name": "_entityTable"
+        },
+        {
+          "hash": "a275cf28fee8e1e2d87e4ad799f6879ff191f68d7eda5b656085acd00d0e0914",
+          "name": "_enumTable"
+        },
+        {
+          "hash": "5e523d4a84d6e57ce3b59d46dbff66f41e470798b4f0c53e6c5669df24a25515",
+          "name": "_hasDefault"
+        },
+        {
+          "hash": "81f0d3c9383e4f9fc6bca5c94dec57b0bbf3427d6742cfd9ec648fd8be5547e3",
+          "name": "_joinTable"
+        },
+        {
+          "hash": "514007d298add683d837f7b522da4e010075c79a78d9054ae22fd716f58e967a",
+          "name": "_mariaType"
+        },
+        {
+          "hash": "fe66b605fe72fe8df12ec6ce2cea123072345450c790bb10f3aca1426a3a107a",
+          "name": "_needsJsonValidityCheck"
+        },
+        {
+          "hash": "b182b4adb0985194499b2d88e161a5c4f1b8ff86aa061c08388724d5a3db4bb3",
+          "name": "_shortenIdentifier"
+        },
+        {
+          "hash": "2d1ede5f0fb768e482809a175b72a5631d4d0eed2996e41733960bc0f64a7bab",
+          "name": "_sqlLiteral"
+        },
+        {
+          "hash": "86bdcd21c184e66828a1bac08cfa3f30270735aba8e8fa02b4da1788f38d8615",
+          "name": "_topoSort"
+        },
+        {
+          "hash": "61b1dc5543fc9a18e7fa87b6cfbce553598fd0de141699ae75904dc6353a888f",
+          "name": "generateSQL"
+        }
+      ]
+    },
+    {
+      "path": "src/type-resolver.js",
+      "sourceHash": "331ecc2738b46f506c58c9d384a18d017796adb34cfab36348f09c19ab9e2747",
+      "orderedHash": "c9778a3a01b778f051a1fc95b97fbeae6dab2f8aeca37c20dcad75379666f908",
+      "semanticHash": "7b1f2a614bbd9f2f60e9d6db9321e07fd572c132d502cca392853022bc82c0a2",
+      "nonFunctionHash": "34e9ef0e0a89f37def0b3ac291f6ad4ddbc63dd277b1108b538f8c295a43795c",
+      "functions": []
+    },
+    {
+      "path": "src/xml-deserializer.js",
+      "sourceHash": "70ff5ef0faf8aa0e2b709074c0287099806e3a3516582031cb27eb9b75a6ed66",
+      "orderedHash": "dc9ecff274a8611d6a3dea96d9c14cf91d9eb675975fcc0648b147f79a30f75d",
+      "semanticHash": "e62b08d92b9a669675fb19d846fc690a8f47f4acd5f5687bbc2b55bbfd9fe5ae",
+      "nonFunctionHash": "b363677c04ff0e9583b40d023459296cd20efe5b2183a48e1245105fd2dd5548",
+      "functions": [
+        {
+          "hash": "d6405d413d3de660926fb1f797c6a9a87c9b27ef6da7e9bc32eaf5f198b8f741",
+          "name": "_coerce"
+        },
+        {
+          "hash": "81a90fb0a342e88c8f2c76bf55c23632aaa3cc374bf7dbc4b0c636a6b4146fc3",
+          "name": "_tryParseJson"
+        },
+        {
+          "hash": "edcdcb4557a5480542ecdf8e45ea1ed9f476b0b787707cb8be6e10da9845f389",
+          "name": "_valueType"
+        },
+        {
+          "hash": "f8be3830f60c5354955e619d387e822886276c14856e5be2f8646b7664003e3f",
+          "name": "deserializeXML"
+        }
+      ]
+    },
+    {
+      "path": "src/xml-serializer.js",
+      "sourceHash": "031c74f8d1a7bf78c7500c6b985138520f8b149d45cdb307abba4d7ef458714f",
+      "orderedHash": "049224d9387ea218ca453a9720b7a61e3e5841ba976f6c98f4a8ba512980b704",
+      "semanticHash": "dc8b434bea1d3509aa626398b936cb9d83125eecbf982cc3b4b49e0a9a47b12c",
+      "nonFunctionHash": "552ad227757c178bc3b35aa57051a886f3e6de6a56b62320ff7ee80b55e99912",
+      "functions": [
+        {
+          "hash": "5ad7b20c0e2c6a021471946801edbd5f4d4bd2f8fde602e7af8628aa63972d62",
+          "name": "_appendFlattenedNode"
+        },
+        {
+          "hash": "1c0fcf4ee51bdf189f1a656898656ecb4deac0f1ab9369264ee563cb0b78379f",
+          "name": "_appendRelationNodes"
+        },
+        {
+          "hash": "988190d1c4ce0476c35637b5bc7bbd9667a432557ab6164b16ba494c814c250c",
+          "name": "_crudForRow"
+        },
+        {
+          "hash": "1d679b5b7357d69adfdce994007d260aba5dd08617fcfe88ea4f86ee36e3048b",
+          "name": "_hasColumn"
+        },
+        {
+          "hash": "a4b342045ef4e83d1aa903d5d68c7b82f4f4e5fe92ad6edc38bbe3ca0de7a788",
+          "name": "_makeBuilder"
+        },
+        {
+          "hash": "88675deeb03490a7799b529b945e44474e606c0173b4680acbe8ea1b45135f4a",
+          "name": "_queryById"
+        },
+        {
+          "hash": "4bcd1f924ccc713cc34356da6013df8bd502057b606f667bc23afbcab34468c0",
+          "name": "_queryRelatedRows"
+        },
+        {
+          "hash": "0c413dbb366f6dab644f32e430b16de2ea2cee5ccd445523f57d618d10d34a31",
+          "name": "_rowToXmlNode"
+        },
+        {
+          "hash": "0e1b1188f4750d02ac17be24d721b4b1a54301e0fbca68c1ea2f6416f5f99dce",
+          "name": "_validateColumnAssertions"
+        },
+        {
+          "hash": "3abc7de8f3de89a30c951436b7283e8f6f72474d94a0dba0e0611d8fe8fc6646",
+          "name": "serializeToXML"
+        }
+      ]
+    },
+    {
+      "path": "src/xml-validator.js",
+      "sourceHash": "324ccc8cdc7d3deca142424557e32e97bf9d9c0af026e3587dba7c25efbfcf49",
+      "orderedHash": "ab2ddf5873da50c30565fb55f655ab92743c395512cedeeb336ed9c347acf299",
+      "semanticHash": "1050bebea45d4128d6eead8e7e526342280cc89172be63de3b5cd546f9d05931",
+      "nonFunctionHash": "a9f9e73d6a8c5b326ccc8b6e50daf8fe052966ced9771d80eaaf3b093f7a2ac9",
+      "functions": [
+        {
+          "hash": "19387261f92a2eda8d02d9d044bc67730a89c3d210b3ed8a38b8fdf5687a5c43",
+          "name": "_resultOrThrow"
+        },
+        {
+          "hash": "199ebf4ab09bc0ac79cc3de81c76285aad5e2a1bcd7c327cc98d53f02773fbd4",
+          "name": "_structuralCheck"
+        },
+        {
+          "hash": "4cc2fe87f0d4ecbe19f5ddbe9cae7518a4d6a877273f78cb8549656a2a94c425",
+          "name": "_structuralResult"
+        },
+        {
+          "hash": "b1662fec2b11e5089ac1619264677933c771131a2cb15e31e66b904a8d872548",
+          "name": "_tryLoadLibxml"
+        },
+        {
+          "hash": "4b1bb148b52ac1ba173029e1d104c85060610aae39b609d78640d61cda112566",
+          "name": "_validateXMLCore"
+        },
+        {
+          "hash": "1e4632d1750116ec579bb79c95a7cdbd287009897571db9583f971f666d85b59",
+          "name": "validateXML"
+        },
+        {
+          "hash": "77b57c0ad421c40e573bf193e8c8207dc834c8ca6efdb83f2bc077156b5a5582",
+          "name": "validateXMLSync"
+        }
+      ]
+    },
+    {
+      "path": "src/xsd-assertion-metadata.js",
+      "sourceHash": "0f72f3a70850113db78d9f015a4fab653bfe25aced48b6fbc17faf6e3ea77f07",
+      "orderedHash": "2e9cc32c90e4e64957591e70ab51905fd00bfd678cb98318c8674f8427151b3a",
+      "semanticHash": "b28bc6b227501799dc031c6e6a4783a3c23241c093474659c2d8685a9b9f993f",
+      "nonFunctionHash": "3b11cb8398507cf42946cc2f8a6376969bb537a004cd695f94d45afd9a8ce5b1",
+      "functions": [
+        {
+          "hash": "b8ac358a3e6c3a17addf5c4cc6a50fc1711b6be93ff003af22be46cee8ecae88",
+          "name": "assertField"
+        },
+        {
+          "hash": "af78b9d8ec13461111d8b28531eb2d064aa04864de99341f0f20892ed36f6fa5",
+          "name": "assertionChildPaths"
+        },
+        {
+          "hash": "7de4908908575deead0887f34822964392c13e63d8f0ebbe4901ac1cac075e73",
+          "name": "classifyAssert"
+        },
+        {
+          "hash": "2ac0b7b384d82d60014c5d4eb081bb39fb1f1e4c924a35c4a7d657c4b18fb2d8",
+          "name": "directTypedChildElements"
+        },
+        {
+          "hash": "04327894f7775d282f895cbf3181ed3377e33eafdd8c5e589aa29e0bb87851a8",
+          "name": "extractAssertionPaths"
+        },
+        {
+          "hash": "f7fb76654e4fe906bdf532a1b1d791516676d5937841c8a7a1ff1a3e40684f9a",
+          "name": "extractAssertionSets"
+        },
+        {
+          "hash": "613c780665d3c2bbe464a1047a6d1ebfd65df5b350cf11b092b50e1e7b296360",
+          "name": "fieldKey"
+        },
+        {
+          "hash": "610bddb8dffc4779b4ea14508eb544050be0f0eeb67314a14efa98f6456b4e0c",
+          "name": "fieldLabel"
+        },
+        {
+          "hash": "2b00b0cba5ec23ecc50c9a67c8c88630fcd9388a8e0a22f21eaefb0c678e8679",
+          "name": "parseExactlyOneAssert"
+        },
+        {
+          "hash": "da92a902c91acede7610d8f5ea9985437a89d5aa1d62f0ac791e18da892bfabd",
+          "name": "parseOccurs"
+        }
+      ]
+    },
+    {
+      "path": "src/xsd-parser.js",
+      "sourceHash": "e8e72db3b2509b3a46c7c8949c31542bcd4a80bc6e384c7f3b928bf72fb5ed92",
+      "orderedHash": "abc805551a47e410c189da9dff6f7c8075735d9c158242691222f23f43e73cd3",
+      "semanticHash": "b1b26d25a8c2b2992e1fc2d94e8e8e3dbf4511b20823ff3db789810d2ea9723d",
+      "nonFunctionHash": "ed504524a6d881b7b902f05f36d66ae76106c9c34bfcc64a6d68c08e092e490c",
+      "functions": [
+        {
+          "hash": "9d1d682a7b3b33190996a625473f93a0f3b6a88acc3288d0ecbf2cfbda4ba7e2",
+          "name": "deepStripNs"
+        },
+        {
+          "hash": "7210fde4b3b846630ab0412d20d886609f897ec087a0fd48333855cf7974ac5d",
+          "name": "makeParser"
+        },
+        {
+          "hash": "fc2c25de5cee3ef302bba437cab1ff164d346f50a5f6ab4cf025d3991b4d061d",
+          "name": "mergeSchema"
+        },
+        {
+          "hash": "c249cf63ec31f594897e863f9d3e34d136c615310324ca470768481186a8d04a",
+          "name": "parseSingleFile"
+        },
+        {
+          "hash": "720664ebc2def72dd562eeb3142abfaa62e5f3d470ce83d2ace6cb8005b92a75",
+          "name": "parseXSD"
+        },
+        {
+          "hash": "3626b453e0411af3a47dca3884f2789d6ca3c14131188e2a96c21ac255fbda4f",
+          "name": "stripNs"
+        }
+      ]
+    },
+    {
+      "path": "test/assertions.test.js",
+      "sourceHash": "41538b59f9c3c06f4a0ba6e782038f26b9a18e04d26bd1dc4100747a9abff3d0",
+      "orderedHash": "355f2b0b49140603a3708a0d8dd128b7c2f80bfba10c004dc49ad1da77801e64",
+      "semanticHash": "7533d4e65d5a5bc683eeea791e958bc915812665bcb0f89dc8a46e538594e1c0",
+      "nonFunctionHash": "3c4d81a3ee42e25949169dcfdf14ca1ead725313a4b232d263f3ae0186c08811",
+      "functions": [
+        {
+          "hash": "f047fce8044d8d56d0b85ba9f0ced520abb5c1374f20d63077914c4a116e050b",
+          "name": "buildIr"
+        }
+      ]
+    },
+    {
+      "path": "test/db-adapter.test.js",
+      "sourceHash": "e793d0a8f2289bed85a6c69ad6582a3100091702741eada534a51ab4c04f47ee",
+      "orderedHash": "a467b8e547873dae06a4a00f570bcd2b84ddf83a808811e9e922014a8eaba886",
+      "semanticHash": "138f306e4a018b938f317cfd6b0b17c598ed9b7f6f8fcc55ae79f5908683c199",
+      "nonFunctionHash": "818c288fe3967354238077eff9940cceb01e1fa8c92a34e28c14acff811463c5",
+      "functions": [
+        {
+          "hash": "f2b976ff08a27b9fdcde2a894c5d29189ea91808138059ebc34ee832c59a3faa",
+          "name": "helperIr"
+        },
+        {
+          "hash": "94997ff524f41897cd6c67ff14a40d13963b8333f9cb1680a025dde67346697b",
+          "name": "makeFakeKnex"
+        },
+        {
+          "hash": "7b2f1b99e07ea2b025bdf4b19d3638da8a830e99e882a78d42bce062198d0ddb",
+          "name": "productIr"
+        }
+      ]
+    },
+    {
+      "path": "test/helpers/s3000l-fixtures.js",
+      "sourceHash": "7227f968517d9971e4e25d6c89275cfeac9be9dadf1c9cd9aeaaa413f36ceb7d",
+      "orderedHash": "180140a02e29afe886ddb3164b53690b7730feec281400ff75a467561d61f2ab",
+      "semanticHash": "2c0ab5b75cfa86951a19b32e13fa4c08ad571f84bf442c4b4936a615a8c72ee9",
+      "nonFunctionHash": "d1867efe69ef9b5bbb3b0cd6bbdad6d5ad4394bc69ffc98d4098ab5c233a5465",
+      "functions": [
+        {
+          "hash": "032631a1d71aa04196f40afa5a315d8dab76769c422f0aa6bee416ce1231cb86",
+          "name": "relationshipHeavyPrimaryXml"
+        },
+        {
+          "hash": "61264bce9312e7aadf57d46edb3b4da9a06d97b006c1b757c5c80cdb4523d4a7",
+          "name": "relationshipHeavyRoundTripXml"
+        },
+        {
+          "hash": "e6aad632e3b61b940f218fb41268ec52fc7e7a1818fe0fb842a2ae48c28a5e7c",
+          "name": "relationshipMissingChoiceBranchUidXml"
+        },
+        {
+          "hash": "5eba862b27ade9f0d1c1a98a95036c4b2f4ba77d11a52a87031e701fcec95f7a",
+          "name": "relationshipMissingParentUidXml"
+        },
+        {
+          "hash": "de7021f6b37381c01eefdd892af531a10fa85f19fc8a8322fb263556ee825f60",
+          "name": "relationshipUnsupportedChoiceBranchXml"
+        },
+        {
+          "hash": "3af6e4cb21bff46e003191e0019a25902b97696a1526f3a11e6760f75bc8dd9c",
+          "name": "s3000lEnvelope"
+        }
+      ]
+    },
+    {
+      "path": "test/ir-attribute-builders.test.js",
+      "sourceHash": "47f46e7ba87f53d9f399a86ef8e07c7e3d6da719d0a4bc82ddb431a521fdf2a3",
+      "orderedHash": "13e6cbae61a60a12826891a409f06afdd431fa8736aaa15e8d4354e660286be3",
+      "semanticHash": "f99deadb11251d1201acc14de2f0618be0b94d0d4cb565740a19c79a3c66522f",
+      "nonFunctionHash": "392bc7b82e812a75552fd216545648ead5271387fd1be641b7b130918a32b5c0",
+      "functions": [
+        {
+          "hash": "26b3805d4153d2672435b3bdbb49177ec71189310b76aae1a253ce760ff6f85a",
+          "name": "helpers"
+        }
+      ]
+    },
+    {
+      "path": "test/ir-element-builders.test.js",
+      "sourceHash": "42a5953c2cf1a063372a0c06d7ee99ccec2e50b65a70aeafe3235ae91b3265fb",
+      "orderedHash": "3b190f799a6f60285280ec5fe93197b202cafe08fea48b526c34cb1ac706d1f9",
+      "semanticHash": "4610b721cb12f1f4e9a19f21997011c932582121dd430ccb435894cc6b5b11e8",
+      "nonFunctionHash": "47a3f8f9e2bc5982ba1e3dce83f9b452f0dc553fe9dd07474689f4d5650264bf",
+      "functions": [
+        {
+          "hash": "6a9b2f4e1919f9bf3b7700d0d90db1524b356dc7caca8b1db3ffdce9e5c5e642",
+          "name": "helpers"
+        }
+      ]
+    },
+    {
+      "path": "test/ir-relation-helpers.test.js",
+      "sourceHash": "ecdb9b30b7406783b511cf3f68e80db080b25b0015bc9750f3c1bcbd9c5c05f0",
+      "orderedHash": "dc265e90603c74530274b3cb69ca70d5e2e792c7f6d0096cfabdae5bd1264952",
+      "semanticHash": "92fd69f10f2d6858151a8374c753fa90e94975494e1c9b4c368095e8a9a5eaa2",
+      "nonFunctionHash": "ea1411e42d4c4508f8334ae3f82fcd5c49ecb36cbaa321e758545ff54e5e0bf1",
+      "functions": [
+        {
+          "hash": "c47f1be6310937fca0a018e6fa88a27b59fbc376df3a6f97b87970fd2f24c460",
+          "name": "helpers"
+        }
+      ]
+    },
+    {
+      "path": "test/mariadb-integration.test.js",
+      "sourceHash": "065b0f6e7fb03577a7349adde1bbd14219e89a7697a19e39bfb3976ae7b5aab6",
+      "orderedHash": "21614ffeba5adead25db83daef0081ec7fb689f7bd013c7b353d042401ae78c3",
+      "semanticHash": "eb73c67dfe2650bd40c03b340efbff19c4864c03270591a16724979d18215fd5",
+      "nonFunctionHash": "613cdd16ab65e1d2015432c3981bf7f0dac389d3724abe61d5a77494052f850c",
+      "functions": [
+        {
+          "hash": "c502954ee96666a819a354e78c21d893bb5868d86c62373e21686846bbff5754",
+          "name": "_asArray"
+        },
+        {
+          "hash": "ad18fcb183138399edc487aa7487aee8c75d26782654c57f466cc7270ef60cf3",
+          "name": "_connectionFromURL"
+        },
+        {
+          "hash": "5f2c163a83a033189ffc748482ce7c1ec7788bb487c6ea8299c8792c5046dfc8",
+          "name": "_makeKnex"
+        },
+        {
+          "hash": "f2a9df7d5dcde29e9f48b00e5e409b695071da578ae832bfaef3f457892e2ab3",
+          "name": "_mariadbSkipReason"
+        },
+        {
+          "hash": "2e7f680df1fa5893c483a5d9c061db8c69006e03545bf82aed3fbe6cb9a1d8f4",
+          "name": "_parseXml"
+        },
+        {
+          "hash": "0f824e4a0003ae2d329a6a1d5aa28ce994cf0f5d109de2189193ca1c7cef6dee",
+          "name": "_productIr"
+        },
+        {
+          "hash": "2b8cd5334347c0c84f68168010651a17540ec8d01264cc5f40393721d5efd8f3",
+          "name": "_resetDatabase"
+        },
+        {
+          "hash": "40d57457165fa15284d1baab2eaf0ac5689dac89f18bd3066b103431edd18c3a",
+          "name": "_s3000lDDL"
+        },
+        {
+          "hash": "10864a742c4e12c2f91d4bc72d433173016a032fd9dc096ec66dd4fbdeee17c6",
+          "name": "_s3000lIr"
+        },
+        {
+          "hash": "fd79e09ab770210018c72e0bc3da197b6ef71b4ff64ee5a35faa716d3e74fcac",
+          "name": "_tableCount"
+        }
+      ]
+    },
+    {
+      "path": "test/s3000l-ir-metadata.test.js",
+      "sourceHash": "100f45b97b4a2c2fc444032dd1147d95c25b23c2ed2dea8dda215eaabac12a55",
+      "orderedHash": "d1816cf4e5c2c2dc724f2d75e0f1d4ef48f8fd5bad90d28c3cca0cba518f2a29",
+      "semanticHash": "df286ea596ff8ba1edf160a4b6b0af8b1bd7d91aa2f5516abd33433be37f4e2b",
+      "nonFunctionHash": "e36f77bc3504741bb725ed9c5960d56ff1e3fca96a290af350f6265530b4abe1",
+      "functions": [
+        {
+          "hash": "9d55532cf371139bb63828bffac147e9867a43b96394717d659035813542f855",
+          "name": "loadSchema"
+        }
+      ]
+    },
+    {
+      "path": "test/s3000l-roundtrip.test.js",
+      "sourceHash": "b329fd3e56a4600b4badbc971ef1d13aa290f74483247efbf76eceecc09e9d48",
+      "orderedHash": "eb50886525f070b5d80b8c360b344bd87ff8601ba9568411c8a0b34cbdff67a9",
+      "semanticHash": "90ec299cb8f180fd7bb4fa5667416c5660110842ffb7b40b4a164e7bd99e1a91",
+      "nonFunctionHash": "699335d7439db43ba6dfc700027191ab58171af612e4831f0f0c1e3c8f23f431",
+      "functions": [
+        {
+          "hash": "551f319bd841dc10f5fb900231a628ab17636bb2da63b2034a59785b3b41c9e8",
+          "name": "asArray"
+        },
+        {
+          "hash": "be257133a92a6e86460da0641b2c431b99dcfdd190baeb955546415a3bc59100",
+          "name": "buildIr"
+        },
+        {
+          "hash": "18837cb1d785aabff2c5c1b8789ae784153f1cf21c252316d6a3cbc69656ed21",
+          "name": "fakeDb"
+        },
+        {
+          "hash": "9d55532cf371139bb63828bffac147e9867a43b96394717d659035813542f855",
+          "name": "loadSchema"
+        },
+        {
+          "hash": "cd2529388401ebbe5ec3d7a4fb2e1274b55bf824fc7ddb4471762adcdfe41b74",
+          "name": "parseXml"
+        }
+      ]
+    },
+    {
+      "path": "test/s3000l-xml-metadata.test.js",
+      "sourceHash": "1414a138a561eb026ac87dbabb3f0d6901c6fb2366af3d2ab0fd3ce65a070d80",
+      "orderedHash": "0ae65f10876ad4b214cf400f45c3a085b07e5428e190ab099ca81b0a917526d2",
+      "semanticHash": "a37e1aeeed02a719cd0ae7c56a7bfc8e76131b3aa9eb0b47c91d48bcbeffa21c",
+      "nonFunctionHash": "152a8c576129afa5f10777ccffde5935a36094ba30a1cbd599634229b4c04113",
+      "functions": []
+    },
+    {
+      "path": "test/xml-validator.test.js",
+      "sourceHash": "1c01943816942fc4106a54e870583d5760ed3153adb5c5b2662fc0c4c0b8082e",
+      "orderedHash": "1639ab0f3680c759b3648830d77c6c13a71128c259d876f46ed202d1cd45de67",
+      "semanticHash": "6ff499e42917fb7a862041419d64ed9c2e21de2b5803d41ef7473f9e17076710",
+      "nonFunctionHash": "68a17fe754c0f125fdd90285981e4620d34f4c096a6bb410f9fe84bed9fbd919",
+      "functions": []
+    }
+  ]
+}
