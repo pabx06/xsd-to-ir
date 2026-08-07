@@ -67,12 +67,62 @@ function _valueType(value) {
   return typeof value;
 }
 
+function _metadataValue(value, wrapperKeys = []) {
+  if (value === undefined || value === null || Array.isArray(value)) return null;
+
+  if (typeof value === 'object') {
+    for (const key of wrapperKeys) {
+      if (value[key] !== undefined) return _metadataValue(value[key]);
+    }
+    return value['#text'] !== undefined ? String(value['#text']) : null;
+  }
+
+  return String(value);
+}
+
+function _messageDateValue(value, version) {
+  if (version === '1.1') return _metadataValue(value, ['dateTime']);
+
+  if (value && typeof value === 'object' && !Array.isArray(value)
+      && value.date !== undefined) {
+    const date = _metadataValue(value.date);
+    const time = _metadataValue(value.time);
+    if (date === null) return null;
+    return time === null ? date : `${date}T${time}`;
+  }
+
+  // Preserve the scalar shorthand accepted by the existing public API.
+  return _metadataValue(value);
+}
+
+function _messageReferenceValue(value) {
+  if (value === undefined || value === null || Array.isArray(value)) return null;
+  if (typeof value !== 'object') return String(value);
+
+  if (value.msgId !== undefined) return _metadataValue(value.msgId, ['id']);
+  if (value['@_uidRef'] !== undefined) return String(value['@_uidRef']);
+  if (value['@_uriRef'] !== undefined) return String(value['@_uriRef']);
+  return _metadataValue(value);
+}
+
+function _relatedMessageIds(value) {
+  if (value === undefined || value === null) return null;
+
+  const relations = Array.isArray(value) ? value : [value];
+  const ids = relations
+    .map((relation) => _messageReferenceValue(relation?.msgRef))
+    .filter((id) => id !== null);
+
+  return Array.isArray(value) ? ids : (ids[0] ?? null);
+}
+
 // ─── Deserializer ─────────────────────────────────────────────────────────────
 
 const S3000L_ROOT_NAMES = new Set([
   'lsaDataset', // S3000L v 2.0
   'lsaDataSet', // S3000L v 1.1
 ]);
+const XML_SCHEMA_INSTANCE_NAMESPACE = 'http://www.w3.org/2001/XMLSchema-instance';
 
 function _bareXmlName(name) {
   if (!name || typeof name !== 'string') return name;
@@ -83,6 +133,48 @@ function _findRootKey(parsed) {
   return Object.keys(parsed).find(
     (key) => S3000L_ROOT_NAMES.has(_bareXmlName(key)),
   );
+}
+
+function _hasOwn(value, key) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function _namespaceUri(prefix, values) {
+  const declaration = `@_xmlns:${prefix}`;
+  for (const value of values) {
+    if (_hasOwn(value, declaration)) return String(value[declaration]);
+  }
+  return null;
+}
+
+function _isExplicitlyNil(value, namespaceContexts = []) {
+  if (value === null) return true;
+  if (typeof value !== 'object' || Array.isArray(value)) return false;
+
+  return Object.entries(value).some(([key, rawValue]) => {
+    const match = /^@_([^:]+):nil$/.exec(key);
+    if (!match) return false;
+    if (_namespaceUri(match[1], [value, ...namespaceContexts])
+        !== XML_SCHEMA_INSTANCE_NAMESPACE) return false;
+    const nilValue = String(rawValue).trim();
+    return nilValue === 'true' || nilValue === '1';
+  });
+}
+
+function _hasElementContent(value) {
+  return value !== null
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && Object.keys(value).some((key) => !key.startsWith('@_'));
+}
+
+function _hasNonEmptyText(value) {
+  if (typeof value === 'string') return value.trim() !== '';
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return true;
+  return _hasOwn(value, '#text') && String(value['#text']).trim() !== '';
 }
 
 class XMLDeserializer {
@@ -160,7 +252,7 @@ class XMLDeserializer {
     }
 
     const root = parsed[rootKey];
-    const version = this._detectEnvelopeVersion(rootKey, root);
+    const version = this._detectEnvelopeVersion(rootKey);
 
     // Message metadata is located directly under the root ...
     const msgMeta = this._extractMsgMeta(root, version);
@@ -190,38 +282,18 @@ class XMLDeserializer {
 
   // ── msg metadata ──────────────────────────────────────────────────────────
 
-  _extractMsgMeta(root) {
-    const get = (key) => {
-      const value = root[key];
-      if (value === undefined || value === null) {
-        return null;
-      }
-
-      // S3000L wraps values in <code> child elements: { code: 'B' }
-      if (typeof value === 'object' && !Array.isArray(value) && value.code !== undefined) {
-        return String(value.code);
-      }
-      if (typeof value === 'object' && !Array.isArray(value) && value.id !== undefined) {
-        return String(value.id);
-      }
-      if (typeof value === 'object') {
-        return value['#text'] !== undefined ? String(value['#text']) : null;
-      }
-
-      return String(value);
-    };
-
-    const related = root.relatedMsg;
-    const relatedMsgId = Array.isArray(related)
-      ? related.map((r) => r.msgRef).filter(Boolean)
-      : related?.msgRef ?? null;
+  _extractMsgMeta(root, version) {
+    const get = (key, wrappers = []) => _metadataValue(root[key], wrappers);
+    const statusWrappers = version === '2.0'
+      ? ['state', 'code']
+      : ['code', 'state'];
 
     return {
-      msgId: get('msgId'),
-      msgType: get('msgType'), // 'B' or 'U'
-      msgStatus: get('msgStatus'), // 'D','P','F'
-      msgDate: get('msgDate'),
-      relatedMsgId,
+      msgId: get('msgId', ['id']),
+      msgType: get('msgType', ['code']), // 'B' or 'U'
+      msgStatus: get('msgStatus', statusWrappers), // 'D','P','F'
+      msgDate: _messageDateValue(root.msgDate, version),
+      relatedMsgId: _relatedMessageIds(root.relatedMsg),
     };
   }
 
@@ -485,29 +557,81 @@ class XMLDeserializer {
     }
   }
 
-  _detectEnvelopeVersion(rootKey, root) {
+  _detectEnvelopeVersion(rootKey) {
     const rootName = _bareXmlName(rootKey);
-    if (rootName === 'lsaDataSet' || root.msgContent !== undefined) { return '1.1'; }
-    if (rootName === 'lsaDataset' || root.logisticsSupportAnalysisData !== undefined) { return '2.0'; }
+    if (rootName === 'lsaDataSet') return '1.1';
+    if (rootName === 'lsaDataset') return '2.0';
     throw new Error(
-      `Unsupported S3000L envelope under <${rootName}>: `
-      + 'expected <msgContent> for 1.1 or '
-      + '<logisticsSupportAnalysisData> for 2.0',
-
+      `Unsupported S3000L envelope <${rootName}>`,
     );
   }
 
   _extractDataContainers(root, version) {
     if (version === '1.1') {
-      const msgContent = root.msgContent ?? {};
+      if (_hasOwn(root, 'logisticsSupportAnalysisData')) {
+        throw new Error(
+          'Invalid S3000L 1.1 <lsaDataSet> envelope: '
+          + 'unexpected <logisticsSupportAnalysisData>',
+        );
+      }
+
+      if (!_hasOwn(root, 'msgContent') || root.msgContent === null) {
+        return { primary: {}, support: {} };
+      }
+
+      const msgContent = root.msgContent;
+      if (Array.isArray(msgContent)) {
+        throw new Error(
+          'Invalid S3000L 1.1 <lsaDataSet> envelope: '
+          + '<msgContent> must not occur more than once',
+        );
+      }
+      if (_isExplicitlyNil(msgContent, [root])) {
+        if (_hasElementContent(msgContent)) {
+          throw new Error(
+            'Invalid S3000L 1.1 <msgContent>: a nil element must not contain content',
+          );
+        }
+        return { primary: {}, support: {} };
+      }
+
+      for (const required of ['messageContentItems', 'supportingContentItems']) {
+        if (!_hasOwn(msgContent, required)
+            || _isExplicitlyNil(msgContent[required], [msgContent, root])) {
+          throw new Error(
+            `Invalid S3000L 1.1 <msgContent>: required <${required}> `
+            + 'is missing or nil',
+          );
+        }
+      }
 
       return {
-        primary: msgContent.messageContentItems ?? {},
-        support: msgContent.supportingContentItems ?? {},
+        primary: msgContent.messageContentItems,
+        support: msgContent.supportingContentItems,
       };
     }
 
-    const lsaData = root.logisticsSupportAnalysisData ?? {};
+    if (_hasOwn(root, 'msgContent')) {
+      throw new Error(
+        'Invalid S3000L 2.0 <lsaDataset> envelope: unexpected <msgContent>',
+      );
+    }
+    if (!_hasOwn(root, 'logisticsSupportAnalysisData')
+        || Array.isArray(root.logisticsSupportAnalysisData)
+        || _isExplicitlyNil(root.logisticsSupportAnalysisData, [root])) {
+      throw new Error(
+        'Invalid S3000L 2.0 <lsaDataset> envelope: required '
+        + '<logisticsSupportAnalysisData> must occur exactly once and be non-nil',
+      );
+    }
+
+    const lsaData = root.logisticsSupportAnalysisData;
+    if (_hasNonEmptyText(lsaData)) {
+      throw new Error(
+        'Invalid S3000L 2.0 <logisticsSupportAnalysisData>: '
+        + 'element-only content must not contain text',
+      );
+    }
 
     return {
       primary: lsaData.lsaPrimaryData ?? {},

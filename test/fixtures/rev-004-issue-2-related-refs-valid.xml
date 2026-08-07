@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataset xmlns:s="http://www.asd-europe.org/s-series/s3000l" uid="msg2">
+  <msgId>
+    <id>REV-004-I2-RELATED</id>
+  </msgId>
+  <logisticsSupportAnalysisData/>
+  <relatedMsg>
+    <msgRef>
+      <msgId>
+        <id>BASELINE-BY-ID</id>
+      </msgId>
+    </msgRef>
+  </relatedMsg>
+  <relatedMsg>
+    <msgRef uidRef="msg2"/>
+  </relatedMsg>
+  <relatedMsg>
+    <msgRef uriRef="https://example.test/messages/baseline"/>
+  </relatedMsg>
+</s:lsaDataset>

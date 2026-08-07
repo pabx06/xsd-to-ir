@@ -2,6 +2,9 @@
 <s:lsaDataSet
   xmlns:s="http://www.asd-europe.org/s-series/s3000l"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <msgId xsi:nil="true"/>
+  <msgDate xsi:nil="true"/>
+  <msgStatus xsi:nil="true"/>
   <!-- msgContent is optional and nillable in Issue 1. -->
   <msgContent xsi:nil="true"/>
 </s:lsaDataSet>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataset
+  xmlns:s="http://www.asd-europe.org/s-series/s3000l"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <msgId>
+    <id xsi:nil="true"/>
+  </msgId>
+  <msgDate>
+    <date xsi:nil="true"/>
+    <time xsi:nil="true"/>
+  </msgDate>
+  <msgStatus>
+    <state xsi:nil="true"/>
+  </msgStatus>
+  <msgType>
+    <code xsi:nil="true"/>
+  </msgType>
+  <logisticsSupportAnalysisData/>
+  <relatedMsg xsi:nil="true"/>
+</s:lsaDataset>

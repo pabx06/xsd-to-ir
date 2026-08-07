@@ -25,4 +25,11 @@
       </products>
     </lsaPrimaryData>
   </logisticsSupportAnalysisData>
+  <relatedMsg>
+    <msgRef>
+      <msgId>
+        <id>BASELINE-I2</id>
+      </msgId>
+    </msgRef>
+  </relatedMsg>
 </s:lsaDataset>

@@ -26,4 +26,11 @@
     </messageContentItems>
     <supportingContentItems/>
   </msgContent>
+  <relatedMsg>
+    <msgRef>
+      <msgId>
+        <id>BASELINE-I1</id>
+      </msgId>
+    </msgRef>
+  </relatedMsg>
 </s:lsaDataSet>
