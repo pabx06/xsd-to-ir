@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataSet xmlns:s="http://www.asd-europe.org/s-series/s3000l">
+  <msgId>
+    <id>REV-020-I1</id>
+  </msgId>
+  <msgContent>
+    <messageContentItems>
+      <products/>
+      <breakdownElements/>
+      <parts>
+        <hwPart uid="part2001" crud="I">
+          <partId>
+            <id>REV-020-PART</id>
+          </partId>
+          <plndTask uid="tasktg2001" crud="I">
+            <taskRef>
+              <taskId>
+                <id>REV-020-TASK</id>
+              </taskId>
+            </taskRef>
+            <maintLevel crud="I">
+              <mlvRef>
+                <mlvId>
+                  <id>ML01</id>
+                </mlvId>
+              </mlvRef>
+            </maintLevel>
+          </plndTask>
+        </hwPart>
+      </parts>
+      <taskRequirements/>
+      <tasks/>
+    </messageContentItems>
+    <supportingContentItems/>
+  </msgContent>
+</s:lsaDataSet>

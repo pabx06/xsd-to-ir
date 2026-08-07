@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataSet
+  xmlns:s="http://www.asd-europe.org/s-series/s3000l"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <msgId>
+    <id>REV-019-FLATTENED-DELETE-I1</id>
+  </msgId>
+  <msgContent>
+    <messageContentItems>
+      <products/>
+      <breakdownElements/>
+      <parts>
+        <hwPart uid="part1903" crud="I">
+          <partId>
+            <id>REV-019-FLATTENED-DELETE-PART</id>
+          </partId>
+          <plndTask xsi:nil="true" uid="tasktg1903" crud="D"/>
+        </hwPart>
+      </parts>
+      <taskRequirements/>
+      <tasks/>
+    </messageContentItems>
+    <supportingContentItems/>
+  </msgContent>
+</s:lsaDataSet>

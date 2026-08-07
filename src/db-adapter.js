@@ -108,6 +108,7 @@ class DBAdapter {
    */
   async insert(entityName, row, opts = {}) {
     const entity = this._entity(entityName);
+    this._assertRequiredUid(entityName, entity, row?.uid, 'insert');
     const clean = this._stripTechCols(row);
     const now = new Date();
 
@@ -140,6 +141,7 @@ class DBAdapter {
    */
   async update(entityName, uid, row, opts = {}) {
     const entity = this._entity(entityName);
+    this._assertRequiredUid(entityName, entity, uid, 'update');
     const clean = this._stripTechCols(row);
 
     const payload = { ...clean };
@@ -163,6 +165,7 @@ class DBAdapter {
    */
   async softDelete(entityName, uid, opts = {}) {
     const entity = this._entity(entityName);
+    this._assertRequiredUid(entityName, entity, uid, 'delete');
     const qb = (opts.trx ?? this.knex)(entity.tableName);
     if (!this._hasColumn(entity, '_deleted_at')) return 0;
 
@@ -186,6 +189,8 @@ class DBAdapter {
     let inserted = 0;
     let updated = 0;
     let deleted = 0;
+
+    this._preflightRequiredUids(batches);
 
     await this.knex.transaction(async (trx) => {
       const pendingRelations = [];
@@ -395,6 +400,37 @@ class DBAdapter {
 
   _hasColumn(entity, columnName) {
     return entity.columns.some((c) => c.columnName === columnName);
+  }
+
+  _requiresUid(entity) {
+    return entity.columns.some(
+      (col) => col.columnName === 'uid' && col.nullable === false,
+    );
+  }
+
+  _assertRequiredUid(entityName, entity, uid, operation) {
+    if (!this._requiresUid(entity) || uid) return;
+    throw new Error(
+      `Cannot ${operation} ${entityName}: `
+      + 'uid is required by the generated database model',
+    );
+  }
+
+  _preflightRequiredUids(batches) {
+    for (const [entityName, batch] of batches) {
+      const entity = this._entity(entityName);
+      if (!this._requiresUid(entity)) continue;
+
+      for (const row of (batch.insert || [])) {
+        this._assertRequiredUid(entityName, entity, row?.uid, 'insert');
+      }
+      for (const row of (batch.update || [])) {
+        this._assertRequiredUid(entityName, entity, row?._xmlUid, 'update');
+      }
+      for (const uid of (batch.delete || [])) {
+        this._assertRequiredUid(entityName, entity, uid, 'delete');
+      }
+    }
   }
 
   _stripTechCols(row) {

@@ -164,6 +164,39 @@ function _isExplicitlyNil(value, namespaceContexts = []) {
   });
 }
 
+function _indexExplicitlyNilValues(root) {
+  const explicitlyNil = new WeakSet();
+
+  const walk = (value, inheritedNamespaces = new Map()) => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item, inheritedNamespaces);
+      return;
+    }
+    if (value === null || typeof value !== 'object') return;
+
+    const namespaces = new Map(inheritedNamespaces);
+    for (const [key, uri] of Object.entries(value)) {
+      const declaration = /^@_xmlns:([^:]+)$/.exec(key);
+      if (declaration) namespaces.set(declaration[1], String(uri));
+    }
+
+    for (const [key, rawValue] of Object.entries(value)) {
+      const nilAttribute = /^@_([^:]+):nil$/.exec(key);
+      if (!nilAttribute) continue;
+      if (namespaces.get(nilAttribute[1]) !== XML_SCHEMA_INSTANCE_NAMESPACE) continue;
+      const nilValue = String(rawValue).trim();
+      if (nilValue === 'true' || nilValue === '1') explicitlyNil.add(value);
+    }
+
+    for (const [key, child] of Object.entries(value)) {
+      if (!key.startsWith('@_')) walk(child, namespaces);
+    }
+  };
+
+  walk(root);
+  return explicitlyNil;
+}
+
 function _hasElementContent(value) {
   return value !== null
     && typeof value === 'object'
@@ -252,6 +285,8 @@ class XMLDeserializer {
     }
 
     const root = parsed[rootKey];
+    this._rootContext = root;
+    this._explicitlyNilValues = _indexExplicitlyNilValues(root);
     const version = this._detectEnvelopeVersion(rootKey);
     const expectedDialect = this.ir.s3000lDialect;
     if (expectedDialect != null && expectedDialect !== version) {
@@ -310,14 +345,14 @@ class XMLDeserializer {
 
     const recordMap = this._collectionRecords.get(collKey);
     if (recordMap) {
-      let matched = false;
       for (const [recordName, entityName] of recordMap) {
         const records = this._extractRecordsByName(collValue, recordName);
         if (records.length === 0) continue;
-        matched = true;
         this._processRecords(entityName, records, batches);
       }
-      if (matched) return;
+      // Collection metadata is authoritative. An empty mapped collection is
+      // not itself a record and must not fall through to plural-name lookup.
+      return;
     }
 
     const entityName = this._resolveEntity(collKey);
@@ -337,17 +372,51 @@ class XMLDeserializer {
     const entity = this.ir.entities.get(entityName);
     if (!entity) return;
 
-    if (!batches.has(entityName)) {
-      batches.set(entityName, { insert: [], update: [], delete: [] });
-    }
-    const batch = batches.get(entityName);
-
     for (const xmlRecord of records) {
+      const explicitlyNil = this._isExplicitlyNil(xmlRecord, [this._rootContext]);
+      if (explicitlyNil && xmlRecord === null) continue;
+      if (!xmlRecord || typeof xmlRecord !== 'object' || Array.isArray(xmlRecord)) {
+        throw new Error(
+          `Unsupported XML record shape for ${entityName}: `
+          + `expected object record, got ${_valueType(xmlRecord)}`,
+        );
+      }
+
       const crud = (xmlRecord['@_crud'] ?? 'I').toUpperCase();
       const uid = xmlRecord['@_uid'] ?? xmlRecord['@_id'] ?? null;
+      if (explicitlyNil) {
+        if (_hasElementContent(xmlRecord)) {
+          throw new Error(
+            `Invalid nil XML record ${entityName}: `
+            + 'nil records must not contain element content',
+          );
+        }
+        const hasExplicitCrud = _hasOwn(xmlRecord, '@_crud');
+        if (!uid && !hasExplicitCrud) continue;
+        if (crud !== 'D') {
+          throw new Error(
+            `Cannot persist nil ${entityName} record with crud="${crud}": `
+            + 'only uid-bearing deletes are supported',
+          );
+        }
+      }
+      const requiresUid = entity.columns.some(
+        (col) => col.columnName === 'uid' && col.nullable === false,
+      );
+
+      if (requiresUid && !uid) {
+        throw new Error(
+          `Cannot persist ${entityName} record with crud="${crud}": `
+          + 'uid is required by the generated database model',
+        );
+      }
 
       if (crud === 'D') {
-        if (uid) batch.delete.push(uid);
+        if (!uid) continue;
+        if (!batches.has(entityName)) {
+          batches.set(entityName, { insert: [], update: [], delete: [] });
+        }
+        batches.get(entityName).delete.push(uid);
         continue;
       }
 
@@ -360,7 +429,19 @@ class XMLDeserializer {
         };
       }
 
-      this._attachOneToOneRelationRefs(entity, xmlRecord, row, batches);
+      const hasDeleteOnlyRelation = this._attachOneToOneRelationRefs(
+        entity,
+        xmlRecord,
+        row,
+        batches,
+      );
+      const hasXmlColumns = entity.columns.some(isXmlImportColumn);
+      if (hasDeleteOnlyRelation && !hasXmlColumns) continue;
+
+      if (!batches.has(entityName)) {
+        batches.set(entityName, { insert: [], update: [], delete: [] });
+      }
+      const batch = batches.get(entityName);
 
       if (crud === 'U') {
         row._xmlUid = uid; // preserve for UPDATE WHERE uid = ?
@@ -396,14 +477,12 @@ class XMLDeserializer {
   }
 
   _attachOneToOneRelationRefs(entity, xmlRecord, row, batches) {
+    let hasDeleteOnlyRelation = false;
     for (const relation of (entity.relations || [])) {
       if (relation.parentColumn || relation.kind !== 'one-to-one') continue;
 
       const childRecords = this._extractRelationRecords(entity, xmlRecord, relation);
       if (childRecords.length === 0) continue;
-
-      const relationCol = relationColumn(entity, relation);
-      if (!relationCol) continue;
 
       const childRecord = childRecords[0];
       const childUid = childRecord['@_uid'] ?? childRecord['@_id'] ?? null;
@@ -413,6 +492,16 @@ class XMLDeserializer {
           + 'child record has no uid',
         );
       }
+
+      const childCrud = (childRecord['@_crud'] ?? 'I').toUpperCase();
+      if (childCrud === 'D') {
+        this._processRecords(relation.targetEntity, childRecords, batches);
+        hasDeleteOnlyRelation = true;
+        continue;
+      }
+
+      const relationCol = relationColumn(entity, relation);
+      if (!relationCol) continue;
 
       if (!row._xmlRelations) row._xmlRelations = [];
       row._xmlRelations.push({
@@ -427,6 +516,7 @@ class XMLDeserializer {
 
       this._processRecords(relation.targetEntity, childRecords, batches);
     }
+    return hasDeleteOnlyRelation;
   }
 
   _extractRelationRecords(entity, xmlRecord, relation) {
@@ -437,7 +527,11 @@ class XMLDeserializer {
     const raw = readField(xmlRecord, relation.fieldName, 'element')
              ?? readField(xmlRecord, relation.fieldName);
     if (raw === undefined || raw === null) return [];
-    return this._objectRelationRecords(raw, `${entity.name}.${relation.fieldName}`);
+    return this._objectRelationRecords(
+      raw,
+      `${entity.name}.${relation.fieldName}`,
+      [xmlRecord, this._rootContext],
+    );
   }
 
   _extractFlattenedGroupRecords(entity, xmlRecord, relation) {
@@ -452,6 +546,12 @@ class XMLDeserializer {
 
       const values = Array.isArray(raw) ? raw : [raw];
       for (const value of values) {
+        const nilAction = this._nilRelationAction(
+          value,
+          `${entity.name}.${branch.fieldName}`,
+          [xmlRecord, this._rootContext],
+        );
+        if (nilAction === 'skip') continue;
         if (value && typeof value === 'object') {
           records.push({ [branch.fieldName]: value });
         } else {
@@ -466,10 +566,12 @@ class XMLDeserializer {
     return records;
   }
 
-  _objectRelationRecords(raw, relationPath) {
+  _objectRelationRecords(raw, relationPath, namespaceContexts = []) {
     const values = Array.isArray(raw) ? raw : [raw];
     const records = [];
     for (const value of values) {
+      const nilAction = this._nilRelationAction(value, relationPath, namespaceContexts);
+      if (nilAction === 'skip') continue;
       if (value && typeof value === 'object') {
         records.push(value);
       } else {
@@ -480,6 +582,36 @@ class XMLDeserializer {
       }
     }
     return records;
+  }
+
+  _isExplicitlyNil(value, namespaceContexts = []) {
+    if (value === null) return true;
+    if (value && typeof value === 'object'
+        && this._explicitlyNilValues?.has(value)) return true;
+    return _isExplicitlyNil(value, namespaceContexts);
+  }
+
+  _nilRelationAction(value, relationPath, namespaceContexts) {
+    if (!this._isExplicitlyNil(value, namespaceContexts)) return 'keep';
+    if (_hasElementContent(value)) {
+      throw new Error(
+        `Invalid nil XML relation ${relationPath}: `
+        + 'nil records must not contain element content',
+      );
+    }
+
+    const uid = value?.['@_uid'] ?? value?.['@_id'] ?? null;
+    const hasExplicitCrud = _hasOwn(value, '@_crud');
+    if (!uid && !hasExplicitCrud) return 'skip';
+
+    const crud = (value['@_crud'] ?? 'I').toUpperCase();
+    if (crud !== 'D') {
+      throw new Error(
+        `Cannot persist nil XML relation ${relationPath} with crud="${crud}": `
+        + 'only uid-bearing deletes are supported',
+      );
+    }
+    return 'keep';
   }
 
   _extractRecordsByName(collValue, recordName) {
@@ -592,7 +724,7 @@ class XMLDeserializer {
           + '<msgContent> must not occur more than once',
         );
       }
-      if (_isExplicitlyNil(msgContent, [root])) {
+      if (this._isExplicitlyNil(msgContent, [root])) {
         if (_hasElementContent(msgContent)) {
           throw new Error(
             'Invalid S3000L 1.1 <msgContent>: a nil element must not contain content',
@@ -603,7 +735,7 @@ class XMLDeserializer {
 
       for (const required of ['messageContentItems', 'supportingContentItems']) {
         if (!_hasOwn(msgContent, required)
-            || _isExplicitlyNil(msgContent[required], [msgContent, root])) {
+            || this._isExplicitlyNil(msgContent[required], [msgContent, root])) {
           throw new Error(
             `Invalid S3000L 1.1 <msgContent>: required <${required}> `
             + 'is missing or nil',
@@ -624,7 +756,7 @@ class XMLDeserializer {
     }
     if (!_hasOwn(root, 'logisticsSupportAnalysisData')
         || Array.isArray(root.logisticsSupportAnalysisData)
-        || _isExplicitlyNil(root.logisticsSupportAnalysisData, [root])) {
+        || this._isExplicitlyNil(root.logisticsSupportAnalysisData, [root])) {
       throw new Error(
         'Invalid S3000L 2.0 <lsaDataset> envelope: required '
         + '<logisticsSupportAnalysisData> must occur exactly once and be non-nil',

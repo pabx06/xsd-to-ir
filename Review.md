@@ -1,7 +1,7 @@
 # Review Ledger
 
 Last updated: 2026-08-07
-Reviewed baseline: `e1b5e1e` plus the REV-017 working-tree changes
+Reviewed baseline: `2949ad3` plus the REV-019/REV-020 working-tree changes
 
 This file is the repository source of truth for review findings. Update it whenever a finding is opened,
 changed, accepted, or resolved. Keep resolved findings for history instead of deleting them.
@@ -136,7 +136,7 @@ Required resolution:
 - Location: [`manifest.json`](manifest.json#L31)
 
 Fingerprint generation now succeeds, but its JSON output differs from `manifest.json`. The stored repository
-semantic hash is `c7ed6cd8...`, while the REV-017 source produces `0c350a4e...`; comparisons against the
+semantic hash is `c7ed6cd8...`, while the REV-019/REV-020 source produces `72304cee...`; comparisons against the
 checked-in manifest therefore report a change set that does not match the actual working tree.
 
 Required resolution:
@@ -302,9 +302,57 @@ Required resolution:
   retain their nested `bkdn` UIDs and genuine parentage. The existing genuine-relation missing-child-UID
   regression also passes.
 - Scope note: Issue 1 serialization remains open under REV-005, the stale manifest under REV-014, and
-  dependency audits under REV-007. The unrelated empty-container defect also remains:
-  `<taskRequirements/>` creates one phantom `taskRequirement` insert with null `uid`/`tr_id`; REV-018 does
-  not claim to fix it.
+  dependency audits under REV-007. The separate empty/nil phantom-record and genuine UID-less entity cases
+  are tracked and resolved under REV-019 and REV-020.
+
+### REV-019 — Empty mapped collections and explicitly nil relations create phantom records
+
+- Status: `Resolved`
+- Severity: `P1`
+- Locations:
+  [`src/xml-deserializer.js`](src/xml-deserializer.js#L343),
+  [`src/xml-deserializer.js`](src/xml-deserializer.js#L371),
+  [`src/xml-deserializer.js`](src/xml-deserializer.js#L574)
+- Pre-fix evidence: schema-valid empty mapped collections such as `<taskRequirements/>` fell through from
+  collection metadata to plural-name lookup, so the parser's empty array sentinel became a synthetic
+  `taskRequirement` insert with null `uid` and `tr_id`. An explicitly nil nested `maintLevel` similarly
+  created an empty `allocatedMaintenanceLevel` record even though no record value was present.
+- Resolution: mapped collection metadata is now authoritative even when it finds no records, and batches are
+  created lazily only after a valid record survives validation. Nil detection resolves the XSI prefix through
+  the full namespace ancestry for direct, nested, and flattened relations: a pure nil value is absence, a
+  UID-bearing nil delete remains a delete operation, and nil-with-element-content is rejected rather than
+  silently discarded.
+- Evidence: the initial red run reported seven failures and two passes. A second expanded red audit caught
+  eight failures and eight passes before the namespace, nil-delete, and nil-content hardening was complete.
+  A final red audit caught two additional delete-routing regressions while 15 cases passed.
+  `npm run test:rev-020` now passes all 17 focused cases after all four fixtures pass strict Xerces XSD 1.1
+  validation, including a flattened UID-bearing nil delete with no phantom relation helper.
+
+### REV-020 — Schema-valid UID-less S3000L records cannot satisfy the persistence contract
+
+- Status: `Resolved`
+- Severity: `P1`
+- Locations:
+  [`s3000l/1_1/s3000l_1-1_lsa_dataset.xsd`](s3000l/1_1/s3000l_1-1_lsa_dataset.xsd#L328),
+  [`src/ir-builder.js`](src/ir-builder.js#L671),
+  [`src/xml-deserializer.js`](src/xml-deserializer.js#L371),
+  [`src/db-adapter.js`](src/db-adapter.js#L109),
+  [`src/db-adapter.js`](src/db-adapter.js#L419)
+- Pre-fix evidence: all 169 detected Issue 1 entities and all 187 detected Issue 2 entities declare their XSD
+  `uid` attribute optional, while the generated database profile requires `uid NOT NULL`. A content-bearing,
+  Xerces-valid Issue 1 `allocatedMaintenanceLevel` without `uid` was batched as a genuine child record and
+  reached MariaDB, where the generated non-null constraint rejected it.
+- Resolution: the project now makes its stricter persistence profile explicit. The deserializer rejects
+  UID-less insert, update, and delete records required by the generated model before creating a batch, and
+  the database adapter defensively enforces the same rule for direct insert, update, and delete calls.
+  Message persistence preflights every required UID before opening a transaction. UID-bearing routing and
+  generic or legacy entities whose IR does not require UID remain unchanged.
+- Evidence: the initial combined red run reported seven failures and two passes. The second expanded red
+  audit reported eight failures and eight passes before direct-operation and pre-transaction safeguards were
+  complete. The final delete-routing red audit reported two failures and 15 passes before generic UID-less
+  deletes returned to no-op behavior and flattened child deletes stopped creating relation helpers.
+  `npm run test:rev-020` now passes all 17 focused cases after strict Xerces XSD 1.1 validation of all four
+  fixtures.
 
 ## Verification snapshot
 
@@ -315,6 +363,7 @@ Passed:
 - `npm run lint`
 - `npm run check`
 - `npm run test:generate`
+- `npm run test:generate1_1`
 - `npm run test:xsd11`
 - `npm run test:xsd11:invalid`
 - `npm run test:xsd11:assert-invalid`
@@ -325,6 +374,7 @@ Passed:
 - Xerces XSD 1.1 validation of all six schema-valid REV-004 fixtures.
 - Xerces XSD 1.1 validation of both schema-valid REV-017 cross-dialect fixtures.
 - Xerces XSD 1.1 validation of the schema-valid REV-018 anonymous-wrapper fixture.
+- Xerces XSD 1.1 validation of all four schema-valid REV-019/REV-020 fixtures.
 - All seven focused REV-012 metadata tests pass, including date-only, date-time, status, related-message,
   complete-header, and nil-wrapper coverage.
 - All 18 focused REV-013 envelope tests pass, including hybrid, required/nillable, multiplicity, and partial
@@ -332,11 +382,19 @@ Passed:
 - `npm run test:rev-004`: all 27 focused cases pass.
 - `npm run test:rev-017`: all seven focused cases pass.
 - `npm run test:rev-018`: all four focused cases pass.
+- `npm run test:rev-020`: all 17 focused REV-019/REV-020 cases pass.
 - Both S3000L dialects are preserved in memory and in generated `ir.json`; mismatched XML/IR dialects are
   rejected before collection processing while matching dialects still import.
 - Both bundled S3000L IRs contain zero relations whose target entity is absent.
-- The real `tmp.xml` imports both `bkdns` subtrees and preserves the `productVariant` parent relation.
-- `npm test`: 95 passes, zero failures, and 4 expected MariaDB skips.
+- The real `tmp.xml` passes strict Xerces validation, imports both `bkdns` subtrees, preserves the
+  `productVariant` parent relation, and produces no phantom `taskRequirement` batch.
+- Empty mapped collections and pure nil relations produce no phantom records. Namespace declarations are
+  resolved through the full ancestry, UID-bearing nil deletes remain operations, and nil-with-content is
+  rejected.
+- Content-bearing UID-less records required by the generated database profile fail before batching. Direct
+  insert/update/delete calls reject missing required UIDs before querying, and message persistence rejects
+  them before opening a transaction.
+- `npm test`: 112 passes, zero failures, and 4 expected MariaDB skips.
 - `git diff --check`
 - Every file relocated from `s3000l/` to `s3000l/2_0/` has the same Git blob hash as its baseline
   counterpart; no old-path references or files directly under `s3000l/` remain.
@@ -344,18 +402,17 @@ Passed:
 
 Failed:
 
-- Fresh fingerprint JSON does not match `manifest.json`: semantic hash `0c350a4e...` versus
-  `c7ed6cd8...`, and 186 stored functions versus 206 current functions.
+- Fresh fingerprint JSON does not match `manifest.json`: semantic hash `72304cee...` versus
+  `c7ed6cd8...`, and 186 stored functions versus 211 current functions.
 - Both configured audit gates remain non-zero as recorded in REV-007.
 - Cross-version structural-validation reproduction: both wrong-XSD combinations returned `valid: true`.
 - Empty schema-valid Issue 1 envelope reproduction: falsely rejected as missing `msgId`.
 - XSD parser reproduction: both the target namespace and imported namespace lost their `http:` scheme.
-- The unrelated empty `<taskRequirements/>` container still creates one phantom `taskRequirement` insert
-  with null `uid`/`tr_id`; REV-018 does not address it.
 
-The targeted numbered-collision reproduction for REV-002 remains unresolved. REV-017 and REV-018 are
-verified for their scoped changes. Unrelated validation/data-integrity findings, REV-014's stale manifest,
-and REV-007's audit failures remain open; `npm run ci` remains non-zero at the configured audit gates.
+The targeted numbered-collision reproduction for REV-002 remains unresolved. REV-017 through REV-020 are
+verified for their scoped focused checks. Unrelated validation/data-integrity findings, REV-014's stale
+manifest, and REV-007's audit failures remain open; `npm run ci` remains non-zero at the configured audit
+gates.
 
 ## Maintenance rules
 

@@ -339,12 +339,12 @@ test('deserializer flattens nested relationship records with parent markers', ()
   });
 });
 
-test('deserializer rejects nested relationship records when parent uid is missing', () => {
+test('deserializer rejects a uidless parent before processing nested records', () => {
   const ir = buildIr();
 
   assert.throws(
     () => deserializeXML(relationshipMissingParentUidXml(), ir),
-    /Cannot persist nested prodVar records for product: parent record has no uid/,
+    /Cannot persist product record with crud="I": uid is required by the generated database model/,
   );
 });
 

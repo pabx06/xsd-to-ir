@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataSet
+  xmlns:s="http://www.asd-europe.org/s-series/s3000l"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <msgId>
+    <id>REV-019-DELETE-I1</id>
+  </msgId>
+  <msgContent>
+    <messageContentItems>
+      <products/>
+      <breakdownElements/>
+      <parts>
+        <hwPart uid="part1902" crud="I">
+          <partId>
+            <id>REV-019-DELETE-PART</id>
+          </partId>
+          <plndTask uid="tasktg1902" crud="I">
+            <taskRef>
+              <taskId>
+                <id>REV-019-DELETE-TASK</id>
+              </taskId>
+            </taskRef>
+            <maintLevel xsi:nil="true" uid="allmlv1901" crud="D"/>
+          </plndTask>
+        </hwPart>
+      </parts>
+      <taskRequirements/>
+      <tasks/>
+    </messageContentItems>
+    <supportingContentItems/>
+  </msgContent>
+</s:lsaDataSet>
