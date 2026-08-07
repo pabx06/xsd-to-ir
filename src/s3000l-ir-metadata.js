@@ -3,6 +3,11 @@ const MESSAGE_CONTENT_TYPES = new Set([
   'messageContent', // S3000L V1
 ]);
 
+const S3000L_DIALECT_BY_ROOT = new Map([
+  ['lsaDataSet', '1.1'],
+  ['lsaDataset', '2.0'],
+]);
+
 const CONTENT_SECTIONS = {
   // S3000L V2
   lsaPrimaryData: 'lsaPrimaryData',
@@ -25,6 +30,22 @@ function detectS3000LEntities(schema) {
     if (hasUid && hasCrud) candidates.push(name);
   }
   return candidates.length > 0 ? new Set(candidates) : null;
+}
+
+function detectS3000LDialect(schema) {
+  const dialects = new Set();
+  for (const element of (schema.element || [])) {
+    const dialect = S3000L_DIALECT_BY_ROOT.get(element['@_name']);
+    if (dialect) dialects.add(dialect);
+  }
+
+  if (dialects.size > 1) {
+    throw new Error(
+      'Ambiguous S3000L schema dialect: both <lsaDataSet> and <lsaDataset> are declared',
+    );
+  }
+
+  return dialects.values().next().value ?? null;
 }
 
 function extractS3000LCollections({ schema, resolver, entityTypes }) {
@@ -127,6 +148,7 @@ function flatAttributes(ct) {
 }
 
 module.exports = {
+  detectS3000LDialect,
   detectS3000LEntities,
   extractS3000LCollections,
 };

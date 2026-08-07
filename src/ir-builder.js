@@ -16,6 +16,7 @@ const crypto = require('crypto');
  *   simpleTypes: Map<string, IRSimpleType>
  *   assertions : Map<string, IRAssertionSet>
  *   assertionPaths: Map<string, IRAssertionPathSet>
+ *   s3000lDialect: '1.1' | '2.0' | null
  * }
  *
  * IREntity {
@@ -77,6 +78,7 @@ const {
   extractAssertionSets,
 } = require('./xsd-assertion-metadata');
 const {
+  detectS3000LDialect,
   detectS3000LEntities,
   extractS3000LCollections,
 } = require('./s3000l-ir-metadata');
@@ -154,6 +156,9 @@ class IRBuilder {
     const s3000lRealTypes = detectS3000LEntities(this.schema);
     this._s3000lMode = s3000lRealTypes !== null;
     this._s3000lSet = s3000lRealTypes ?? new Set();
+    this._s3000lDialect = this._s3000lMode
+      ? detectS3000LDialect(this.schema)
+      : null;
     this._s3000lCollections = this._s3000lMode
       ? extractS3000LCollections({
         schema: this.schema,
@@ -199,6 +204,7 @@ class IRBuilder {
       assertions: this.assertions,
       assertionPaths: this.assertionPaths,
       s3000lMode: this._s3000lMode,
+      s3000lDialect: this._s3000lDialect,
       s3000lCollections: this._s3000lCollections,
     };
   }

@@ -253,6 +253,12 @@ class XMLDeserializer {
 
     const root = parsed[rootKey];
     const version = this._detectEnvelopeVersion(rootKey);
+    const expectedDialect = this.ir.s3000lDialect;
+    if (expectedDialect != null && expectedDialect !== version) {
+      throw new Error(
+        `S3000L dialect mismatch: XML is ${version} but IR expects ${expectedDialect}`,
+      );
+    }
 
     // Message metadata is located directly under the root ...
     const msgMeta = this._extractMsgMeta(root, version);

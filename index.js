@@ -63,6 +63,7 @@ function irToJSON(ir) {
     assertions: Object.fromEntries(ir.assertions),
     assertionPaths: Object.fromEntries(ir.assertionPaths),
     s3000lMode: !!ir.s3000lMode,
+    s3000lDialect: ir.s3000lDialect ?? null,
     s3000lCollections: ir.s3000lCollections instanceof Map
       ? Object.fromEntries(ir.s3000lCollections)
       : (ir.s3000lCollections || {}),

@@ -1,7 +1,7 @@
 # Review Ledger
 
 Last updated: 2026-08-07
-Reviewed baseline: `55e49a9` plus the REV-018 working-tree changes
+Reviewed baseline: `e1b5e1e` plus the REV-017 working-tree changes
 
 This file is the repository source of truth for review findings. Update it whenever a finding is opened,
 changed, accepted, or resolved. Keep resolved findings for history instead of deleting them.
@@ -50,14 +50,14 @@ Required resolution:
   [`src/s3000l-ir-metadata.js`](src/s3000l-ir-metadata.js#L6),
   [`src/xml-serializer.js`](src/xml-serializer.js#L257)
 
-The new metadata mapping converts Issue 1 section names to Issue 2 names and does not retain the
-source dialect. The serializer always emits the Issue 2 `lsaDataset` /
-`logisticsSupportAnalysisData` envelope, so an IR built from Issue 1 cannot be serialized back as a
-schema-valid Issue 1 document.
+REV-017 now preserves the source dialect as `s3000lDialect`, but the collection metadata still converts
+Issue 1 section names to Issue 2 names and the serializer does not consume the dialect. It always emits the
+Issue 2 `lsaDataset` / `logisticsSupportAnalysisData` envelope, so an IR built from Issue 1 cannot be
+serialized back as a schema-valid Issue 1 document.
 
 Required resolution:
 
-1. Preserve the S3000L dialect and actual section/envelope names in IR metadata.
+1. Extend the preserved S3000L dialect metadata with the actual section/envelope names needed for export.
 2. Make serialization dialect-aware and validate generated Issue 1 XML against its schema.
 
 ### REV-006 — S3000L Issue 1 compatibility paths lack complete regression coverage
@@ -136,7 +136,7 @@ Required resolution:
 - Location: [`manifest.json`](manifest.json#L31)
 
 Fingerprint generation now succeeds, but its JSON output differs from `manifest.json`. The stored repository
-semantic hash is `c7ed6cd8...`, while the REV-018 source produces `17ab8486...`; comparisons against the
+semantic hash is `c7ed6cd8...`, while the REV-017 source produces `0c350a4e...`; comparisons against the
 checked-in manifest therefore report a change set that does not match the actual working tree.
 
 Required resolution:
@@ -176,24 +176,6 @@ Required resolution:
 
 1. Report both accepted roots, ideally with their dialects, and update the helper documentation.
 2. Assert the diagnostic in a focused invalid-root test.
-
-### REV-017 — XML dialect is not checked against the IR schema dialect
-
-- Status: `Open`
-- Severity: `P1`
-- Locations:
-  [`src/xml-deserializer.js`](src/xml-deserializer.js#L92),
-  [`src/xml-deserializer.js`](src/xml-deserializer.js#L163)
-
-The detected XML version is returned but never compared with the IR supplied to the deserializer. A V1
-document passed to an IR built from the V2 schema currently imports a `product` row and fills V2-only fields
-with nulls. This can silently create incomplete cross-version data unless conversion is an explicit feature.
-
-Required resolution:
-
-1. Preserve the source dialect in IR metadata.
-2. Reject XML/IR dialect mismatches, or implement an explicit, documented conversion mode with complete field
-   mappings and tests.
 
 ## Resolved and invalid findings
 
@@ -277,6 +259,28 @@ Required resolution:
   missing/nil/repeated/text content, valid empty content, XSI aliases and lexical forms, foreign namespace
   rejection, false nil, and partial Issue 1 content.
 
+### REV-017 — XML dialect is not checked against the IR schema dialect
+
+- Status: `Resolved`
+- Severity: `P1`
+- Locations:
+  [`src/s3000l-ir-metadata.js`](src/s3000l-ir-metadata.js#L29),
+  [`src/ir-builder.js`](src/ir-builder.js#L155),
+  [`src/xml-deserializer.js`](src/xml-deserializer.js#L255),
+  [`index.js`](index.js#L65)
+- Pre-fix evidence: both mismatch directions imported instead of failing. Issue 1 XML with an Issue 2 IR
+  inserted `prod1` while filling Issue 2-only fields with nulls; Issue 2 XML with an Issue 1 IR likewise
+  inserted `prod2` into the wrong model.
+- Resolution: S3000L IRs now record `s3000lDialect` as `1.1` or `2.0`, derived from the schema's exact global
+  root, and generated `ir.json` preserves that field. Deserialization compares it with the XML root dialect
+  before metadata or collection processing and rejects mismatches. Generic and legacy/manual IR objects with
+  absent or null dialect metadata remain intentionally unbound for compatibility.
+- Evidence: `npm run test:rev-017` passes all seven focused cases after strict validation of both fixtures.
+  Both same-dialect imports succeed, both mismatch directions fail before `_processCollection`, generic and
+  legacy IR behavior remains compatible, and the CLI persistence check covers both generated dialects.
+- Scope note: schema-selection checks in structural validation remain open under REV-009, and dialect-aware
+  Issue 1 serialization remains open under REV-005.
+
 ### REV-018 — Anonymous S3000L wrappers become dangling UID-backed relations
 
 - Status: `Resolved`
@@ -319,16 +323,20 @@ Passed:
   `product -> products.prod` mapping.
 - Xerces XSD 1.1 compilation and validation of a namespace-qualified empty Issue 1 `<lsaDataSet/>`.
 - Xerces XSD 1.1 validation of all six schema-valid REV-004 fixtures.
+- Xerces XSD 1.1 validation of both schema-valid REV-017 cross-dialect fixtures.
 - Xerces XSD 1.1 validation of the schema-valid REV-018 anonymous-wrapper fixture.
 - All seven focused REV-012 metadata tests pass, including date-only, date-time, status, related-message,
   complete-header, and nil-wrapper coverage.
 - All 18 focused REV-013 envelope tests pass, including hybrid, required/nillable, multiplicity, and partial
   Issue 1 content cases.
 - `npm run test:rev-004`: all 27 focused cases pass.
+- `npm run test:rev-017`: all seven focused cases pass.
 - `npm run test:rev-018`: all four focused cases pass.
+- Both S3000L dialects are preserved in memory and in generated `ir.json`; mismatched XML/IR dialects are
+  rejected before collection processing while matching dialects still import.
 - Both bundled S3000L IRs contain zero relations whose target entity is absent.
 - The real `tmp.xml` imports both `bkdns` subtrees and preserves the `productVariant` parent relation.
-- `npm test`: 88 passes, zero failures, and 4 expected MariaDB skips.
+- `npm test`: 95 passes, zero failures, and 4 expected MariaDB skips.
 - `git diff --check`
 - Every file relocated from `s3000l/` to `s3000l/2_0/` has the same Git blob hash as its baseline
   counterpart; no old-path references or files directly under `s3000l/` remain.
@@ -336,19 +344,18 @@ Passed:
 
 Failed:
 
-- Fresh fingerprint JSON does not match `manifest.json`: semantic hash `17ab8486...` versus
-  `c7ed6cd8...`, and 186 stored functions versus 201 current functions.
+- Fresh fingerprint JSON does not match `manifest.json`: semantic hash `0c350a4e...` versus
+  `c7ed6cd8...`, and 186 stored functions versus 206 current functions.
 - Both configured audit gates remain non-zero as recorded in REV-007.
 - Cross-version structural-validation reproduction: both wrong-XSD combinations returned `valid: true`.
 - Empty schema-valid Issue 1 envelope reproduction: falsely rejected as missing `msgId`.
-- Cross-dialect reproduction: V1 XML imported into a V2 IR and populated V2-only fields with nulls.
 - XSD parser reproduction: both the target namespace and imported namespace lost their `http:` scheme.
 - The unrelated empty `<taskRequirements/>` container still creates one phantom `taskRequirement` insert
   with null `uid`/`tr_id`; REV-018 does not address it.
 
-The targeted numbered-collision reproduction for REV-002 remains unresolved. REV-018 is verified for its
-scoped change. Unrelated validation/data-integrity findings, REV-014's stale manifest, and REV-007's audit
-failures remain open; `npm run ci` remains non-zero at the configured audit gates.
+The targeted numbered-collision reproduction for REV-002 remains unresolved. REV-017 and REV-018 are
+verified for their scoped changes. Unrelated validation/data-integrity findings, REV-014's stale manifest,
+and REV-007's audit failures remain open; `npm run ci` remains non-zero at the configured audit gates.
 
 ## Maintenance rules
 
