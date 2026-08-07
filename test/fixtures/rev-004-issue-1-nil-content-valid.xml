@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataSet
+  xmlns:s="http://www.asd-europe.org/s-series/s3000l"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- msgContent is optional and nillable in Issue 1. -->
+  <msgContent xsi:nil="true"/>
+</s:lsaDataSet>

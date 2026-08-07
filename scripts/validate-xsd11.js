@@ -7,7 +7,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const DEFAULT_XSD = 's3000l/s3000l_2-0_lsaDataset.xsd';
+const DEFAULT_XSD = 's3000l/2_0/s3000l_2-0_lsaDataset.xsd';
 const DEFAULT_XML = 'test/fixtures/s3000l-minimal-valid.xml';
 const DEFAULT_CACHE_DIR = path.join(PROJECT_ROOT, '.cache', 'xsd11');
 const JAVA_SOURCE = path.join(PROJECT_ROOT, 'scripts', 'Xsd11Validator.java');

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataset xmlns:s="http://www.asd-europe.org/s-series/s3000l">
+  <!-- Issue 2 permits msgDate.time to be absent. -->
+  <msgId>
+    <id>REV-004-I2-DATE-ONLY</id>
+  </msgId>
+  <msgDate>
+    <date>2026-08-07</date>
+  </msgDate>
+  <logisticsSupportAnalysisData/>
+</s:lsaDataset>

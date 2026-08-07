@@ -5,7 +5,7 @@ const { spawnSync } = require('node:child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const VALIDATOR = path.join(PROJECT_ROOT, 'scripts', 'validate-xsd11.js');
-const DEFAULT_XSD = 's3000l/s3000l_2-0_lsaDataset.xsd';
+const DEFAULT_XSD = 's3000l/2_0/s3000l_2-0_lsaDataset.xsd';
 const DEFAULT_XML = 'test/fixtures/s3000l-minimal-invalid-missing-msg-id.xml';
 
 function parseArgs(argv) {

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataSet xmlns:s="http://www.asd-europe.org/s-series/s3000l">
+  <!-- Local elements are unqualified because the XSD does not set elementFormDefault="qualified". -->
+  <msgId>
+    <id>REV-004-I1</id>
+  </msgId>
+  <msgDate>
+    <dateTime>2026-08-07T12:34:56Z</dateTime>
+  </msgDate>
+  <msgStatus>
+    <code>F</code>
+  </msgStatus>
+  <msgContent>
+    <messageContentItems>
+      <products>
+        <prod uid="prod1" crud="I">
+          <prodId>
+            <id>PRODUCT-1</id>
+          </prodId>
+        </prod>
+      </products>
+      <breakdownElements/>
+      <parts/>
+      <taskRequirements/>
+      <tasks/>
+    </messageContentItems>
+    <supportingContentItems/>
+  </msgContent>
+</s:lsaDataSet>
