@@ -79,9 +79,13 @@ function _structuralCheck(xmlString) {
   const wellFormed = XMLValidator.validate(xmlString, {
     allowBooleanAttributes: true,
   });
+
   if (wellFormed !== true) {
     const err = wellFormed.err || {};
-    const location = err.line ? ` at line ${err.line}, col ${err.col}` : '';
+    const location = err.line
+      ? ` at line ${err.line}, col ${err.col}`
+      : '';
+
     throw new ValidationError(
       `XML is not well-formed${location}: ${err.msg || 'parse error'}`,
       [{ line: err.line, col: err.col, message: err.msg || 'parse error' }],
@@ -97,11 +101,14 @@ function _structuralCheck(xmlString) {
 
   // Verify S3000L root element
   const keys = Object.keys(parsed).filter((k) => !k.startsWith('?'));
+
   if (keys.length === 0) {
     throw new ValidationError('XML has no root element');
   }
+
   const root = keys[0].replace(/^[^:]+:/, ''); // strip namespace prefix
-  if (root !== 'lsaDataset') {
+
+  if (root !== 'lsaDataset' && root !== 'lsaDataSet') {
     throw new ValidationError(
       `Expected root element <lsaDataset>, found <${root}>`,
     );
@@ -110,11 +117,21 @@ function _structuralCheck(xmlString) {
   const rootNode = parsed[keys[0]];
 
   // Verify required envelope fields exist directly on lsaDataset.
-  for (const required of ['msgId', 'logisticsSupportAnalysisData']) {
-    if (!rootNode || rootNode[required] === undefined) {
-      throw new ValidationError(
-        `Missing required envelope element <${required}> in lsaDataset`,
-      );
+  if (root === 'lsaDataset') {
+    for (const required of ['msgId', 'logisticsSupportAnalysisData']) {
+      if (!rootNode || rootNode[required] === undefined) {
+        throw new ValidationError(
+          `Missing required envelope element <${required}> in lsaDataset (v 2.0)`,
+        );
+      }
+    }
+  } else {
+    for (const required of ['msgId', 'msgContent']) {
+      if (!rootNode || rootNode[required] === undefined) {
+        throw new ValidationError(
+          `Missing required envelope element <${required}> in lsaDataSet (v 1.1)`,
+        );
+      }
     }
   }
 }

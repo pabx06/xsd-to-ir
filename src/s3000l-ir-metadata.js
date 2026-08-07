@@ -1,3 +1,19 @@
+const MESSAGE_CONTENT_TYPES = new Set([
+  'logisticsSupportAnalysisMessageContent', // S3000L V2
+  'messageContent', // S3000L V1
+]);
+
+const CONTENT_SECTIONS = {
+  // S3000L V2
+  lsaPrimaryData: 'lsaPrimaryData',
+  lsaSupportingData: 'lsaSupportingData',
+
+  // S3000L V1
+  messageContentItems: 'lsaPrimaryData',
+  supportingContentItems: 'lsaSupportingData',
+
+};
+
 function detectS3000LEntities(schema) {
   const candidates = [];
   for (const ct of (schema.complexType || [])) {
@@ -14,25 +30,32 @@ function detectS3000LEntities(schema) {
 function extractS3000LCollections({ schema, resolver, entityTypes }) {
   const map = new Map();
   const msgContent = (schema.complexType || [])
-    .find((ct) => ct['@_name'] === 'logisticsSupportAnalysisMessageContent');
+    .find((complexType) => MESSAGE_CONTENT_TYPES.has(complexType['@_name']));
 
   if (!msgContent) return map;
 
   for (const section of childElements(msgContent)) {
-    const sectionName = section['@_name'];
-    if (sectionName !== 'lsaPrimaryData' && sectionName !== 'lsaSupportingData') {
-      continue;
-    }
+    const xsdSectionName = section['@_name'];
+    const normalizedSection = CONTENT_SECTIONS[xsdSectionName];
+
+    // Ignore message-content elements that are not collection sections.
+    if (!normalizedSection) continue;
 
     for (const collection of childElements(section)) {
       const collectionName = collection['@_name'];
       if (!collectionName) continue;
 
-      for (const record of recordElements(collection, resolver)) {
-        if (!record.type || !entityTypes.has(record.type)) continue;
+      const records = recordElements(collection, resolver);
+
+      for (const record of records) {
+        if (!record.type) continue;
+        if (!entityTypes.has(record.type)) continue;
         map.set(record.type, {
           entityName: record.type,
-          section: sectionName,
+
+          section: normalizedSection,
+
+          // Preserve actual XML collection and record names.
           collectionName,
           recordName: record.name || record.type,
         });

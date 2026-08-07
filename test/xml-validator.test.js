@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { validateXML, validateXMLSync, ValidationError } = require('../src/xml-validator');
 
-const XSD_PATH = 's3000l/s3000l_2-0_lsaDataset.xsd';
+const XSD_PATH = 's3000l/2_0/s3000l_2-0_lsaDataset.xsd';
 
 const VALID_ENVELOPE = [
   '<lsaDataset>',

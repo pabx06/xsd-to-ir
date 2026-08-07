@@ -9,6 +9,30 @@ function choiceBranchNames(choice) {
   ];
 }
 
+function uniqueColumnName(entity, preferredName, suffix, helpers) {
+  const usedNames = new Set(
+    entity.columns.map((column) => column.columnName.toLowerCase()),
+  );
+  if (!usedNames.has(preferredName.toLowerCase())) {
+    return preferredName;
+  }
+  const baseName = preferredName.endsWith('_id')
+    ? preferredName.slice(0, -3)
+    : preferredName;
+
+  let candidate = helpers.shortenIdentifier(`${baseName}_${suffix}_id`);
+  let index = 2;
+
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = helpers.shortenIdentifier(
+      `${baseName}_${suffix}_${index}_id`,
+    );
+    index += 1;
+  }
+
+  return candidate;
+}
+
 function addChoiceDiscriminator(entity, branchNames, helpers) {
   const alreadyHasDiscriminator = entity.columns.some((c) => c.columnName === 'choice_type');
   if (branchNames.length <= 1 || alreadyHasDiscriminator) return;
@@ -66,6 +90,7 @@ function addRelationToEntity({
 
   if (!repeating) {
     entity.columns.push(oneToOneRelationColumn({
+      entity,
       fieldName,
       targetEntity,
       nullable,
@@ -113,6 +138,7 @@ function ensureRelationParentColumn({
 }
 
 function oneToOneRelationColumn({
+  entity,
   fieldName,
   targetEntity,
   nullable,
@@ -120,9 +146,12 @@ function oneToOneRelationColumn({
   maxOccurs,
   helpers,
 }) {
+  const preferredColumnName = helpers.shortenIdentifier(`${helpers.toSnake(fieldName)}_id`);
+  const columnName = uniqueColumnName(entity, preferredColumnName, 'relation', helpers);
+  const hasCollision = columnName !== preferredColumnName;
   return {
-    name: `${helpers.toCamel(fieldName)}Id`,
-    columnName: helpers.shortenIdentifier(`${helpers.toSnake(fieldName)}_id`),
+    name: hasCollision ? `${helpers.toCamel(fieldName)}RelationId` : `${helpers.toCamel(fieldName)}Id`,
+    columnName,
     ...helpers.relationColumnMeta(fieldName, minOccurs, maxOccurs),
     sqlType: 'BIGINT',
     jsonType: 'integer',
@@ -134,7 +163,7 @@ function oneToOneRelationColumn({
     isEnum: false,
     enumRef: null,
     constraints: {},
-    documentation: `FK → ${targetEntity}`,
+    documentation: `FK -> ${targetEntity}`,
     xsdType: targetEntity,
   };
 }

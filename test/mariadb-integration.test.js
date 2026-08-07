@@ -52,7 +52,7 @@ function _makeKnex() {
 
 function _s3000lIr() {
   if (!cachedIr) {
-    cachedIr = new IRBuilder(parseXSD('s3000l/s3000l_2-0_lsaDataset.xsd')).build();
+    cachedIr = new IRBuilder(parseXSD('s3000l/2_0/s3000l_2-0_lsaDataset.xsd')).build();
   }
   return cachedIr;
 }

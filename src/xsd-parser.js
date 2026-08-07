@@ -111,10 +111,10 @@ function parseSingleFile(absPath) {
  * Parse an XSD entry-point file and all locally resolvable includes/imports
  * into a single merged schema object.
  *
- * @param {string} filePath        Entry .xsd file path.
+ * @param {string} filePath           Entry .xsd file path.
  * @param {object} [opts]
  * @param {boolean} [opts.verbose] Log each included file to stderr.
- * @returns {object}               Merged, namespace-stripped schema node.
+ * @returns {object}                  Merged, namespace-stripped schema node.
  */
 function parseXSD(filePath, opts = {}) {
   const absPath = path.resolve(filePath);
@@ -127,7 +127,7 @@ function parseXSD(filePath, opts = {}) {
     if (visited.has(abs)) return null;
     visited.add(abs);
 
-    if (opts.verbose) process.stderr.write(`  ↳ loading ${path.relative(process.cwd(), abs)}\n`);
+    if (opts.verbose) process.stderr.write(`  \\_ loading ${path.relative(process.cwd(), abs)}\n`);
 
     const schema = parseSingleFile(abs);
     const dir = path.dirname(abs);
@@ -144,7 +144,7 @@ function parseXSD(filePath, opts = {}) {
 
       const refPath = path.resolve(dir, loc);
       if (!fs.existsSync(refPath)) {
-        if (opts.verbose) process.stderr.write(`  ⚠ skipping missing: ${refPath}\n`);
+        if (opts.verbose) process.stderr.write(`  /!\\ skipping missing: ${refPath}\n`);
         continue;
       }
 

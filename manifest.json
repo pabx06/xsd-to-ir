@@ -1,3 +1,7 @@
+
+> xsd-to-ir@2.0.0 fingerprint
+> node scripts/semantic-fingerprint.js . --json
+
 {
   "schemaVersion": 1,
   "algorithm": "sha256",
@@ -28,11 +32,11 @@
     "ecmaVersion": "latest",
     "sourceType": "script"
   },
-  "sourceHash": "d4db551391541f55b95ea73b608ec237a5b4ad259345191948365daba0122ca1",
-  "orderedHash": "86fb427f56019dc323a13b107c1c2762841760371a3bb47863574006a1760c2d",
-  "semanticHash": "a37f85c178705766255558557b7163fadf35c9900831f078bafdeb8266f1ff23",
+  "sourceHash": "73466d1d2b1136c55579365dae6d686d7d610d328eb22dda52661ee3853c4d45",
+  "orderedHash": "bafb1057bb36ff4f28c1c1d34086af60952095d6be364193ffe5124656013399",
+  "semanticHash": "c7ed6cd8a21a0607f2ec586a45efe3031d2975a46aaace9885eab8d6af99667f",
   "fileCount": 34,
-  "functionCount": 183,
+  "functionCount": 186,
   "files": [
     {
       "path": ".eslintrc.cjs",
@@ -65,10 +69,10 @@
     },
     {
       "path": "scripts/expect-xsd11-failure.js",
-      "sourceHash": "2bc7df2f9c32c78391a6b1d1bbe5847607fd0a9db4bcd9a096cc66bd25be9b62",
-      "orderedHash": "ec7689f5721825d45861798b2c0b9a7e69a5f3492571bd03036cc50f072d308c",
-      "semanticHash": "399e10ae28a7d5e06efed987ff363129811a3d647f725153a3d1ba3a2d2252ef",
-      "nonFunctionHash": "b26506cc59afcc81d8bad1a5b83e5e4e48b1e0fa9d047122a963b4ce7df893ff",
+      "sourceHash": "dfa4a9890222302fa0d986ae49079abb15c29af504d725747378c078e365b21f",
+      "orderedHash": "3b7c17acfa6b7fadd034b5451ab1a22ac2b74565547900c1921f36246ef2e7fa",
+      "semanticHash": "30fd8f9986bcbfdc921219c96c8da74202b3d27dc501d42dbedf8fb56be50215",
+      "nonFunctionHash": "51f2f4cc63e517017f6f957b2abde1b032509949d5c627340ab0a6c5ca342e0c",
       "functions": [
         {
           "hash": "a15dc37bacee5681f7a337d853081421d132f7e70825ad82b76d2b2a3dddf31b",
@@ -167,10 +171,10 @@
     },
     {
       "path": "scripts/validate-xsd11.js",
-      "sourceHash": "8738adade7a4dc65b7e2928a726a41e43cdddd4e23e86e0aafb7f1fbf175db75",
-      "orderedHash": "4ea3a56adddf890a944f495d6c24d1e5930ca7625453325a1272e1725aa9c344",
-      "semanticHash": "55d36dcb59f2609304866c0159884d0af8d13139c87c669483bd8d941e8391de",
-      "nonFunctionHash": "581f788e144331f0a0237c17fc293390ae8152391079664a7f6fc170c6a58a7b",
+      "sourceHash": "6db1a12103f4b3d8b62a5ecbd3858d9e59b0faf05cf235cef4c33a754ccd4ff7",
+      "orderedHash": "8ccc1a3d2bd15edf5797d5e29fc1514b07022070f05a3401d367de3c81f0643e",
+      "semanticHash": "a6904ec421bf74e87d232c1c70f8ba9ea52ac101f982228cfa38221126d3012d",
+      "nonFunctionHash": "cff181eba94239d095cc421b1ff1d52eba8360d422132df568a1c85882da8205",
       "functions": [
         {
           "hash": "686324fc6daf886ca388940d338d4df65fced5a007316420b8f0a93961759d2f",
@@ -434,9 +438,9 @@
     },
     {
       "path": "src/ir-relation-helpers.js",
-      "sourceHash": "51b6f570e66db184e3678755fd0fbb0bca2db0366ec8cb75d5abc46ca7149621",
-      "orderedHash": "4e3bee9c33c83b328a1fc10bde335e77088f79032ef68699e7cef269e0b1cfa2",
-      "semanticHash": "84504cf6d3db17df7f2ca427851ff25fe33881eae5aa1b399e87d953bf6be98b",
+      "sourceHash": "5e09e854348addfbed75900b2990f571fbf41992725b9854504b5f02755d78a6",
+      "orderedHash": "e152849f099fc5cea1304179ce263690a08c79fb0fe9fc505fb0aa2a55776c1c",
+      "semanticHash": "88a2f7deb709c9c5737782cb617e6947740d67469dee80f913ebb8d1ba7a0a3c",
       "nonFunctionHash": "d1c38b54cafd91abb8a8142657c44a7fc3afc6607d0f1c8a86aa74fe6091e0ce",
       "functions": [
         {
@@ -444,7 +448,7 @@
           "name": "addChoiceDiscriminator"
         },
         {
-          "hash": "125db0b27ba98caa93d201aba9ff857bdde11ac53ccf3dab66f81b3a0c664866",
+          "hash": "fb96a5bc87bb8bd7c80b87a8c0e46e03c8273fd24e85ca66556d5377c9e61456",
           "name": "addRelationToEntity"
         },
         {
@@ -468,8 +472,12 @@
           "name": "isRepeating"
         },
         {
-          "hash": "19bcfbbea28548b272eb70cdc3c652dca88cab62a85d4638eed98e2b3150dc6c",
+          "hash": "344ceb5a7b537ed0053a07ee21d9afc1862cb5b6810cf2da2b8d9f928ffd5375",
           "name": "oneToOneRelationColumn"
+        },
+        {
+          "hash": "cd0ee071f2e5f6d1c2a886beb9fc9b52cd6ee2f157a4d58f346b13e6c0394e20",
+          "name": "uniqueColumnName"
         }
       ]
     },
@@ -512,10 +520,10 @@
     },
     {
       "path": "src/s3000l-ir-metadata.js",
-      "sourceHash": "01640eba327d63a8d9663c240b4bd436584d1b253e346d0ebd6ab8f1c4db0079",
-      "orderedHash": "370271d53ebdd64bc0dd51eee8b82e91e6dc01c6040863df4fc4f06c23d0dfc7",
-      "semanticHash": "6f26123f1063e4dd2e72451ece7c1acf3f224fbc6fb0e366f1e40202bdc1c944",
-      "nonFunctionHash": "5b97c66c2351d75e446a9c4cf96abd97e454f9823045466dd7f8eb36af80d79b",
+      "sourceHash": "3a6b865db63142129f1dd7c84ab22e4570394b44369dbf0542ffd7799769a9fa",
+      "orderedHash": "3b3b58232869eff6d2a560f1a2dbbbda3ff83069340cf0b8a93831449ee7bc86",
+      "semanticHash": "946a84180f9d8bc2d9a0908379f9afa60fbb7660a9227d23050dc2476b0d6e24",
+      "nonFunctionHash": "5a5a5282e8d1cf8e83248540b80f7670e2399c20b291fb94d7feaaff10084467",
       "functions": [
         {
           "hash": "3a8dbc098040e9405302ba5e04940d10db931340c760f800030d6b046715f6b7",
@@ -526,7 +534,7 @@
           "name": "detectS3000LEntities"
         },
         {
-          "hash": "931045795bda9287b82210ccb8d22ee71479fb508d5fc841f933d2924ca3318c",
+          "hash": "abf8f7db12ab650106766f90b8ca1949a59af719e6eec4a66f2d4d7b0b7cfc66",
           "name": "extractS3000LCollections"
         },
         {
@@ -663,14 +671,22 @@
     },
     {
       "path": "src/xml-deserializer.js",
-      "sourceHash": "70ff5ef0faf8aa0e2b709074c0287099806e3a3516582031cb27eb9b75a6ed66",
-      "orderedHash": "dc9ecff274a8611d6a3dea96d9c14cf91d9eb675975fcc0648b147f79a30f75d",
-      "semanticHash": "e62b08d92b9a669675fb19d846fc690a8f47f4acd5f5687bbc2b55bbfd9fe5ae",
-      "nonFunctionHash": "b363677c04ff0e9583b40d023459296cd20efe5b2183a48e1245105fd2dd5548",
+      "sourceHash": "840b73df9b1df26a0367ca26b290d4a0be9291776bd73a68bb191f9d93e68160",
+      "orderedHash": "26ebcbd8104fb11f4e9d9868a7d0c68e5a770d8e3454c328c6374cb5be052a21",
+      "semanticHash": "5833e05e395b53603451e40528928cbbf56946d99223f3faeafd345e485832e4",
+      "nonFunctionHash": "3aaffe303428884f67d09006d15cd8fab1b888fbb73e356377a2a8960236a848",
       "functions": [
+        {
+          "hash": "9fb210fe89607694b4f9742701e5961e45631b1889d816c6ff990723f091bb70",
+          "name": "_bareXmlName"
+        },
         {
           "hash": "d6405d413d3de660926fb1f797c6a9a87c9b27ef6da7e9bc32eaf5f198b8f741",
           "name": "_coerce"
+        },
+        {
+          "hash": "d7a70c40cc6b2a9fe62458cacb8079f0b9410f1a18ee2081531405dc04a52741",
+          "name": "_findRootKey"
         },
         {
           "hash": "81a90fb0a342e88c8f2c76bf55c23632aaa3cc374bf7dbc4b0c636a6b4146fc3",
@@ -737,9 +753,9 @@
     },
     {
       "path": "src/xml-validator.js",
-      "sourceHash": "324ccc8cdc7d3deca142424557e32e97bf9d9c0af026e3587dba7c25efbfcf49",
-      "orderedHash": "ab2ddf5873da50c30565fb55f655ab92743c395512cedeeb336ed9c347acf299",
-      "semanticHash": "1050bebea45d4128d6eead8e7e526342280cc89172be63de3b5cd546f9d05931",
+      "sourceHash": "525b56176f6331efd9010ecf47f86fbc247bdaa862b1b27b94f8b2a68b20ce8e",
+      "orderedHash": "0d06b02dfb25609f9df4e9aa9f83ba3ce0a88825dd06befea7ccf6568961d858",
+      "semanticHash": "6a08eb3376634e9db5c53f4a41242c9f826f5f5574b43add69f3c21057509819",
       "nonFunctionHash": "a9f9e73d6a8c5b326ccc8b6e50daf8fe052966ced9771d80eaaf3b093f7a2ac9",
       "functions": [
         {
@@ -747,7 +763,7 @@
           "name": "_resultOrThrow"
         },
         {
-          "hash": "199ebf4ab09bc0ac79cc3de81c76285aad5e2a1bcd7c327cc98d53f02773fbd4",
+          "hash": "96b5951a62349161b169ff213123001f29ea6cb13ab86a7610ef1af650dc46cd",
           "name": "_structuralCheck"
         },
         {
@@ -823,9 +839,9 @@
     },
     {
       "path": "src/xsd-parser.js",
-      "sourceHash": "e8e72db3b2509b3a46c7c8949c31542bcd4a80bc6e384c7f3b928bf72fb5ed92",
-      "orderedHash": "abc805551a47e410c189da9dff6f7c8075735d9c158242691222f23f43e73cd3",
-      "semanticHash": "b1b26d25a8c2b2992e1fc2d94e8e8e3dbf4511b20823ff3db789810d2ea9723d",
+      "sourceHash": "164720b7667a1eb276b0290591584dc352ee255fff5244c68c3f52de1f107d60",
+      "orderedHash": "bf4946c8fe780136b7e7cc3b8c7e655cd4818e19e30d1b519ef500178534eb69",
+      "semanticHash": "fae9aefda6cd45d7fc143bea3b6a2bfe0c0270fe81b7549e3ff8adb5c66cd35f",
       "nonFunctionHash": "ed504524a6d881b7b902f05f36d66ae76106c9c34bfcc64a6d68c08e092e490c",
       "functions": [
         {
@@ -845,7 +861,7 @@
           "name": "parseSingleFile"
         },
         {
-          "hash": "720664ebc2def72dd562eeb3142abfaa62e5f3d470ce83d2ace6cb8005b92a75",
+          "hash": "48cda4f0dd821e8c3efe8d53ce955a6b8b06ed75c95da3bf1e96ae8c68f3a204",
           "name": "parseXSD"
         },
         {
@@ -856,13 +872,13 @@
     },
     {
       "path": "test/assertions.test.js",
-      "sourceHash": "41538b59f9c3c06f4a0ba6e782038f26b9a18e04d26bd1dc4100747a9abff3d0",
-      "orderedHash": "355f2b0b49140603a3708a0d8dd128b7c2f80bfba10c004dc49ad1da77801e64",
-      "semanticHash": "7533d4e65d5a5bc683eeea791e958bc915812665bcb0f89dc8a46e538594e1c0",
+      "sourceHash": "eb39661c356e18b11c4a4dfab97800ca58aa4b2a12fde42dde4c9f0ff7f6be0b",
+      "orderedHash": "e35299d51199476633c95d8fc4423e72eb4598b00466bcea0f2eeadc04b2e24c",
+      "semanticHash": "35366c739957e7dc28e92f06db75eb9207f34c0083fbc7e1c2df44e93f32d905",
       "nonFunctionHash": "3c4d81a3ee42e25949169dcfdf14ca1ead725313a4b232d263f3ae0186c08811",
       "functions": [
         {
-          "hash": "f047fce8044d8d56d0b85ba9f0ced520abb5c1374f20d63077914c4a116e050b",
+          "hash": "75e94953e680b67c6ab2260a5c3cbd6353d7729bb4601e1c1c7d3c4c1ffbbaee",
           "name": "buildIr"
         }
       ]
@@ -949,10 +965,10 @@
     },
     {
       "path": "test/ir-relation-helpers.test.js",
-      "sourceHash": "ecdb9b30b7406783b511cf3f68e80db080b25b0015bc9750f3c1bcbd9c5c05f0",
-      "orderedHash": "dc265e90603c74530274b3cb69ca70d5e2e792c7f6d0096cfabdae5bd1264952",
-      "semanticHash": "92fd69f10f2d6858151a8374c753fa90e94975494e1c9b4c368095e8a9a5eaa2",
-      "nonFunctionHash": "ea1411e42d4c4508f8334ae3f82fcd5c49ecb36cbaa321e758545ff54e5e0bf1",
+      "sourceHash": "b5bfb15d1184c0b4c6dc80701507c6691c3703429c847299afd98f772752bc93",
+      "orderedHash": "30bf41e820c4360e3a01cfba14a9ad12ff7ed9a43cd469a165fca226db14e79d",
+      "semanticHash": "d7dbd65279d47971f4a31717fa46ccff165bc8b3ddf4c970a8d0d24682d26428",
+      "nonFunctionHash": "174202b9ade69ba50238fc94d0cd4302799e660961b5d439daf339dcee800340",
       "functions": [
         {
           "hash": "c47f1be6310937fca0a018e6fa88a27b59fbc376df3a6f97b87970fd2f24c460",
@@ -962,9 +978,9 @@
     },
     {
       "path": "test/mariadb-integration.test.js",
-      "sourceHash": "065b0f6e7fb03577a7349adde1bbd14219e89a7697a19e39bfb3976ae7b5aab6",
-      "orderedHash": "21614ffeba5adead25db83daef0081ec7fb689f7bd013c7b353d042401ae78c3",
-      "semanticHash": "eb73c67dfe2650bd40c03b340efbff19c4864c03270591a16724979d18215fd5",
+      "sourceHash": "c92024c4de555719c6192ffca5b4de5634ceb19fe712f2da28890f24e4935a60",
+      "orderedHash": "ab75dc239580d810fdd8e309faca29e015751cc1f8512c9aea479af8aeee3746",
+      "semanticHash": "2aa4ec9b4830a05a24806ea674fe9788e64c91c85fae08f554a9054038033039",
       "nonFunctionHash": "613cdd16ab65e1d2015432c3981bf7f0dac389d3724abe61d5a77494052f850c",
       "functions": [
         {
@@ -1000,7 +1016,7 @@
           "name": "_s3000lDDL"
         },
         {
-          "hash": "10864a742c4e12c2f91d4bc72d433173016a032fd9dc096ec66dd4fbdeee17c6",
+          "hash": "67983111a9b9fd5efc8958969abd4ca5e421705c83111bd1bb34a3a1c979c6d6",
           "name": "_s3000lIr"
         },
         {
@@ -1011,22 +1027,22 @@
     },
     {
       "path": "test/s3000l-ir-metadata.test.js",
-      "sourceHash": "100f45b97b4a2c2fc444032dd1147d95c25b23c2ed2dea8dda215eaabac12a55",
-      "orderedHash": "d1816cf4e5c2c2dc724f2d75e0f1d4ef48f8fd5bad90d28c3cca0cba518f2a29",
-      "semanticHash": "df286ea596ff8ba1edf160a4b6b0af8b1bd7d91aa2f5516abd33433be37f4e2b",
+      "sourceHash": "2ebd6a1990237b7ec87d41af35460f6fee2fecff9773e8efc0bae89d30381b3d",
+      "orderedHash": "f4ba3ffe0ab764688f62bc5ea367d0eb648f87dfc119f19cfb9115db753a6f64",
+      "semanticHash": "0bd810044932433d0e73f1c137d61e3e8fad6fb997f025cef2d9bbfac18daac1",
       "nonFunctionHash": "e36f77bc3504741bb725ed9c5960d56ff1e3fca96a290af350f6265530b4abe1",
       "functions": [
         {
-          "hash": "9d55532cf371139bb63828bffac147e9867a43b96394717d659035813542f855",
+          "hash": "8989ee0677cdb6e3db7093086298f654efd760d1b490cd9fb1876c8f45a48fec",
           "name": "loadSchema"
         }
       ]
     },
     {
       "path": "test/s3000l-roundtrip.test.js",
-      "sourceHash": "b329fd3e56a4600b4badbc971ef1d13aa290f74483247efbf76eceecc09e9d48",
-      "orderedHash": "eb50886525f070b5d80b8c360b344bd87ff8601ba9568411c8a0b34cbdff67a9",
-      "semanticHash": "90ec299cb8f180fd7bb4fa5667416c5660110842ffb7b40b4a164e7bd99e1a91",
+      "sourceHash": "170093f1003601f94d68b84ec3eb16e2c5b7de9fb9eb5e55970725c239fbf280",
+      "orderedHash": "1fe31cb878f3873eb4cf41a60987914a60fe6e3e99b10030577546a84fccd637",
+      "semanticHash": "c24a9873ff899d26a941283316aab316a00074f8febd8919d5aaefa549a005fe",
       "nonFunctionHash": "699335d7439db43ba6dfc700027191ab58171af612e4831f0f0c1e3c8f23f431",
       "functions": [
         {
@@ -1042,7 +1058,7 @@
           "name": "fakeDb"
         },
         {
-          "hash": "9d55532cf371139bb63828bffac147e9867a43b96394717d659035813542f855",
+          "hash": "8989ee0677cdb6e3db7093086298f654efd760d1b490cd9fb1876c8f45a48fec",
           "name": "loadSchema"
         },
         {
@@ -1061,10 +1077,10 @@
     },
     {
       "path": "test/xml-validator.test.js",
-      "sourceHash": "1c01943816942fc4106a54e870583d5760ed3153adb5c5b2662fc0c4c0b8082e",
-      "orderedHash": "1639ab0f3680c759b3648830d77c6c13a71128c259d876f46ed202d1cd45de67",
-      "semanticHash": "6ff499e42917fb7a862041419d64ed9c2e21de2b5803d41ef7473f9e17076710",
-      "nonFunctionHash": "68a17fe754c0f125fdd90285981e4620d34f4c096a6bb410f9fe84bed9fbd919",
+      "sourceHash": "8de498b2e241165379704c23bf7570a949fdc279f0db03f3811b710ffb4f3595",
+      "orderedHash": "fa93e2a3d04de15f8163a8db4e02c82c52849add7af925cba77d026370648421",
+      "semanticHash": "6b559a97d7ba21e6cc25328f74e81387c29166e31f29b9422d04b80566f52e15",
+      "nonFunctionHash": "ff42f8869d9d3f54e28704dfadd54ea5ee2e122d1ac0b14024e247e1a3446df7",
       "functions": []
     }
   ]

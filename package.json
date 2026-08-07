@@ -13,17 +13,17 @@
     "lint:fix": "npm run lint -- --fix",
     "test": "node --test",
     "fingerprint": "node scripts/semantic-fingerprint.js",
-    "test:generate": "rm -rf ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} && node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} --verbose",
+    "test:generate": "rm -rf ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} && node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out ${XSD_TO_IR_CI_OUT:-/tmp/xsd-to-ir-ci-out} --verbose",
     "test:mariadb": "MARIADB_TEST_URL=${MARIADB_TEST_URL:-mysql://xsd:xsdpass@127.0.0.1:3307/xsd_to_ir_test} node --test test/mariadb-integration.test.js",
     "test:mariadb:docker": "npm run mariadb:start && npm run test:mariadb",
-    "test:xsd11": "node scripts/validate-xsd11.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-valid.xml",
-    "test:xsd11:invalid": "node scripts/expect-xsd11-failure.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-invalid-missing-msg-id.xml",
-    "test:xsd11:assert-invalid": "node scripts/expect-xsd11-failure.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-assert-invalid-organization-ref.xml --match cvc-assertion",
+    "test:xsd11": "node scripts/validate-xsd11.js --xsd s3000l/2_0/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-valid.xml",
+    "test:xsd11:invalid": "node scripts/expect-xsd11-failure.js --xsd s3000l/2_0/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-minimal-invalid-missing-msg-id.xml",
+    "test:xsd11:assert-invalid": "node scripts/expect-xsd11-failure.js --xsd s3000l/2_0/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-assert-invalid-organization-ref.xml --match cvc-assertion",
     "mariadb:start": "bash scripts/start-mariadb-test.sh",
     "mariadb:stop": "docker rm -f ${MARIADB_TEST_CONTAINER:-xsd-to-ir-mariadb-test}",
     "check": "node --check index.js && find src test scripts -type f \\( -name '*.js' -o -name '*.cjs' \\) -print0 | xargs -0 -n1 node --check",
-    "example": "node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out output --root product",
-    "example:s3000l": "node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out output --verbose"
+    "example": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --root product",
+    "example:s3000l": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose"
   },
   "keywords": [
     "xsd",

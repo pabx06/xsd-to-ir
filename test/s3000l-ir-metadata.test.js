@@ -12,7 +12,7 @@ let cachedSchema = null;
 
 function loadSchema() {
   if (!cachedSchema) {
-    cachedSchema = parseXSD('s3000l/s3000l_2-0_lsaDataset.xsd');
+    cachedSchema = parseXSD('s3000l/2_0/s3000l_2-0_lsaDataset.xsd');
   }
   return cachedSchema;
 }

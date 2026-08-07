@@ -129,7 +129,7 @@ test('addRelationToEntity preserves one-to-one relation FK column shape', () => 
     isEnum: false,
     enumRef: null,
     constraints: {},
-    documentation: 'FK → maintenanceCapability',
+    documentation: 'FK -> maintenanceCapability',
     xsdType: 'maintenanceCapability',
   });
 });

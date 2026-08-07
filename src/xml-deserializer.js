@@ -69,6 +69,22 @@ function _valueType(value) {
 
 // ─── Deserializer ─────────────────────────────────────────────────────────────
 
+const S3000L_ROOT_NAMES = new Set([
+  'lsaDataset', // S3000L v 2.0
+  'lsaDataSet', // S3000L v 1.1
+]);
+
+function _bareXmlName(name) {
+  if (!name || typeof name !== 'string') return name;
+  return name.includes(':') ? name.split(':').pop() : name;
+}
+
+function _findRootKey(parsed) {
+  return Object.keys(parsed).find(
+    (key) => S3000L_ROOT_NAMES.has(_bareXmlName(key)),
+  );
+}
+
 class XMLDeserializer {
   /**
    * @param {object} ir  The IR returned by IRBuilder.build()
@@ -133,46 +149,66 @@ class XMLDeserializer {
    * @returns {{ msgMeta, batches }}
    */
   deserialize(parsed) {
-    // Strip namespace prefix on root key if present
-    const rootKey = Object.keys(parsed).find((k) => {
-      const bare = k.includes(':') ? k.split(':').pop() : k;
-      return bare === 'lsaDataset';
-    });
+    const rootKey = _findRootKey(parsed);
 
-    if (!rootKey) throw new Error('No <lsaDataset> root found in parsed XML');
+    if (!rootKey) {
+      throw new Error(
+        'No S3000L root found: expected '
+            + '<lsaDataSet> for version 1.1 or '
+            + '<lsaDataset> for version 2.0',
+      );
+    }
 
     const root = parsed[rootKey];
+    const version = this._detectEnvelopeVersion(rootKey, root);
 
-    // ── 1. Extract message metadata ────────────────────────────────────────
-    const msgMeta = this._extractMsgMeta(root);
+    // Message metadata is located directly under the root ...
+    const msgMeta = this._extractMsgMeta(root, version);
 
-    // ── 2. Navigate to data containers ────────────────────────────────────
-    const lsaData = root.logisticsSupportAnalysisData ?? {};
-    const primary = lsaData.lsaPrimaryData ?? {};
-    const support = lsaData.lsaSupportingData ?? {};
+    // Normalize version-specific envelope containers.
+    const { primary, support } = this._extractDataContainers(
+      root,
+      version,
+    );
 
-    // ── 3. Process all collections ─────────────────────────────────────────
     const batches = new Map();
 
     for (const [collKey, collValue] of Object.entries(primary)) {
       this._processCollection(collKey, collValue, batches);
     }
+
     for (const [collKey, collValue] of Object.entries(support)) {
       this._processCollection(collKey, collValue, batches);
     }
 
-    return { msgMeta, batches };
+    return {
+      msgMeta,
+      batches,
+      version,
+    };
   }
 
   // ── msg metadata ──────────────────────────────────────────────────────────
 
   _extractMsgMeta(root) {
     const get = (key) => {
-      const v = root[key];
-      if (!v) return null;
+      const value = root[key];
+      if (value === undefined || value === null) {
+        return null;
+      }
+
       // S3000L wraps values in <code> child elements: { code: 'B' }
-      if (typeof v === 'object' && v.code !== undefined) return String(v.code);
-      return String(v);
+      if (typeof value === 'object' && !Array.isArray(value) && value.code !== undefined) {
+        return String(value.code);
+      }
+      if (typeof value === 'object' && !Array.isArray(value) && value.id !== undefined) {
+        return String(value.id);
+      }
+      if (typeof value === 'object') {
+        return value['#text'] !== undefined ? String(value['#text']) : null;
+      }
+
+      return String(value);
     };
 
     const related = root.relatedMsg;
@@ -447,6 +483,36 @@ class XMLDeserializer {
         + `as ${col.xsdType}: ${err.message}`,
       );
     }
+  }
+
+  _detectEnvelopeVersion(rootKey, root) {
+    const rootName = _bareXmlName(rootKey);
+    if (rootName === 'lsaDataSet' || root.msgContent !== undefined) { return '1.1'; }
+    if (rootName === 'lsaDataset' || root.logisticsSupportAnalysisData !== undefined) { return '2.0'; }
+    throw new Error(
+      `Unsupported S3000L envelope under <${rootName}>: `
+      + 'expected <msgContent> for 1.1 or '
+      + '<logisticsSupportAnalysisData> for 2.0',
+
+    );
+  }
+
+  _extractDataContainers(root, version) {
+    if (version === '1.1') {
+      const msgContent = root.msgContent ?? {};
+
+      return {
+        primary: msgContent.messageContentItems ?? {},
+        support: msgContent.supportingContentItems ?? {},
+      };
+    }
+
+    const lsaData = root.logisticsSupportAnalysisData ?? {};
+
+    return {
+      primary: lsaData.lsaPrimaryData ?? {},
+      support: lsaData.lsaSupportingData ?? {},
+    };
   }
 }
 
