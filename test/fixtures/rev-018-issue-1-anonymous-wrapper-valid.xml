@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s:lsaDataSet xmlns:s="http://www.asd-europe.org/s-series/s3000l">
+  <msgId>
+    <id>REV-018-I1</id>
+  </msgId>
+  <msgDate>
+    <dateTime>2026-08-07T12:34:56Z</dateTime>
+  </msgDate>
+  <msgStatus>
+    <code>F</code>
+  </msgStatus>
+  <msgContent>
+    <messageContentItems>
+      <products>
+        <prod uid="prod1801" crud="I">
+          <prodId>
+            <id>REV-018-PRODUCT</id>
+          </prodId>
+          <prodVar uid="prodv1801" crud="I">
+            <prodVarId>
+              <id>REV-018-VARIANT</id>
+            </prodVarId>
+            <bkdns>
+              <bkdn uid="bkdn1802" crud="I">
+                <bkdnType>
+                  <code>HY</code>
+                </bkdnType>
+              </bkdn>
+            </bkdns>
+          </prodVar>
+          <bkdns>
+            <bkdn uid="bkdn1801" crud="I">
+              <bkdnType>
+                <code>SY</code>
+              </bkdnType>
+            </bkdn>
+          </bkdns>
+        </prod>
+      </products>
+      <breakdownElements/>
+      <parts/>
+      <taskRequirements/>
+      <tasks/>
+    </messageContentItems>
+    <supportingContentItems/>
+  </msgContent>
+</s:lsaDataSet>

@@ -521,6 +521,21 @@ class IRBuilder {
     const anonCTs = el.complexType || [];
     if (anonCTs.length > 0) {
       const anonName = toPascal(`${entity.name}_${toPascal(effectiveName)}`);
+      // S3000L persists only named uid+crud types as entities. Anonymous
+      // wrappers can therefore never be valid relation targets; retain their
+      // complete XML subtree in the same JSON form used for named non-entity
+      // complex types instead of creating a dangling UID-backed relation.
+      if (this._s3000lMode) {
+        entity.columns.push(inlineComplexElementColumn({
+          fieldName: effectiveName,
+          typeName: anonName,
+          nullable: isOptional,
+          minOccurs,
+          maxOccurs,
+          helpers: _irBuilderHelperOptions(),
+        }));
+        return;
+      }
       for (const anonCT of anonCTs) {
         this._processComplexType(anonName, anonCT);
       }
