@@ -64,6 +64,25 @@ function _s3000lDDL() {
   return cachedDDL;
 }
 
+function _issue11RectifyingTaskIr() {
+  const sourceIr = new IRBuilder(
+    parseXSD('s3000l/1_1/s3000l_1-1_lsa_dataset.xsd'),
+  ).build();
+  const entity = sourceIr.entities.get('rectifyingTask');
+  const collection = sourceIr.s3000lCollections.get('rectifyingTask');
+
+  assert.ok(entity, 'Issue 1.1 IR must contain rectifyingTask');
+  assert.ok(collection, 'Issue 1.1 IR must map rectifyingTask into an XML collection');
+
+  return {
+    ...sourceIr,
+    entities: new Map([['rectifyingTask', entity]]),
+    joinTables: new Map(),
+    enums: new Map(),
+    s3000lCollections: new Map([['rectifyingTask', collection]]),
+  };
+}
+
 function _parseXml(xml) {
   return new XMLParser({
     ignoreAttributes: false,
@@ -266,6 +285,62 @@ test('DBAdapter lifecycle works through mysql2 against MariaDB', { skip: skipRea
   await db.markExported(['product'], 6);
   assert.deepEqual(await db.queryDeleted('product', 5), []);
   assert.equal(await db.currentMaxSeq(), 6);
+});
+
+test('Issue 1.1 packTask round-trips through MariaDB as canonical boolean XML', {
+  skip: skipReason,
+}, async (t) => {
+  const knex = _makeKnex();
+  t.after(async () => knex.destroy());
+
+  await _resetDatabase(knex);
+
+  const ir = _issue11RectifyingTaskIr();
+  const entity = ir.entities.get('rectifyingTask');
+  const packTask = entity.columns.find((col) => col.name === 'packTask');
+  assert.equal(packTask.sqlType, 'BOOLEAN');
+  assert.equal(packTask.jsonType, 'boolean');
+
+  const db = new DBAdapter(knex, ir);
+  await db.applyDDL(generateSQL(ir));
+
+  await db.insert('rectifyingTask', {
+    uid: 'task1',
+    task_id: JSON.stringify({ id: 'TASK-BOOLEAN-TRUE' }),
+    pack_task: true,
+  });
+  await db.insert('rectifyingTask', {
+    uid: 'task2',
+    task_id: JSON.stringify({ id: 'TASK-BOOLEAN-FALSE' }),
+    pack_task: false,
+  });
+
+  const rows = await knex(entity.tableName)
+    .select('uid', 'pack_task')
+    .orderBy('uid');
+  assert.deepEqual(rows, [
+    { uid: 'task1', pack_task: 1 },
+    { uid: 'task2', pack_task: 0 },
+  ]);
+  assert.equal(typeof rows[0].pack_task, 'number');
+  assert.equal(typeof rows[1].pack_task, 'number');
+
+  const outputXml = await new XMLSerializer(ir, db).serialize({
+    msgId: 'MSG-BOOLEAN-MARIADB',
+    collections: ['tasks'],
+  });
+  const trueTaskXml = outputXml.match(
+    /<task\b[^>]*\buid="task1"[^>]*>[\s\S]*?<\/task>/,
+  );
+  const falseTaskXml = outputXml.match(
+    /<task\b[^>]*\buid="task2"[^>]*>[\s\S]*?<\/task>/,
+  );
+
+  assert.ok(trueTaskXml, 'serialized XML must contain task1');
+  assert.ok(falseTaskXml, 'serialized XML must contain task2');
+  assert.match(trueTaskXml[0], /<packTask>true<\/packTask>/);
+  assert.match(falseTaskXml[0], /<packTask>false<\/packTask>/);
+  assert.doesNotMatch(outputXml, /<packTask>[01]<\/packTask>/);
 });
 
 test('S3000L XML fixture round-trips through MariaDB', { skip: skipReason }, async (t) => {

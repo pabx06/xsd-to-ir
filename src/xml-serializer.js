@@ -52,8 +52,48 @@ function _makeBuilder() {
     attributeNamePrefix: '@_',
     format: true,
     indentBy: '  ',
+    suppressBooleanAttributes: false,
     suppressEmptyNode: true,
   });
+}
+
+function _isBooleanColumn(col) {
+  const sqlType = String(col.sqlType || '').toUpperCase();
+  return col.jsonType === 'boolean'
+    || sqlType === 'BOOLEAN'
+    || sqlType === 'TINYINT(1)';
+}
+
+function _displayBooleanValue(value) {
+  if (typeof value === 'string') return JSON.stringify(value);
+
+  try {
+    return String(value);
+  } catch {
+    return '<unprintable>';
+  }
+}
+
+function _canonicalBooleanXmlValue(entity, col, value) {
+  const normalized = typeof value === 'string'
+    ? value.trim().toLowerCase()
+    : value;
+
+  if (normalized === true || normalized === 1
+      || normalized === 'true' || normalized === '1') {
+    return 'true';
+  }
+  if (normalized === false || normalized === 0
+      || normalized === 'false' || normalized === '0') {
+    return 'false';
+  }
+
+  const entityName = entity.name || entity.tableName || '<unknown entity>';
+  const fieldName = col.name || col.xmlName || col.columnName || '<unknown field>';
+  throw new TypeError(
+    `Invalid boolean value while serializing ${entityName}.${fieldName}: `
+    + `${_displayBooleanValue(value)} (type ${typeof value}); expected true, false, 1, or 0`,
+  );
 }
 
 // ─── row → XML node ───────────────────────────────────────────────────────────
@@ -87,13 +127,19 @@ async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since) {
     if (val === null || val === undefined) continue;
 
     const xmlKey = columnXmlNameForExport(col);
+    const isBoolean = _isBooleanColumn(col);
+    const booleanValue = isBoolean
+      ? _canonicalBooleanXmlValue(entity, col, val)
+      : null;
 
     if (xmlKind === 'attribute') {
-      node[`@_${xmlKey}`] = String(val);
+      node[`@_${xmlKey}`] = isBoolean ? booleanValue : String(val);
       continue;
     }
 
-    if (col.sqlType === 'LONGTEXT') {
+    if (isBoolean) {
+      node[xmlKey] = booleanValue;
+    } else if (col.sqlType === 'LONGTEXT') {
       // Re-expand JSON string back into nested XML object
       let parsed = val;
       if (typeof val === 'string') {
@@ -106,8 +152,6 @@ async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since) {
       }
       _validateColumnAssertions(ir, entity, col, parsed);
       node[xmlKey] = parsed;
-    } else if (col.sqlType === 'TINYINT(1)') {
-      node[xmlKey] = val ? 'true' : 'false';
     } else if (col.sqlType === 'LONGBLOB') {
       // Base64-encode binary back to XML
       node[xmlKey] = Buffer.isBuffer(val)
