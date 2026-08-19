@@ -59,6 +59,19 @@ fixture:
 npm run test:xsd11:assert-invalid
 ```
 
+Explore the generated IR for the bundled S3000L Issue 1.1 schema in a local
+browser:
+
+```bash
+node scripts/visualize.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --open
+```
+
+The viewer defaults to `127.0.0.1:4173` (use `--port 0` for an available
+ephemeral port). It provides the S3000L primary/supporting-data hierarchy, a
+searchable entity list, a focused one- or two-hop relationship graph, and
+field-level XML/SQL/JSON metadata. The `visualize:1_1` npm script launches the
+same bundled viewer.
+
 Validate a custom XML instance against the S3000L XSD:
 
 ```bash

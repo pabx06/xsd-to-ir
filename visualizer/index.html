@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S3000L IR Viewer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <div class="eyebrow">XSD → Intermediate Representation</div>
+      <h1>S3000L IR Viewer</h1>
+    </div>
+    <div id="model-badge" class="model-badge">Loading model…</div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar panel">
+      <div class="panel-heading">
+        <h2>Model navigator</h2>
+        <span id="entity-count" class="count-badge">—</span>
+      </div>
+      <label class="search-label" for="entity-search">Search entities and fields</label>
+      <input id="entity-search" class="search-input" type="search" placeholder="product, uid, task…" autocomplete="off">
+      <div class="filter-row">
+        <label><input id="show-synthetic" type="checkbox"> synthetic helpers</label>
+      </div>
+      <label class="search-label" for="section-filter">S3000L section</label>
+      <select id="section-filter" class="search-input">
+        <option value="">all sections</option>
+        <option value="lsaPrimaryData">primary data</option>
+        <option value="lsaSupportingData">supporting data</option>
+        <option value="unmapped">unmapped/helper entities</option>
+      </select>
+      <div id="navigator" class="navigator" aria-label="S3000L entity hierarchy"></div>
+    </aside>
+
+    <section class="graph-panel panel">
+      <div class="panel-heading graph-heading">
+        <div>
+          <h2>Relationship neighborhood</h2>
+          <p id="graph-subtitle" class="muted">Select an entity to inspect its relationships.</p>
+        </div>
+        <div class="graph-actions">
+          <label class="depth-control">depth
+            <select id="graph-depth" title="Relationship graph depth">
+              <option value="1">1 hop</option>
+              <option value="2">2 hops</option>
+            </select>
+          </label>
+          <button id="zoom-out" type="button" title="Zoom out">−</button>
+          <button id="zoom-reset" type="button" title="Reset graph view">Reset</button>
+          <button id="zoom-in" type="button" title="Zoom in">+</button>
+        </div>
+      </div>
+      <div id="graph" class="graph" aria-label="Entity relationship graph"></div>
+      <div class="legend">
+        <span><i class="legend-dot direct"></i>record entity</span>
+        <span><i class="legend-dot synthetic"></i>synthetic helper</span>
+        <span><i class="legend-line one-to-one"></i>one-to-one</span>
+        <span><i class="legend-line one-to-many"></i>one-to-many</span>
+      </div>
+    </section>
+
+    <aside class="details panel">
+      <div class="panel-heading">
+        <h2>Entity details</h2>
+      </div>
+      <div id="details" class="details-content">
+        <div class="empty-state">Choose an entity from the navigator or graph.</div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
