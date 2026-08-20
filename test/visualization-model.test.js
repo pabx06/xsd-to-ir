@@ -43,6 +43,8 @@ test('Issue 1.1 visualization model preserves IR counts and mappings', () => {
     syntheticEntities: 117,
     columns: 2632,
     relations: 299,
+    islands: 57,
+    crudUis: 169,
     joinTables: 0,
     enums: 149,
     simpleTypes: 24,
@@ -54,6 +56,24 @@ test('Issue 1.1 visualization model preserves IR counts and mappings', () => {
   assert.equal(current.collections.product.section, 'lsaPrimaryData');
   assert.ok(current.entities.some((entity) => entity.synthetic));
   assert.equal(current.edges.filter((edge) => edge.unresolved).length, 0);
+  assert.equal(current.entities.every((entity) => entity.islandId), true);
+  assert.equal(current.islands.reduce((total, island) => total + island.entityCount, 0), 286);
+  assert.equal(current.islands.reduce((total, island) => total + island.crudUiCount, 0), 169);
+  assert.equal(current.islands.filter((island) => island.entityCount === 1).length, 34);
+  const itemIsland = current.islands.find((island) => island.entityNames.includes('itemInProductVariant'));
+  assert.deepEqual(itemIsland, {
+    id: 'island-017',
+    index: 17,
+    entityNames: ['itemInProductVariant'],
+    recordEntities: ['itemInProductVariant'],
+    syntheticEntities: [],
+    entityCount: 1,
+    relationCount: 0,
+    recordEntityCount: 1,
+    syntheticEntityCount: 0,
+    crudUiCount: 1,
+    sections: ['unmapped'],
+  });
   assert.equal(JSON.stringify(current).includes('[object Map]'), false);
   assert.equal(JSON.stringify(current).includes('"undefined"'), false);
 });
@@ -103,11 +123,15 @@ test('visualization server serves the UI and JSON model safely', async (t) => {
   assert.equal(page.status, 200);
   assert.match(page.type, /^text\/html/);
   assert.match(page.body, /S3000L IR Viewer/);
+  assert.match(page.body, /Graph islands/);
 
   const data = await request(server, '/api/model');
   assert.equal(data.status, 200);
   assert.match(data.type, /^application\/json/);
-  assert.equal(JSON.parse(data.body).dialect, '1.1');
+  const dataModel = JSON.parse(data.body);
+  assert.equal(dataModel.dialect, '1.1');
+  assert.equal(dataModel.stats.islands, 57);
+  assert.equal(dataModel.islands.length, 57);
 
   const missing = await request(server, '/not-found');
   assert.equal(missing.status, 404);

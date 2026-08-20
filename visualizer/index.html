@@ -33,6 +33,14 @@
         <option value="lsaSupportingData">supporting data</option>
         <option value="unmapped">unmapped/helper entities</option>
       </select>
+      <section class="islands-panel">
+        <div class="subpanel-heading">
+          <h3>Graph islands</h3>
+          <div class="island-controls"><span id="island-count" class="count-badge">—</span><button id="all-islands" class="text-button" type="button">all</button></div>
+        </div>
+        <p class="muted island-help">Connected components of the undirected relation graph. CRUD UI count excludes synthetic helpers.</p>
+        <div id="islands" class="islands-list" aria-label="Graph island list"></div>
+      </section>
       <div id="navigator" class="navigator" aria-label="S3000L entity hierarchy"></div>
     </aside>
 

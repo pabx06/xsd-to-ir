@@ -33,6 +33,63 @@ function relationId(source, relation, index) {
   return [source, relation.fieldName, relation.targetEntity || 'unresolved', index].join('::');
 }
 
+function buildIslands(entities, edges) {
+  const entityNames = new Set(entities.map((entity) => entity.name));
+  const neighbors = new Map(entities.map((entity) => [entity.name, new Set()]));
+  edges.forEach((edge) => {
+    if (!entityNames.has(edge.source) || !entityNames.has(edge.target)) return;
+    neighbors.get(edge.source).add(edge.target);
+    neighbors.get(edge.target).add(edge.source);
+  });
+
+  const visited = new Set();
+  const components = [];
+  [...entityNames].sort().forEach((name) => {
+    if (visited.has(name)) return;
+    const component = [];
+    const queue = [name];
+    visited.add(name);
+    while (queue.length) {
+      const current = queue.shift();
+      component.push(current);
+      [...neighbors.get(current)].sort().forEach((neighbor) => {
+        if (visited.has(neighbor)) return;
+        visited.add(neighbor);
+        queue.push(neighbor);
+      });
+    }
+    components.push(component.sort());
+  });
+
+  components.sort((left, right) => left[0].localeCompare(right[0]));
+  const entityToIsland = new Map();
+  const islands = components.map((entityNamesInIsland, index) => {
+    const id = `island-${String(index + 1).padStart(3, '0')}`;
+    const members = new Set(entityNamesInIsland);
+    entityNamesInIsland.forEach((name) => entityToIsland.set(name, id));
+    const islandEntities = entities.filter((entity) => members.has(entity.name));
+    const islandEdges = edges.filter((edge) => members.has(edge.source) && members.has(edge.target));
+    const recordEntities = islandEntities.filter((entity) => entity.recordEntity).map((entity) => entity.name);
+    const syntheticEntities = islandEntities.filter((entity) => entity.synthetic).map((entity) => entity.name);
+    const sections = [...new Set(islandEntities.map((entity) => entity.collection?.section || 'unmapped'))].sort();
+    return {
+      id,
+      index: index + 1,
+      entityNames: entityNamesInIsland,
+      recordEntities,
+      syntheticEntities,
+      entityCount: entityNamesInIsland.length,
+      relationCount: islandEdges.length,
+      recordEntityCount: recordEntities.length,
+      syntheticEntityCount: syntheticEntities.length,
+      crudUiCount: recordEntities.length,
+      sections,
+    };
+  });
+
+  return { entityToIsland, islands };
+}
+
 function buildVisualizationModel(ir, options = {}) {
   if (!ir || typeof ir !== 'object') {
     throw new TypeError('An IR object is required to build a visualization model');
@@ -97,6 +154,10 @@ function buildVisualizationModel(ir, options = {}) {
   const columnCount = entities.reduce((total, entity) => total + entity.columns.length, 0);
   const recordEntityCount = entities.filter((entity) => entity.recordEntity).length;
   const syntheticEntityCount = entities.filter((entity) => entity.synthetic).length;
+  const islandData = buildIslands(entities, edges);
+  entities.forEach((entity) => {
+    entity.islandId = islandData.entityToIsland.get(entity.name);
+  });
 
   return {
     version: 1,
@@ -109,6 +170,8 @@ function buildVisualizationModel(ir, options = {}) {
       syntheticEntities: syntheticEntityCount,
       columns: columnCount,
       relations: relationCount,
+      islands: islandData.islands.length,
+      crudUis: recordEntityCount,
       joinTables: entries(ir.joinTables).length,
       enums: entries(ir.enums).length,
       simpleTypes: entries(ir.simpleTypes).length,
@@ -117,6 +180,7 @@ function buildVisualizationModel(ir, options = {}) {
     },
     entities,
     edges,
+    islands: islandData.islands,
     collections,
     enums: Object.fromEntries(entries(ir.enums).map(([name, value]) => [name, clone(value)])),
     simpleTypes: Object.fromEntries(entries(ir.simpleTypes).map(([name, value]) => [name, clone(value)])),
@@ -155,4 +219,4 @@ function buildNeighborhood(model, entityName, depth = 1, maxNodes = 42) {
   };
 }
 
-module.exports = { buildNeighborhood, buildVisualizationModel };
+module.exports = { buildIslands, buildNeighborhood, buildVisualizationModel };

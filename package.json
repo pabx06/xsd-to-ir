@@ -2,10 +2,7 @@
   "name": "xsd-to-ir",
   "version": "2.0.0",
   "description": "Parse XSD schemas into an IR — generate DB schema, JSON Schema, XSD assertion metadata, and round-trip XML↔DB for S3000L",
-  "main": "index.js",
-  "bin": {
-    "xsd-to-ir": "./index.js"
-  },
+  "main": "lib.js",
   "scripts": {
     "start": "node index.js",
     "ci": "npm run lint && npm run check && npm test && npm run test:generate && npm run test:xsd11 && npm run test:xsd11:invalid && npm run test:xsd11:assert-invalid && npm audit --omit=optional && npm audit",

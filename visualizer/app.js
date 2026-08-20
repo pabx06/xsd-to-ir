@@ -6,6 +6,7 @@ const state = {
   model: null,
   entities: new Map(),
   selected: null,
+  island: '',
   search: '',
   showSynthetic: false,
   section: '',
@@ -34,21 +35,26 @@ function entitySection(entity) {
   return entityCollection(entity)?.section || 'unmapped';
 }
 
-function entityMatches(entity) {
-  if (!state.showSynthetic && entity.synthetic) return false;
-  if (state.section && entitySection(entity) !== state.section) return false;
-  if (!state.search) return true;
-
+function entityMatchesSearch(entity) {
   const fields = [entity.name, entity.tableName, entity.documentation, entityCollection(entity)?.collectionName];
   for (const column of entity.columns || []) {
     fields.push(column.name, column.columnName, column.xmlName, column.xsdType, column.enumRef);
   }
+  if (!state.search) return true;
   return fields.filter(Boolean).some((field) => String(field).toLowerCase().includes(state.search));
+}
+
+function entityMatches(entity) {
+  if (!state.showSynthetic && entity.synthetic) return false;
+  if (state.island && entity.islandId !== state.island) return false;
+  if (state.section && entitySection(entity) !== state.section) return false;
+  return entityMatchesSearch(entity);
 }
 
 function setHash() {
   const params = new URLSearchParams();
   if (state.selected) params.set('entity', state.selected);
+  if (state.island) params.set('island', state.island);
   if (state.section) params.set('section', state.section);
   if (state.search) params.set('q', state.search);
   if (state.showSynthetic) params.set('synthetic', '1');
@@ -59,6 +65,7 @@ function setHash() {
 function readHash() {
   const params = new URLSearchParams(window.location.hash.slice(1));
   state.selected = params.get('entity');
+  state.island = params.get('island') || '';
   state.section = params.get('section') || '';
   state.search = (params.get('q') || '').toLowerCase();
   state.showSynthetic = params.get('synthetic') === '1';
@@ -131,6 +138,33 @@ function renderNavigator() {
   elements.entityCount.textContent = `${visible.length}/${state.model.stats.entities}`;
 }
 
+function renderIslandList() {
+  const islands = state.model.islands.filter((island) => island.entityNames.some((name) => {
+    const entity = state.entities.get(name);
+    if (!entity || (!state.showSynthetic && entity.synthetic)) return false;
+    if (state.section && entitySection(entity) !== state.section) return false;
+    return entityMatchesSearch(entity);
+  })).sort((left, right) => (
+    right.crudUiCount - left.crudUiCount
+      || right.entityCount - left.entityCount
+      || left.index - right.index
+  ));
+  const html = islands.map((island) => {
+    const selected = island.id === state.island ? ' selected' : '';
+    const members = island.entityNames.map((name) => (
+      `<button class="island-member" type="button" data-entity="${escapeHtml(name)}">${escapeHtml(name)}</button>`
+    )).join('');
+    return [
+      `<details class="island-item${selected}"${selected ? ' open' : ''}>`,
+      `<summary data-island="${escapeHtml(island.id)}"><span class="island-summary"><strong>${escapeHtml(island.id)}</strong><small>${island.entityCount} nodes</small><small>${island.relationCount} relations</small><small>${island.crudUiCount} CRUD UIs</small></span></summary>`,
+      `<div class="island-members">${members}</div>`,
+      '</details>',
+    ].join('');
+  }).join('');
+  elements.islands.innerHTML = html || '<div class="empty-state">No graph islands.</div>';
+  elements.islandCount.textContent = `${state.model.stats.islands} · ${state.model.stats.crudUis} CRUD UIs`;
+}
+
 function getRelations(entityName) {
   return state.model.edges.filter((edge) => edge.source === entityName || edge.target === entityName);
 }
@@ -187,6 +221,7 @@ function renderDetails() {
     `<dt>XML record</dt><dd>${escapeHtml(collection?.recordName || '—')}</dd>`,
     `<dt>Fields</dt><dd>${entity.columns.length}</dd>`,
     `<dt>Relations</dt><dd>${getRelations(entity.name).length}</dd>`,
+    `<dt>Graph island</dt><dd><button type="button" data-island="${escapeHtml(entity.islandId || '')}">${escapeHtml(entity.islandId || '—')}</button></dd>`,
     '</dl></section>',
     '<section class="detail-section"><h3>Fields</h3>',
     '<table class="field-table"><thead><tr><th>Name / XML</th><th>Types</th><th>Occurrence</th><th>Constraints</th></tr></thead>',
@@ -370,28 +405,69 @@ function selectEntity(name) {
   drawGraph();
 }
 
+function selectIsland(islandId) {
+  const island = state.model.islands.find((item) => item.id === islandId);
+  if (!island) return;
+  state.island = island.id;
+  state.search = '';
+  state.section = '';
+  const preferred = island.recordEntities[0] || island.entityNames[0];
+  if (preferred) state.selected = preferred;
+  elements.search.value = state.search;
+  elements.section.value = state.section;
+  setHash();
+  renderIslandList();
+  renderNavigator();
+  renderDetails();
+  drawGraph();
+}
+
+function clearIsland() {
+  state.island = '';
+  setHash();
+  renderIslandList();
+  renderNavigator();
+}
+
 function bindEvents() {
   elements.navigator.addEventListener('click', (event) => {
     const button = event.target.closest('[data-entity]');
     if (button) selectEntity(button.dataset.entity);
   });
+  elements.islands.addEventListener('click', (event) => {
+    const entityButton = event.target.closest('[data-entity]');
+    if (entityButton) {
+      const entity = state.entities.get(entityButton.dataset.entity);
+      if (entity?.islandId) state.island = entity.islandId;
+      selectEntity(entityButton.dataset.entity);
+      return;
+    }
+    const islandControl = event.target.closest('[data-island]');
+    if (islandControl) selectIsland(islandControl.dataset.island);
+  });
+  elements.allIslands.addEventListener('click', clearIsland);
   elements.details.addEventListener('click', (event) => {
     const button = event.target.closest('[data-entity]');
     if (button) selectEntity(button.dataset.entity);
+    const islandControl = event.target.closest('[data-island]');
+    if (islandControl) selectIsland(islandControl.dataset.island);
   });
   elements.search.addEventListener('input', () => {
     state.search = elements.search.value.trim().toLowerCase();
     renderNavigator();
+    renderIslandList();
     setHash();
   });
   elements.synthetic.addEventListener('change', () => {
     state.showSynthetic = elements.synthetic.checked;
     renderNavigator();
+    renderIslandList();
     setHash();
   });
   elements.section.addEventListener('change', () => {
     state.section = elements.section.value;
     renderNavigator();
+    renderIslandList();
     setHash();
   });
   elements.depth.addEventListener('change', () => {
@@ -409,6 +485,9 @@ async function init() {
     badge: document.getElementById('model-badge'),
     entityCount: document.getElementById('entity-count'),
     navigator: document.getElementById('navigator'),
+    islands: document.getElementById('islands'),
+    islandCount: document.getElementById('island-count'),
+    allIslands: document.getElementById('all-islands'),
     details: document.getElementById('details'),
     graph: document.getElementById('graph'),
     graphSubtitle: document.getElementById('graph-subtitle'),
@@ -427,10 +506,14 @@ async function init() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state.model = await response.json();
     state.entities = new Map(state.model.entities.map((entity) => [entity.name, entity]));
-    if (!state.entities.has(state.selected)) {
-      const preferred = state.model.entities.find((entity) => entity.name === 'product' && entity.recordEntity)
-        || state.model.entities.find((entity) => entity.recordEntity)
-        || state.model.entities[0];
+    const selectedEntity = state.entities.get(state.selected);
+    if (!selectedEntity || (state.island && selectedEntity.islandId !== state.island)) {
+      const selectedIsland = state.model.islands.find((island) => island.id === state.island);
+      const preferred = selectedIsland
+        ? state.entities.get(selectedIsland.recordEntities[0] || selectedIsland.entityNames[0])
+        : state.model.entities.find((entity) => entity.name === 'product' && entity.recordEntity)
+          || state.model.entities.find((entity) => entity.recordEntity)
+          || state.model.entities[0];
       state.selected = preferred?.name || null;
     }
     elements.search.value = state.search;
@@ -439,6 +522,7 @@ async function init() {
     elements.depth.value = String(state.depth);
     elements.badge.textContent = `Issue ${state.model.dialect || 'generic'} · ${state.model.stats.entities} entities`;
     renderNavigator();
+    renderIslandList();
     renderDetails();
     drawGraph();
     setHash();

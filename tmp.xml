@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<s3000l:lsaDataSet
+    xmlns:s3000l="http://www.asd-europe.org/s-series/s3000l"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+    <msgId>
+        <id>1669028055133</id>
+    </msgId>
+
+    <msgDate>
+        <dateTime>2022-11-21T05:54:15-05:00</dateTime>
+    </msgDate>
+
+    <msgLang>en</msgLang>
+
+    <msgStatus>
+        <code>P</code>
+    </msgStatus>
+
+    <msgSend>
+        <orgRef>
+            <orgId>
+                <id>SB501</id>
+            </orgId>
+        </orgRef>
+    </msgSend>
+
+    <msgReceive>
+        <orgRef>
+            <orgId>
+                <id>ASD/AIA</id>
+            </orgId>
+        </orgRef>
+    </msgReceive>
+
+    <msgContent>
+        <messageContentItems>
+            <products>
+
+                <prod uid="prod218040079431019224539821444141973604487">
+                    <prodId>
+                        <id>YBK</id>
+                    </prodId>
+
+                    <name>
+                        <descr>Yeti SB5 Beti</descr>
+                    </name>
+
+                    <prodVar uid="prodv217680589597337994750266088539561925337">
+
+                        <prodVarId>
+                            <id>YBSB5</id>
+                            <class>PVC</class>
+                        </prodVarId>
+
+                        <prodVarId>
+                            <id>B5</id>
+                            <class>UOC</class>
+                        </prodVarId>
+
+                        <name>
+                            <descr>Yeti SB5 Beti</descr>
+                        </name>
+
+                        <bkdns>
+                            <bkdn uid="bkdn314841925969472555364467690626984587981">
+                                <bkdnType>
+                                    <code>HY</code>
+                                </bkdnType>
+
+                                <bkdnRev uid="bkdnr320657405659566957836526170841687390095">
+                                    <bkdnRevId>
+                                        <id>1.0</id>
+                                    </bkdnRevId>
+
+                                    <bkdnRevDate>
+                                        <date>2020-11-07</date>
+                                    </bkdnRevDate>
+
+                                    <beUsage uid="beu270958362942821048629526892644527482560">
+                                        <beRef>
+                                            <beId>
+                                                <id>B5-A-A7-10-00-00A</id>
+                                                <class>ASD</class>
+                                            </beId>
+                                            <beRevId>
+                                              <id>1.0</id>
+                                            </beRevId>
+                                        </beRef>
+                                    </beUsage>
+                                </bkdnRev>
+                            </bkdn>
+                        </bkdns>
+                    </prodVar>
+
+                    <bkdns>
+                        <bkdn uid="bkdn151944484750679569719022409353614305149">
+                            <bkdnType>
+                                <code>SY</code>
+                            </bkdnType>
+                        </bkdn>
+                    </bkdns>
+
+                </prod>
+            </products>
+
+            <breakdownElements>
+
+                <beAggr uid="be36048392558542608332460961141527136338">
+                    <beId>
+                        <id>B5-A-00-00-00-00AK</id>
+                        <class>ASD</class>
+                    </beId>
+
+                    <name>
+                        <descr>Yeti SB5 BETi Assembly214</descr>
+                    </name>
+
+                    <beRev uid="ber13302198263033992405705748174881464251">
+                        <beRevId>
+                            <id>1.0</id>
+                        </beRevId>
+
+                        <lsaCand>
+                            <code>F</code>
+                        </lsaCand>
+
+                        <candRtnl>
+                            <descr>Reapairable Item</descr>
+                        </candRtnl>
+                    </beRev>
+                </beAggr>
+
+                <beAggr uid="be196901822217988712425882330339585011645">
+                    <beId>
+                     <id>ACTUAL-BREAKDOWN-ELEMENT-ID</id>
+                     </beId>
+                </beAggr>
+            </breakdownElements>
+
+            <parts/>
+            <taskRequirements/>
+            <tasks/>
+        </messageContentItems>
+        <supportingContentItems/>
+    </msgContent>
+</s3000l:lsaDataSet>
