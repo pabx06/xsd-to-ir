@@ -8,6 +8,7 @@
 Developer-facing docs:
 
 - [Developer guide](docs/developer-guide.md) is the primary usage and integration guide.
+- [S3000L IR guide](docs/s3000l-ir-guide.md) defines the IR contract and includes a tested database-backed product breakdown example.
 - [Maintainability review](docs/maintainability-review.md) tracks quick-win simplification and refactor candidates.
 
 This handover is current-state context and history. It is not the primary developer manual.

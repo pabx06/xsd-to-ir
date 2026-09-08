@@ -17,9 +17,9 @@ function getAssetPath(...segments) {
 
   /* Prevent paths such as ../../some-secret-file */
   if (
-    relativePath === '..' ||
-    relativePath.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativePath)
+    relativePath === '..'
+    || relativePath.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relativePath)
   ) {
     throw new Error('Asset path is outside the xsd-to-ir assets directory');
   }
