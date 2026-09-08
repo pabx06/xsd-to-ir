@@ -9,7 +9,803 @@ MariaDB and produces a hierarchical product breakdown. The executable example
 is in
 [`examples/issue-1.1-product-breakdown.js`](../examples/issue-1.1-product-breakdown.js).
 
-## 1. What the IR is
+Read Sections 1 through 5 first if XML and XSD are new to you. Those sections
+define the terms used by the rest of the guide and trace one product record
+through every representation.
+
+## 1. Start with the five representations
+
+This project handles the same S3000L information in five different forms. Each
+form has a separate purpose and separate names.
+
+```text
+XSD schema
+   |
+   | parseXSD() + IRBuilder.build()
+   v
+IR metadata ---------------------> JSON Schema
+   |
+   | generateSQL()
+   v
+MariaDB schema and rows
+
+XML input ---- deserializeXML(xml, ir) ----> database batches ----> MariaDB
+MariaDB  ---- serializeToXML(ir, db, options) --------------------> XML output
+```
+
+The IR is required on both XML paths. It tells the deserializer and serializer
+which XML name, entity, table, column, and relation represent the same value.
+
+Keep these facts separate:
+
+- XSD is a schema language. It describes XML. It is not the database schema.
+- XML is the exchange document. It contains actual S3000L message data.
+- The IR is JavaScript metadata generated from XSD. It contains no project
+  records.
+- MariaDB contains project records in generated tables.
+- JSON Schema is another generated description. It does not replace the source
+  XSD or validate the complete S3000L message envelope.
+
+The word **entity** is an application and database term in this repository.
+XML itself contains elements and attributes. The builder decides which XSD
+types become IR entities and database tables.
+
+### Essential terms
+
+| Term | Meaning in this project |
+| --- | --- |
+| XML | A text format that stores an ordered tree of elements, attributes, and values. |
+| XML instance | One actual XML document, such as an imported S3000L message. |
+| XSD | XML Schema Definition. It specifies valid XML names, types, order, repetition, and rules. |
+| Schema type | A reusable XSD definition, such as the type named `product`. |
+| XML element | A named node in an XML document, such as `<prod>` or `<prodId>`. |
+| XML attribute | A value written in an opening tag, such as `uid="prod1"`. |
+| Envelope | Message-level XML structure that carries headers and collections but is not persisted as a record table. |
+| Collection | An XML container for records, such as `<products>`. |
+| IR | Intermediate Representation. The generated JavaScript model shared by database, JSON, XML, and UI code. |
+| IR entity | A persistable record or generated helper described in `ir.entities`. |
+| Database row | One stored occurrence of an IR entity. |
+| Relation | IR metadata that connects two entity types. |
+| Dialect | The supported S3000L issue: `1.1` or `2.0`. |
+| Normalization | A deliberate name or structure conversion, such as `productVariant` to `product_variant`. |
+
+## 2. XML basics needed for this project
+
+XML uses opening and closing tags. A tag pair creates an element:
+
+```xml
+<prodId>
+  <id>PRODUCT-1</id>
+</prodId>
+```
+
+`prodId` is an element. It contains another element named `id`. The text value
+of `id` is `PRODUCT-1`.
+
+Attributes are written inside an opening tag:
+
+```xml
+<prod uid="prod1" crud="I">
+  <prodId>
+    <id>PRODUCT-1</id>
+  </prodId>
+</prod>
+```
+
+In this fragment:
+
+- `prod` is an element;
+- `uid` and `crud` are attributes of `prod`;
+- `prodId` is a child element of `prod`;
+- `id` is a child element of `prodId`;
+- `PRODUCT-1` is text content.
+
+An empty element can use a self-closing tag. These two forms have the same
+basic meaning:
+
+```xml
+<products></products>
+<products/>
+```
+
+### XML is an ordered tree
+
+Each element has one parent, except the document root. An element can have
+children. The order can matter because XSD `sequence` rules can require a
+specific order.
+
+This Issue 1.1 fragment contains one product and one nested product variant:
+
+```xml
+<products>
+  <prod uid="prod1" crud="I">
+    <prodId>
+      <id>PRODUCT-1</id>
+    </prodId>
+    <name>
+      <descr>Training Aircraft</descr>
+    </name>
+    <prodVar uid="prodv1" crud="I">
+      <prodVarId>
+        <id>VARIANT-A</id>
+      </prodVarId>
+      <name>
+        <descr>Trainer Variant</descr>
+      </name>
+    </prodVar>
+  </prod>
+</products>
+```
+
+The structural path to the variant is:
+
+```text
+products -> prod -> prodVar
+```
+
+The XML names do not match all XSD type names or database table names:
+
+```text
+XML <prod>       uses XSD type product        -> table product
+XML <prodVar>    uses XSD type productVariant -> table product_variant
+```
+
+Do not treat an XML tag name as a database table name.
+
+### Repeated elements
+
+XML repeats a tag to represent multiple values:
+
+```xml
+<products>
+  <prod uid="prod1" crud="I">
+    <prodId><id>PRODUCT-1</id></prodId>
+  </prod>
+  <prod uid="prod2" crud="I">
+    <prodId><id>PRODUCT-2</id></prodId>
+  </prod>
+</products>
+```
+
+`fast-xml-parser` represents repeated values as JavaScript arrays. A location
+with one occurrence can still be represented as one object. Code that reads a
+repeating XSD location must accept both forms:
+
+```javascript
+function asArray(value) {
+  if (value === undefined || value === null) return [];
+  return Array.isArray(value) ? value : [value];
+}
+```
+
+### XML names are case-sensitive
+
+`<prodName>` and `<prodname>` are different XML elements. The Issue 2.0 schema
+also contains names such as `<InfrStrCompls>` with an uppercase first letter.
+Never lowercase XML names and never recreate them from database names. Read
+the exact name from `column.xmlName`, `relation.fieldName`, or collection
+metadata.
+
+### Namespaces and prefixes
+
+An XML namespace identifies which vocabulary owns a name. A prefix is a short
+alias for a namespace URI.
+
+The Issue 1.1 root can appear as:
+
+```xml
+<s:lsaDataSet xmlns:s="http://www.asd-europe.org/s-series/s3000l">
+  ...
+</s:lsaDataSet>
+```
+
+The ellipsis in this namespace example marks omitted child elements. It is not
+literal XML content.
+
+Here:
+
+- `s` is the prefix;
+- `xmlns:s` declares what `s` means;
+- `lsaDataSet` is the local root name;
+- the complete root name includes the namespace URI.
+
+The bundled XSDs do not set `elementFormDefault="qualified"`. Their global
+root is namespace-qualified, while locally declared children such as `msgId`,
+`msgContent`, and `products` are unqualified. Do not add the root prefix to
+every child unless a different schema explicitly requires it.
+
+### XML parser object form
+
+The XML parser uses a JavaScript object representation. For a record, it uses
+`@_` to distinguish an attribute from a child element:
+
+```javascript
+{
+  '@_uid': 'prod1',
+  '@_crud': 'I',
+  prodId: { id: 'PRODUCT-1' },
+  name: { descr: 'Training Aircraft' },
+  prodVar: {
+    '@_uid': 'prodv1',
+    '@_crud': 'I',
+    prodVarId: { id: 'VARIANT-A' },
+  },
+}
+```
+
+The IR does not use the `@_` prefix in `column.xmlName`. Instead, it records
+`xmlName: 'uid'` and `xmlKind: 'attribute'`. Import and export code adds or
+removes `@_` when it converts between XML parser objects and rows.
+
+## 3. XSD basics needed for this project
+
+XSD is XML that describes other XML. An XSD file defines allowed element
+names, attributes, types, order, repetition, and constraints.
+
+The prefixes `xs:` and `xsd:` normally refer to the same W3C XML Schema
+namespace. A schema author chooses the prefix. This repository contains both
+styles. For example, `xs:element` and `xsd:element` mean the same XSD
+construct when their namespace declarations point to that namespace.
+
+This shortened Issue 1.1 definition describes a product:
+
+```xml
+<xsd:complexType name="product">
+  <xsd:sequence>
+    <xsd:element name="prodId"
+                 type="productIdentifier"
+                 maxOccurs="unbounded"/>
+    <xsd:element name="name"
+                 type="productName"
+                 minOccurs="0"
+                 maxOccurs="unbounded"/>
+    <xsd:element name="prodVar"
+                 type="productVariant"
+                 minOccurs="0"
+                 maxOccurs="unbounded"/>
+  </xsd:sequence>
+  <xsd:attribute name="uid" use="optional"/>
+  <xsd:attribute name="crud" type="crudCodeValues" default="I"/>
+</xsd:complexType>
+```
+
+Read the `prodVar` declaration from left to right:
+
+- XML element name: `prodVar`;
+- reusable XSD type: `productVariant`;
+- minimum occurrences: `0`, so it is optional;
+- maximum occurrences: `unbounded`, so it can repeat.
+
+The builder converts this declaration into a one-to-many IR relation from
+entity `product` to entity `productVariant`.
+
+### XSD type names and XML element names are separate
+
+The XSD connects the XML record `<prod>` to the reusable type `product` in a
+different declaration:
+
+```xml
+<xsd:element name="products">
+  <xsd:complexType>
+    <xsd:sequence>
+      <xsd:element name="prod"
+                   type="product"
+                   minOccurs="0"
+                   maxOccurs="unbounded"/>
+    </xsd:sequence>
+  </xsd:complexType>
+</xsd:element>
+```
+
+These names serve different purposes:
+
+```text
+products = XML collection element
+prod     = XML record element
+product  = XSD type, IR entity key, and IR entity name
+```
+
+There is no safe singularization rule that converts `products` to every record
+name. Other mappings use abbreviations, such as `breakdownElements -> beAggr`
+and `facilities -> maintFclty`. Use `ir.s3000lCollections`.
+
+### Type prefixes inside an XSD
+
+The `type` attribute can point to different namespaces:
+
+| XSD value | Meaning |
+| --- | --- |
+| `type="productVariant"` | A type declared in the schema's current namespace. |
+| `type="xsd:date"` | The built-in XSD `date` type. |
+| `type="value:languageCodeValues"` | A type from an imported namespace assigned the prefix `value`. |
+
+The prefix is an alias, not part of the type's local name. Read its `xmlns`
+declaration to identify the namespace. Do not remove prefixes in general XML
+or XSD code. This repository's parser performs its own QName normalization
+while it merges the bundled schemas.
+
+### XSD constructs used by the builder
+
+| XSD construct | Basic meaning | Main IR result |
+| --- | --- | --- |
+| `xs:element` | Declares an XML child or record name. | A column, inline JSON value, or relation. |
+| `xs:attribute` | Declares a value in an opening tag. | A column with `xmlKind: 'attribute'`. |
+| `xs:complexType` | Defines a value with child elements or attributes. | An entity, relation target, or JSON-backed value. |
+| `xs:simpleType` | Defines a scalar restriction or allowed values. | A simple type or enum entry. |
+| `xs:sequence` | Requires children in a defined order. | The builder walks each declared child. |
+| `xs:choice` | Allows one branch from alternatives. | Nullable fields or relations and sometimes `choice_type`. |
+| `xs:group` | Reuses a group of declarations. | Flattened fields or a synthetic helper entity when repeated. |
+| `xs:extension` | Extends another type. | `parentType` and a database relation when materialized. |
+| `xs:assert` | Adds an XSD 1.1 XPath rule. | Assertion metadata and limited runtime enforcement. |
+
+### Occurrence values
+
+If `minOccurs` is omitted, its XSD default is `1`. If `maxOccurs` is omitted,
+its default is also `1`.
+
+| Declaration | Meaning |
+| --- | --- |
+| `minOccurs="1" maxOccurs="1"` | Exactly one. |
+| `minOccurs="0" maxOccurs="1"` | Optional, at most one. |
+| `minOccurs="1" maxOccurs="unbounded"` | One or more. |
+| `minOccurs="0" maxOccurs="unbounded"` | Zero or more. |
+
+The IR stores numeric limits as numbers and stores an unlimited maximum as the
+string `'unbounded'`.
+
+Other declarations affect whether and how a value appears:
+
+| Declaration | Meaning |
+| --- | --- |
+| `nillable="true"` | The element can be present with `xsi:nil="true"`; this differs from omitting it. |
+| `default="I"` | Use `I` when the XML does not supply a value and the applicable XSD rules allow the default. |
+| `use="optional"` | An attribute can be omitted from the XML instance. |
+| `base="xsd:ID"` | Restrict the built-in XML ID type. |
+| `pattern value="..."` | Require the lexical value to match a regular-expression constraint. |
+
+The database model can be stricter than the transport declaration. For
+example, Issue 1.1 declares a product `uid` attribute as optional, but this
+repository requires `uid` on a persisted direct record so update, delete, and
+reference operations have a stable record identity.
+
+### Why not every complex type becomes a table
+
+S3000L XSDs contain message envelopes, reusable values, references, anonymous
+wrappers, and real records. Creating one table for every `complexType` would
+create tables for transport-only structures and split small values into many
+unnecessary rows.
+
+In S3000L mode, the builder treats a named complex type with both `uid` and
+`crud` attributes as a direct record entity. It usually stores other nested
+complex values as JSON in a `LONGTEXT` column. Repeating groups and primitives
+can create synthetic helper entities when a table is required to preserve
+multiplicity.
+
+## 4. Follow one Issue 1.1 product through every layer
+
+This section uses the XML product shown earlier.
+
+### Step 1: the XSD defines the XML location
+
+The Issue 1.1 envelope declares this path:
+
+```text
+lsaDataSet
+└─ msgContent
+   └─ messageContentItems
+      └─ products
+         └─ prod, type product, repeated
+```
+
+`products` is a container. `prod` is the XML record element. `product` is the
+XSD type used by that record.
+
+### Step 2: the builder selects a record entity
+
+The `product` type has both `uid` and `crud` attributes. The builder creates:
+
+```javascript
+ir.entities.get('product');
+// {
+//   name: 'product',
+//   tableName: 'product',
+//   columns: [...],
+//   relations: [...],
+// }
+```
+
+The IR entity key and `entity.name` preserve the XSD type name. The database
+table name uses database normalization.
+
+### Step 3: the builder classifies each child
+
+| XSD member | Classification | IR/database result |
+| --- | --- | --- |
+| `prodId: productIdentifier` | Structured value type without record `uid` and `crud` | `prod_id LONGTEXT`, containing JSON. |
+| `name: productName` | Structured value type without record `uid` and `crud` | `name LONGTEXT`, containing JSON. |
+| `prodVar: productVariant` | Repeating direct record type | One-to-many relation to entity `productVariant`. |
+| `bkdns` from group `breakdownItem` | Anonymous structured wrapper | `bkdns LONGTEXT`, containing JSON. |
+| `uid` | XML record attribute | Required database column `uid`. |
+| `crud` | XML record attribute | Required database column `crud`, default `I`. |
+
+The product relation is:
+
+```javascript
+{
+  kind: 'one-to-many',
+  fieldName: 'prodVar',
+  targetEntity: 'productVariant',
+  parentColumn: 'product_prod_var_parent_id',
+  nullable: true,
+  minOccurs: 0,
+  maxOccurs: 'unbounded',
+}
+```
+
+`fieldName` is the XML child name. `targetEntity` is the IR/XSD type name.
+`parentColumn` is the normalized database column added to the child table.
+
+### Step 4: the SQL generator creates tables
+
+The generated DDL contains more columns and constraints than this shortened
+view:
+
+```sql
+CREATE TABLE `product` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `prod_id` LONGTEXT NOT NULL,
+  `name` LONGTEXT DEFAULT NULL,
+  `bkdns` LONGTEXT DEFAULT NULL,
+  `uid` VARCHAR(255) NOT NULL,
+  `crud` VARCHAR(64) NOT NULL DEFAULT 'I'
+);
+
+CREATE TABLE `product_variant` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `prod_var_id` LONGTEXT NOT NULL,
+  `name` LONGTEXT DEFAULT NULL,
+  `bkdns` LONGTEXT DEFAULT NULL,
+  `uid` VARCHAR(255) NOT NULL,
+  `crud` VARCHAR(64) NOT NULL DEFAULT 'I',
+  `product_prod_var_parent_id` BIGINT DEFAULT NULL
+);
+```
+
+The actual DDL also adds lifecycle columns, JSON validity checks, indexes, and
+the foreign key from `product_variant.product_prod_var_parent_id` to
+`product.id`.
+
+### Step 5: import creates rows
+
+The earlier XML can produce rows with these values:
+
+`product`:
+
+| id | uid | crud | prod_id | name |
+| ---: | --- | --- | --- | --- |
+| `42` | `prod1` | `I` | `{"id":"PRODUCT-1"}` | `{"descr":"Training Aircraft"}` |
+
+`product_variant`:
+
+| id | uid | crud | prod_var_id | name | product_prod_var_parent_id |
+| ---: | --- | --- | --- | --- | ---: |
+| `88` | `prodv1` | `I` | `{"id":"VARIANT-A"}` | `{"descr":"Trainer Variant"}` | `42` |
+
+The numbers `42` and `88` are illustrative surrogate database IDs. The S3000L
+identities are `prod1` and `prodv1`.
+
+### Step 6: a read reconstructs the hierarchy
+
+Application code loads the parent row, reads the IR relation, and queries the
+child table with the relation's `parentColumn`:
+
+```javascript
+const productEntity = ir.entities.get('product');
+const prodVarRelation = productEntity.relations
+  .find((relation) => relation.fieldName === 'prodVar');
+
+const products = await db.queryEntity('product');
+const variants = await db.queryRelated(
+  prodVarRelation.targetEntity,
+  prodVarRelation.parentColumn,
+  products[0].id,
+);
+```
+
+The result is a database-backed hierarchy:
+
+```text
+Training Aircraft (product row id 42, uid prod1)
+└─ Trainer Variant (product_variant row id 88, uid prodv1)
+```
+
+The detailed product-breakdown example later in this guide also reads the
+`bkdns` JSON and resolves breakdown-element references against other database
+entities.
+
+## 5. Name mapping and normalization rules
+
+This section defines the naming contract. Use it whenever code crosses between
+XSD, XML, IR, an API, and MariaDB.
+
+### The same record can have different names
+
+| Business record | XSD type name | XML collection | XML record or nested element | IR entity key/name | MariaDB table |
+| --- | --- | --- | --- | --- | --- |
+| Product | `product` | `products` | `prod` | `product` | `product` |
+| Product variant | `productVariant` | None; nested under product | `prodVar` | `productVariant` | `product_variant` |
+| Aggregated breakdown element | `aggregatedElement` | `breakdownElements` | `beAggr` | `aggregatedElement` | `aggregated_element` |
+| Maintenance facility, Issue 2.0 | `maintenanceFacility` | `facilities` | `maintFclty` | `maintenanceFacility` | `maintenance_facility` |
+
+XML has no element named `<productVariant>` at the product-to-variant location.
+MariaDB has no table named `prodVar`. The relation metadata connects these
+names.
+
+### Rule 1: direct IR entity names preserve named XSD type names
+
+For a named direct record type:
+
+```text
+XSD complex type name productVariant
+                      |
+                      v
+IR map key            productVariant
+IR entity.name        productVariant
+```
+
+Case is significant. Use `ir.entities.has(name)` to validate an entity name.
+
+Synthetic helpers are different. The builder creates their logical names from
+the parent and repeated group or field. A synthetic helper name may be long and
+may not exist anywhere as one XML tag.
+
+### Rule 2: database names use lower snake case
+
+The builder converts table and column identifiers to lower snake case:
+
+```text
+productVariant  -> product_variant
+prodVarId       -> prod_var_id
+InfrStrCompls   -> infr_str_compls
+some-name       -> some_name
+```
+
+The conversion inserts underscores at lower-to-upper and acronym boundaries,
+replaces hyphens with underscores, and lowercases the result.
+
+Table names start from the IR entity name. Normal field columns start from the
+logical field name. Generated foreign-key columns first combine structural
+names, then apply database normalization:
+
+```text
+IR entity productVariant              -> table product_variant
+logical field prodVarId               -> column prod_var_id
+source product + field prodVar + role -> column product_prod_var_parent_id
+```
+
+The database conversion does not pluralize or singularize names. It does not
+use the XML collection or record name.
+
+MariaDB limits identifiers to 64 characters. When a generated name is too
+long, the builder keeps a prefix and appends an underscore plus the first ten
+hexadecimal characters of a SHA-1 hash. This current Issue 1.1 example has
+exactly 64 characters:
+
+```text
+aggregated_element_revision_maintenance_man_hours_per_dc617b5e52
+```
+
+Do not reproduce this conversion in application code. Read
+`entity.tableName`, `column.columnName`, and `relation.parentColumn` from the
+IR. A small schema change can change a generated long-name hash.
+
+### Rule 3: XML names are preserved, not database-normalized
+
+For a normal column, the IR records all relevant names:
+
+```javascript
+{
+  name: 'prodId',
+  columnName: 'prod_id',
+  xmlName: 'prodId',
+  xmlKind: 'element',
+}
+```
+
+For a case-sensitive Issue 2.0 field:
+
+```javascript
+{
+  name: 'InfrStrCompls',
+  columnName: 'infr_str_compls',
+  xmlName: 'InfrStrCompls',
+  xmlKind: 'element',
+}
+```
+
+The logical `name` is not guaranteed to begin with lowercase. The builder's
+camel conversion preserves an existing leading uppercase letter. Do not call
+`toLowerCase()` on a logical or XML name.
+
+The two supported issues can also use different XML and logical field names
+for the same business concept:
+
+| Business concept | Issue | Logical name | XML name | MariaDB column |
+| --- | --- | --- | --- | --- |
+| Product display name | 1.1 | `name` | `name` | `name` |
+| Product display name | 2.0 | `prodName` | `prodName` | `prod_name` |
+| Infrastructure complements | 2.0 | `InfrStrCompls` | `InfrStrCompls` | `infr_str_compls` |
+
+Do not create one shared hard-coded field name across issues. Load the IR for
+the selected issue and resolve the field from that IR.
+
+Attributes use their unprefixed XML name plus `xmlKind`:
+
+```javascript
+{
+  name: 'uid',
+  columnName: 'uid',
+  xmlName: 'uid',
+  xmlKind: 'attribute',
+}
+```
+
+The XML parser object key is `@_uid`, but the IR `xmlName` remains `uid`.
+
+### Rule 4: top-level XML names come from collection metadata
+
+For a direct top-level record, use:
+
+```javascript
+const mapping = ir.s3000lCollections.get('aggregatedElement');
+// {
+//   entityName: 'aggregatedElement',
+//   section: 'lsaPrimaryData',
+//   collectionName: 'breakdownElements',
+//   recordName: 'beAggr',
+// }
+```
+
+Do not calculate `collectionName` by appending `s`. Do not calculate
+`recordName` by removing an `s`. S3000L uses abbreviations and collections that
+contain several record types.
+
+### Rule 5: nested XML record names come from relations
+
+`productVariant` has no top-level collection mapping because it is nested in a
+product. The parent entity relation provides its XML name:
+
+```javascript
+const relation = ir.entities.get('product').relations
+  .find((item) => item.targetEntity === 'productVariant');
+
+console.log(relation.fieldName);    // prodVar
+console.log(relation.parentColumn); // product_prod_var_parent_id
+```
+
+Use `fieldName` when reading or writing the nested XML element. Use
+`parentColumn` when querying the child table.
+
+An XML element name belongs to a location in the XML tree, not only to its XSD
+type. Two parent declarations can use the same target type under different
+element names. For that reason, the IR stores a nested XML name on each
+relation instead of assigning one universal XML record name to the target
+entity.
+
+### Rule 6: normalized section names hide envelope differences
+
+The IR uses two normalized section values:
+
+```text
+lsaPrimaryData
+lsaSupportingData
+```
+
+They map to different XML containers by dialect:
+
+| Normalized IR section | Issue 1.1 XML container | Issue 2.0 XML container |
+| --- | --- | --- |
+| `lsaPrimaryData` | `messageContentItems` | `lsaPrimaryData` |
+| `lsaSupportingData` | `supportingContentItems` | `lsaSupportingData` |
+
+The normalized value groups equivalent business sections. It is not always the
+literal XML tag. Export code must also use `ir.s3000lDialect` to choose the
+correct envelope. The current serializer does not yet implement the Issue 1.1
+choice; this limitation is detailed later.
+
+### Rule 7: API names should use IR entity names
+
+Use the IR entity name as the server-side API discriminator:
+
+```json
+{
+  "entity": "productVariant",
+  "uid": "prodv1"
+}
+```
+
+Resolve it on the server:
+
+```javascript
+const entity = ir.entities.get(requestedEntityName);
+if (!entity) throw new Error('Unknown entity');
+
+const tableName = entity.tableName;
+```
+
+Do not accept a client-supplied table name, column name, or raw SQL identifier.
+
+### Entity name, UID, business identifier, and database ID are different
+
+These values are often confused:
+
+| Value | Example | Purpose |
+| --- | --- | --- |
+| IR entity name | `product` | Identifies a record type. |
+| XML record name | `prod` | Identifies an element at one XML location. |
+| S3000L record UID | `prod1` | Identifies one S3000L record for CRUD and references. |
+| Product business identifier | `PRODUCT-1` inside `prodId` | Domain identifier stored as structured JSON. |
+| Database surrogate ID | `42` | Internal primary key used for local foreign keys. |
+
+Use the S3000L `uid` at API boundaries. Never expose the surrogate `id` as a
+portable identity. Never assume that a business identifier equals `uid`.
+
+### Name lookup checklist
+
+When code needs a name, use this source:
+
+| Needed name | Read from |
+| --- | --- |
+| IR entity key | `entity.name` or the key in `ir.entities` |
+| MariaDB table | `entity.tableName` |
+| Logical field | `column.name` |
+| MariaDB column | `column.columnName` |
+| XML field or attribute | `column.xmlName` plus `column.xmlKind` |
+| Top-level XML collection | `s3000lCollections.get(entityName).collectionName` |
+| Top-level XML record | `s3000lCollections.get(entityName).recordName` |
+| Nested XML record | `relation.fieldName` |
+| Child foreign key | `relation.parentColumn` |
+| Equivalent primary/support section | `mapping.section` |
+| Exact envelope tags | `ir.s3000lDialect` and dialect-specific code |
+
+Use this inspection helper before implementing a new entity screen or query:
+
+```javascript
+function inspectEntityNames(ir, entityName) {
+  const entity = ir.entities.get(entityName);
+  if (!entity) throw new Error(`Unknown IR entity: ${entityName}`);
+
+  const collection = ir.s3000lCollections.get(entityName) ?? null;
+  return {
+    xsdTypeAndIrEntity: entity.name,
+    databaseTable: entity.tableName,
+    topLevelXml: collection && {
+      section: collection.section,
+      collection: collection.collectionName,
+      record: collection.recordName,
+    },
+    fields: entity.columns.map((column) => ({
+      logical: column.name,
+      xml: column.xmlKind === 'internal'
+        ? null
+        : { name: column.xmlName, kind: column.xmlKind },
+      database: column.columnName,
+    })),
+    nestedRecords: entity.relations.map((relation) => ({
+      xmlElement: relation.fieldName,
+      targetIrEntity: relation.targetEntity,
+      childDatabaseForeignKey: relation.parentColumn,
+    })),
+  };
+}
+
+console.dir(inspectEntityNames(ir, 'product'), { depth: null });
+```
+
+Pass the IR entity name, such as `product`. Do not pass the XML record name
+`prod` or the database table name `product_variant` to IR lookup methods.
+
+## 6. What the IR is
 
 The IR is schema metadata. It is not an S3000L message and it does not contain
 project records.
@@ -41,7 +837,7 @@ S3000L XSD and local imports
 Build the IR once for each supported issue. Cache it for the lifetime of the
 application. Do not parse the XSD for each HTTP request.
 
-## 2. Build an IR
+## 7. Build an IR
 
 Use the exact XSD entry point for the selected issue:
 
@@ -129,7 +925,7 @@ The live IR uses `Map` instances. `JSON.stringify(ir)` does not serialize their
 entries. The CLI explicitly converts each `Map` to an object before writing
 `ir.json`.
 
-## 3. Top-level IR contract
+## 8. Top-level IR contract
 
 `IRBuilder.build()` returns this shape:
 
@@ -214,7 +1010,7 @@ preserve the actual XML names.
 Nested entities such as `productVariant` do not need collection mappings. The
 parent relation determines their XML and database location.
 
-## 4. How XSD constructs become IR metadata
+## 9. How XSD constructs become IR metadata
 
 ### Direct S3000L record entities
 
@@ -300,7 +1096,7 @@ The entity records the base type in `parentType`. The builder adds a foreign
 key column to the base entity when that base is also materialized. JSON Schema
 generation represents the inheritance with `allOf`.
 
-## 5. Entity and column contracts
+## 10. Entity and column contracts
 
 An entity has this shape:
 
@@ -402,7 +1198,7 @@ Preserve the XML parser representation:
 Use a helper that accepts both one object and an array. The worked example uses
 `asArray()` for this reason.
 
-## 6. Relation contract
+## 11. Relation contract
 
 An entity's `relations` array describes outgoing structural relations. Do not
 infer a relation from table names.
@@ -476,7 +1272,7 @@ Use all three fields:
 
 Do not use `kind` alone to decide whether a UI field is required.
 
-## 7. Collections and envelope versions
+## 12. Collections and envelope versions
 
 An S3000L message contains transport metadata and data sections. Those envelope
 types are not database entities.
@@ -496,7 +1292,7 @@ schema-valid Issue 1.1 envelope. Do not call `serializeToXML()` with an Issue
 1.1 IR for a delivery. This limitation is tracked as `REV-005` in
 [`Review.md`](../Review.md).
 
-## 8. Generate and use the database
+## 13. Generate and use the database
 
 Generate MariaDB DDL from the IR:
 
@@ -573,7 +1369,7 @@ Use the adapter methods for active data:
 `queryEntity()` and `queryRelated()` exclude rows whose `_deleted_at` is set.
 Do not bypass that behavior in a normal product view.
 
-## 9. Schema visualization versus record visualization
+## 14. Schema visualization versus record visualization
 
 The bundled viewer displays schema metadata:
 
@@ -596,7 +1392,7 @@ const model = buildVisualizationModel(ir, { source: 'Issue 1.1' });
 Use a separate record API for a product breakdown. The next section shows that
 path.
 
-## 10. Issue 1.1 database-backed product breakdown
+## 15. Issue 1.1 database-backed product breakdown
 
 ### Storage topology
 
@@ -778,7 +1574,7 @@ rows in batches. Build maps keyed by parent surrogate ID and S3000L UID. Add
 pagination or depth limits for large product structures. Keep cycle detection
 and unresolved-reference reporting.
 
-## 11. Build a generic metadata-driven UI
+## 16. Build a generic metadata-driven UI
 
 Use the IR to build generic forms and tables:
 
@@ -799,7 +1595,7 @@ Do not let a request supply arbitrary SQL identifiers. Resolve an approved IR
 entity name to `tableName` and approved logical fields to `columnName` on the
 server.
 
-## 12. Common mistakes
+## 17. Common mistakes
 
 | Symptom | Cause | Correction |
 | --- | --- | --- |
@@ -813,7 +1609,7 @@ server.
 | Issue 1.1 export has an Issue 2.0 root | The current serializer is not Issue 1.1-aware. | Do not deliver Issue 1.1 exports until `REV-005` is resolved. |
 | The viewer shows entities but no product records | The bundled viewer is a schema viewer. | Add a project database API such as the worked example. |
 
-## 13. Completion checklist for an IR consumer
+## 18. Completion checklist for an IR consumer
 
 Before releasing an IR-driven feature, verify each item:
 
@@ -837,7 +1633,7 @@ Before releasing an IR-driven feature, verify each item:
 - Unit tests cover the selected issue, IR relation metadata, JSON reference
   resolution, unresolved references, and the displayed hierarchy.
 
-## 14. Relevant source files
+## 19. Relevant source files
 
 | File | Responsibility |
 | --- | --- |
