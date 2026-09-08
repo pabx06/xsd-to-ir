@@ -2,10 +2,7 @@
   "name": "xsd-to-ir",
   "version": "2.0.0",
   "description": "Parse XSD schemas into an IR — generate DB schema, JSON Schema, XSD assertion metadata, and round-trip XML↔DB for S3000L",
-  "main": "index.js",
-  "bin": {
-    "xsd-to-ir": "./index.js"
-  },
+  "main": "lib.js",
   "scripts": {
     "start": "node index.js",
     "ci": "npm run lint && npm run check && npm test && npm run test:generate && npm run test:xsd11 && npm run test:xsd11:invalid && npm run test:xsd11:assert-invalid && npm audit --omit=optional && npm audit",
@@ -30,9 +27,10 @@
     "test:xsd11:assert-invalid": "node scripts/expect-xsd11-failure.js --xsd s3000l/2_0/s3000l_2-0_lsaDataset.xsd --xml test/fixtures/s3000l-assert-invalid-organization-ref.xml --match cvc-assertion",
     "mariadb:start": "bash scripts/start-mariadb-test.sh",
     "mariadb:stop": "docker rm -f ${MARIADB_TEST_CONTAINER:-xsd-to-ir-mariadb-test}",
-    "check": "node --check index.js && find src test scripts -type f \\( -name '*.js' -o -name '*.cjs' \\) -print0 | xargs -0 -n1 node --check",
+    "check": "node --check index.js && find src test scripts visualizer -type f \\( -name '*.js' -o -name '*.cjs' \\) -print0 | xargs -0 -n1 node --check",
     "example": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --root product",
-    "example:s3000l": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose"
+    "example:s3000l": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose",
+    "visualize:1_1": "node scripts/visualize.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --open"
   },
   "keywords": [
     "xsd",

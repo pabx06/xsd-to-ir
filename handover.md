@@ -50,7 +50,7 @@ S3000L is **not a database schema**. It is an **XML message protocol** for excha
 - The IR currently contains **193 database entities**: those 187 direct record entities plus 6 synthetic helper entities generated to preserve repeating `xs:group` structures
 - The remaining 728 `complexType` nodes are envelopes, value types, nested inline structures, or transport structures
 - Every message has `msgType` (`B`=Baseline or `U`=NetChange) and per-record `crud` (`I`/`U`/`D`)
-- Note: the complete XSD is available under [s3000l/s3000l_2-0_lsaDataset.xsd](s3000l/s3000l_2-0_lsaDataset.xsd)
+- Note: the complete XSD is available under [s3000l/2_0/s3000l_2-0_lsaDataset.xsd](s3000l/2_0/s3000l_2-0_lsaDataset.xsd)
 ---
 
 ## 2. Tech Stack
@@ -519,7 +519,7 @@ Real XSD 1.1 validation command:
 npm run test:xsd11
 ```
 
-`npm run test:xsd11` downloads pinned Xerces XSD 1.1 runtime jars into `.cache/xsd11`, verifies SHA-256 checksums, compiles the Java validator helper, rejects an intentional `xs:assert` violation fixture, and validates `test/fixtures/s3000l-minimal-valid.xml` against `s3000l/s3000l_2-0_lsaDataset.xsd`.
+`npm run test:xsd11` downloads pinned Xerces XSD 1.1 runtime jars into `.cache/xsd11`, verifies SHA-256 checksums, compiles the Java validator helper, rejects an intentional `xs:assert` violation fixture, and validates `test/fixtures/s3000l-minimal-valid.xml` against `s3000l/2_0/s3000l_2-0_lsaDataset.xsd`.
 
 The local Docker-backed run used MariaDB 10.11 on `127.0.0.1:3307` and passed generated S3000L DDL apply/replay, DB contract rejection checks, `DBAdapter` insert/update/soft-delete/export lifecycle checks, and a relationship-heavy fixture covering product variants, task revisions with task justifications, a flattened `taskRevision.subtaskNonAbstractClasses -> subtByDef` helper branch, and maintenance-facility relationships. `npm run mariadb:stop` removes the local test container.
 
@@ -543,7 +543,7 @@ const { DBAdapter }      = require('./src/db-adapter');
 const { IRBuilder }      = require('./src/ir-builder');
 const { parseXSD }       = require('./src/xsd-parser');
 
-const ir = new IRBuilder(parseXSD('./s3000l/s3000l_2-0_lsaDataset.xsd')).build();
+const ir = new IRBuilder(parseXSD('./s3000l/2_0/s3000l_2-0_lsaDataset.xsd')).build();
 const db = new DBAdapter(knex, ir);
 ```
 
@@ -555,7 +555,7 @@ const { deserializeXML } = require('./src/xml-deserializer');
 const { serializeToXML } = require('./src/xml-serializer');
 
 // 1. Validate incoming XML
-await validateXML(xmlString, './s3000l/s3000l_2-0_lsaDataset.xsd');
+await validateXML(xmlString, './s3000l/2_0/s3000l_2-0_lsaDataset.xsd');
 
 // 2. Deserialize and persist
 const { msgMeta, batches } = deserializeXML(xmlString, ir);

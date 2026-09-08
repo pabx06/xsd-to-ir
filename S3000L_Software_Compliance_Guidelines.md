@@ -1,6 +1,6 @@
 # S3000L Software Compliance Guidelines
 
-This document establishes the technical requirements, data models, XML schema rules, and database relationships necessary to implement a software application compliant with the **S3000L International Procedure Specification for Logistics Support Analysis (LSA)**. it was extracted from [s3000l/s3000l-issue-20.pdf](./s3000l/s3000l-issue-20.pdf)
+This document establishes the technical requirements, data models, XML schema rules, and database relationships necessary to implement a software application compliant with the **S3000L International Procedure Specification for Logistics Support Analysis (LSA)**. it was extracted from [s3000l/2_0/s3000l-issue-20.pdf](./s3000l/2_0/s3000l-issue-20.pdf)
 
 ---
 
