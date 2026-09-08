@@ -9,7 +9,7 @@ Build a metadata-driven CRUD application for S3000L Issue 1.1 and Issue 2.0 usin
 - MariaDB, with one generated database per project;
 - `xsd-to-ir` as the authoritative source for IR, JSON Schema, MariaDB DDL, XML validation, XML-to-database import, baseline XML export, and visualization metadata.
 
-The application must support an arbitrary number of projects. Each project is permanently associated with one S3000L issue and receives its own database. For example:
+The application must support an arbitrary number of projects. Each project is permanently associated with one S3000L issue and receives its own database. With `DB_PROJECT_PREFIX` left empty, for example:
 
 - project `project1`, Issue 1.1 -> database `project1_1_1`;
 - project `project2`, Issue 2.0 -> database `project2_2_0`.
@@ -56,9 +56,9 @@ Issue selection is immutable after project creation because the two generated sc
 flowchart LR
     A[Angular application] -->|REST / JSON| B[Express TypeScript API]
     B --> C[Project catalog database]
-    B --> D1[project1_1_1]
-    B --> D2[project2_2_0]
-    B --> DN[projectN_version]
+    B --> D1[optionalPrefix_project1_1_1]
+    B --> D2[optionalPrefix_project2_2_0]
+    B --> DN[optionalPrefix_projectN_version]
     B --> E[Mounted XML input directory]
     B --> F[Mounted XML export directory]
     B --> G[xsd-to-ir package]
@@ -178,7 +178,7 @@ The names may be adapted to the existing backend conventions, but schema registr
 Add validated environment variables:
 
 - `DB_CATALOG_NAME` (or retain `DB_NAME` with an explicit catalog meaning);
-- `DB_PROJECT_PREFIX`, optional organization-wide prefix;
+- `DB_PROJECT_PREFIX`, optional namespace prepended to every generated project database name;
 - `DB_PROVISIONER_USER` and `DB_PROVISIONER_PASSWORD`;
 - `DB_PROJECT_USER` and `DB_PROJECT_PASSWORD` if runtime access uses a separate account;
 - `NAS_XML_IMPORT_PATH`, replacing ambiguous path naming;
@@ -187,6 +187,25 @@ Add validated environment variables:
 - import/export size and duration limits.
 
 Use a dedicated provisioning connection with the minimum privileges required to create databases and apply DDL. Normal requests use a runtime account with DML access. Do not expose environment configuration through `/api/env`; remove that route or restrict it to non-secret, explicitly allowlisted diagnostics for administrators.
+
+`DB_PROJECT_PREFIX` identifies databases owned by this application and helps avoid collisions with unrelated databases on a shared MariaDB server. It does not select a database and is not supplied by the frontend. The backend reads it once from configuration and inserts separators itself. Configure `lsa`, not `lsa_`.
+
+Recommended production configuration:
+
+```env
+DB_PROJECT_PREFIX=lsa
+```
+
+Examples:
+
+| Prefix | Project slug | Issue | Generated database |
+| --- | --- | --- | --- |
+| empty | `project1` | 1.1 | `project1_1_1` |
+| `lsa` | `project1` | 1.1 | `lsa_project1_1_1` |
+| `lsa` | `project2` | 2.0 | `lsa_project2_2_0` |
+| `test_lsa` | `project1` | 1.1 | `test_lsa_project1_1_1` |
+
+Normalize the configured prefix with the same identifier rules as project slugs: lowercase ASCII letters, digits, and underscores only; no leading or trailing underscores; no reserved words. An empty value is valid when the MariaDB instance is dedicated to this application. Include the prefix when checking the final MariaDB identifier length.
 
 ### B3. Schema registry
 
@@ -250,10 +269,16 @@ The create-project request accepts `slug`, `displayName`, and `dialect`; it neve
 Derive the physical name as:
 
 ```text
-normalize(slug) + "_" + dialect.replace(".", "_")
+databaseName = joinWithUnderscore(
+  nonEmpty(normalize(DB_PROJECT_PREFIX)),
+  normalize(projectSlug),
+  dialect.replace(".", "_")
+)
 ```
 
-Allowed normalized characters are lowercase ASCII letters, digits, and underscores. Reject reserved words, empty results, names over the configured limit, and collisions. Quote identifiers in provisioning code even after validation.
+For example, `DB_PROJECT_PREFIX=lsa`, project slug `project1`, and Issue 1.1 produce `lsa_project1_1_1`. When the prefix is empty, the same request produces `project1_1_1`.
+
+Allowed normalized characters are lowercase ASCII letters, digits, and underscores. Reject reserved words, empty project slugs, names over the configured limit, and collisions. Quote identifiers in provisioning code even after validation.
 
 Provisioning workflow:
 
@@ -730,8 +755,8 @@ Use uniquely named disposable databases for tests and remove only those exact va
 
 ### Manual acceptance scenarios
 
-1. Create `project1` as Issue 1.1 and confirm `project1_1_1` is provisioned.
-2. Create `project2` as Issue 2.0 and confirm `project2_2_0` is provisioned.
+1. Create `project1` as Issue 1.1 and confirm `project1_1_1` is provisioned when the prefix is empty, or `lsa_project1_1_1` when `DB_PROJECT_PREFIX=lsa`.
+2. Create `project2` as Issue 2.0 and confirm `project2_2_0` is provisioned when the prefix is empty, or `lsa_project2_2_0` when `DB_PROJECT_PREFIX=lsa`.
 3. Locate `product` by search, open its island, browse related records, and edit a representative record.
 4. Verify synthetic entities appear under their parent rather than as misleading standalone CRUD pages.
 5. Inspect and import a mounted Issue 1.1 XML file into `project1`.
