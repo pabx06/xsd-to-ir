@@ -4,6 +4,10 @@ This guide is the starting point for developers using or integrating this
 project. `handover.md` is project state and history; this file is the practical
 usage guide.
 
+For the complete IR data contract, construction rules, relation semantics, and
+the tested Issue 1.1 database-backed product breakdown example, read the
+[S3000L Intermediate Representation Developer Guide](s3000l-ir-guide.md).
+
 ## What This Tool Does
 
 `xsd-to-ir` reads an XSD schema, builds an Intermediate Representation (IR),
@@ -30,7 +34,7 @@ npm ci
 Generate IR, MariaDB DDL, and JSON Schema from the bundled S3000L schema:
 
 ```bash
-node index.js s3000l/s3000l_2-0_lsaDataset.xsd --out output --verbose
+node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose
 ```
 
 Run the full local quality gate:
@@ -59,10 +63,23 @@ fixture:
 npm run test:xsd11:assert-invalid
 ```
 
+Explore the generated IR for the bundled S3000L Issue 1.1 schema in a local
+browser:
+
+```bash
+node scripts/visualize.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --open
+```
+
+The viewer defaults to `127.0.0.1:4173` (use `--port 0` for an available
+ephemeral port). It provides the S3000L primary/supporting-data hierarchy, a
+searchable entity list, a focused one- or two-hop relationship graph, and
+field-level XML/SQL/JSON metadata. It displays schema metadata, not persisted
+project rows. The `visualize:1_1` npm script launches the same bundled viewer.
+
 Validate a custom XML instance against the S3000L XSD:
 
 ```bash
-node scripts/validate-xsd11.js --xsd s3000l/s3000l_2-0_lsaDataset.xsd --xml path/to/file.xml
+node scripts/validate-xsd11.js --xsd s3000l/2_0/s3000l_2-0_lsaDataset.xsd --xml path/to/file.xml
 ```
 
 Run the Docker-backed MariaDB integration suite:
@@ -117,7 +134,7 @@ Build an IR from an XSD:
 const { parseXSD } = require('./src/xsd-parser');
 const { IRBuilder } = require('./src/ir-builder');
 
-const schema = parseXSD('s3000l/s3000l_2-0_lsaDataset.xsd');
+const schema = parseXSD('s3000l/2_0/s3000l_2-0_lsaDataset.xsd');
 const ir = new IRBuilder(schema).build();
 ```
 
@@ -139,7 +156,7 @@ Run lightweight runtime XML validation:
 ```javascript
 const { validateXML } = require('./src/xml-validator');
 
-await validateXML(xmlString, 's3000l/s3000l_2-0_lsaDataset.xsd');
+await validateXML(xmlString, 's3000l/2_0/s3000l_2-0_lsaDataset.xsd');
 ```
 
 Deserialize XML into DB batches:
@@ -174,6 +191,11 @@ const baselineXml = await serializeToXML(ir, db, {
   msgStatus: 'F',
 });
 ```
+
+The current serializer emits the Issue 2.0 envelope. Do not use it to deliver
+Issue 1.1 XML. Issue 1.1 import and the database-backed read example are
+supported; dialect-aware Issue 1.1 serialization remains open as `REV-005` in
+`Review.md`.
 
 Serialize a net-change XML message and mark rows exported after delivery is
 confirmed:
