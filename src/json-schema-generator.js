@@ -9,6 +9,8 @@
  * that $refs all top-level entities.
  */
 
+const { ValueJSONSchema } = require('./value-json-schema');
+
 /**
  * @param {object} ir       The IR object returned by IRBuilder.build()
  * @param {object} options
@@ -24,6 +26,7 @@ function generateJSONSchema(ir, options = {}) {
   } = options;
 
   const defs = {};
+  const valueSchemas = new ValueJSONSchema(ir);
 
   // ── enum definitions ────────────────────────────────────────────────────────
   for (const [name, enumDef] of ir.enums) {
@@ -42,7 +45,7 @@ function generateJSONSchema(ir, options = {}) {
 
   // ── entity definitions ──────────────────────────────────────────────────────
   for (const [name, entity] of ir.entities) {
-    defs[name] = _entityDef(entity, ir);
+    defs[name] = _entityDef(entity, ir, valueSchemas);
   }
 
   // ── root schema ─────────────────────────────────────────────────────────────
@@ -52,6 +55,7 @@ function generateJSONSchema(ir, options = {}) {
     title: 'XSD-derived schema',
     description: 'Auto-generated from XSD via xsd-to-ir',
     $defs: defs,
+    ...(ir.valueTypes?.size ? { definitions: valueSchemas.definitions() } : {}),
   };
 
   if (rootEntity && ir.entities.has(rootEntity)) {
@@ -76,7 +80,7 @@ function _simpleTypeDef(name, st) {
   return def;
 }
 
-function _entityDef(entity, ir) {
+function _entityDef(entity, ir, valueSchemas) {
   const properties = {};
   const required = [];
 
@@ -85,7 +89,7 @@ function _entityDef(entity, ir) {
     if (col.isPrimaryKey) continue; // internal DB id; skip in JSON schema
     if (col.columnName.startsWith('_')) continue; // S3000L tech columns; skip in JSON schema
 
-    const prop = _columnToProp(col, ir);
+    const prop = col.valueTypeRef ? valueSchemas.column(col) : _columnToProp(col, ir);
     properties[col.name] = prop;
 
     if (!col.nullable) {

@@ -14,6 +14,7 @@ const crypto = require('crypto');
  *   joinTables : Map<string, IRJoinTable>
  *   enums      : Map<string, IREnum>
  *   simpleTypes: Map<string, IRSimpleType>
+ *   valueTypes : Map<string, IRValueType> // XML-shaped contents of JSON columns
  *   assertions : Map<string, IRAssertionSet>
  *   assertionPaths: Map<string, IRAssertionPathSet>
  *   s3000lDialect: '1.1' | '2.0' | null
@@ -73,6 +74,7 @@ const crypto = require('crypto');
  */
 
 const { TypeResolver } = require('./type-resolver');
+const { ValueTypeBuilder } = require('./value-type-builder');
 const {
   extractAssertionPaths,
   extractAssertionSets,
@@ -148,6 +150,7 @@ class IRBuilder {
     // 1b. Collect XSD 1.1 assertions for all complexTypes. In S3000L these
     // are mostly reference value types, not persistable uid+crud entities.
     this.assertions = extractAssertionSets(this.schema);
+    this._valueTypeBuilder = new ValueTypeBuilder(this.schema, this.resolver, this.assertions);
 
     // 2. Identify S3000L "real entities" — complexTypes that carry both
     //    uid AND crud attributes.  When such a set exists we restrict
@@ -201,6 +204,7 @@ class IRBuilder {
       joinTables: this.joinTables,
       enums: this.enums,
       simpleTypes: this.simpleTypes,
+      valueTypes: this._valueTypeBuilder.types,
       assertions: this.assertions,
       assertionPaths: this.assertionPaths,
       s3000lMode: this._s3000lMode,
@@ -538,6 +542,8 @@ class IRBuilder {
           nullable: isOptional,
           minOccurs,
           maxOccurs,
+          valueTypeRef: this._valueTypeBuilder.reference(anonName, anonCTs[0]),
+          nillable: el['@_nillable'] === 'true',
           helpers: _irBuilderHelperOptions(),
         }));
         return;
@@ -633,6 +639,8 @@ class IRBuilder {
             nullable: isOptional,
             minOccurs,
             maxOccurs,
+            valueTypeRef: this._valueTypeBuilder.reference(typeName, resolved.node),
+            nillable: el['@_nillable'] === 'true',
             helpers: _irBuilderHelperOptions(),
           }));
           return;

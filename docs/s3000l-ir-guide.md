@@ -935,6 +935,7 @@ entries. The CLI explicitly converts each `Map` to an object before writing
   joinTables: Map<string, IRJoinTable>,
   enums: Map<string, IREnum>,
   simpleTypes: Map<string, IRSimpleType>,
+  valueTypes: Map<string, IRValueType>,
   assertions: Map<string, IRAssertionSet>,
   assertionPaths: Map<string, IRAssertionPathSet>,
   s3000lMode: true,
@@ -964,9 +965,27 @@ values in `constraints.enum`.
 This map contains named, non-enum XSD restrictions. Each entry records its SQL
 type, JSON type, and supported facets such as length, range, and pattern.
 
+### `valueTypes`
+
+This map preserves the XSD shape of complex values stored inside JSON-backed
+columns. Named complex types use their type name as the key. Anonymous types
+use a stable structural path, so callers must follow a column or nested
+`TypeUse.valueTypeRef` and look up that exact key. Do not assume `xsdType`
+contains the registry key. A named value type can also have an entry in
+`entities`; the value-type definition still describes the JSON subtree rather
+than a database row.
+
+Each value type retains its content particle (`sequence`, `choice`, `all`, or
+`group`), attributes, optional text type, derivation, mixed-content flag,
+assertion references, documentation, and unsupported-semantics annotations.
+Element and attribute fields retain their exact XML/JSON names, occurrence,
+nillability, defaults, fixed values, constraints, and nested value-type
+references.
+
 ### `assertions` and `assertionPaths`
 
-`assertions` inventories named complex types that contain `xs:assert`.
+`assertions` inventories named complex types and retained anonymous value types
+that contain `xs:assert`.
 Recognized exactly-one reference rules are marked as enforceable. Other XPath
 rules remain raw metadata.
 
@@ -1078,6 +1097,10 @@ plain strings. For example, an Issue 1.1 product identifier is stored as:
 The `product.prod_id` MariaDB column contains that JSON text. XML export expands
 the object back into nested XML elements.
 
+The column's `valueTypeRef` points into `ir.valueTypes`, including for an
+anonymous inline type. This adds schema metadata only: the MariaDB layout and
+the `LONGTEXT` storage format do not change.
+
 ### `xs:choice`
 
 Choice branches become nullable columns or relations. When a type has more
@@ -1149,8 +1172,10 @@ for XML. Do not assume that case conversion can reconstruct either name.
   constraints: {},
   documentation: '...',
   xsdType: 'productIdentifier',
+  valueTypeRef: 'productIdentifier',
   minOccurs: 1,
   maxOccurs: 'unbounded',
+  nillable: false,
 }
 ```
 
@@ -1191,9 +1216,28 @@ console.log(productId.id);
 Preserve the XML parser representation:
 
 - attributes use the `@_` prefix, such as `@_uidRef`;
+- element text uses `#text` when the same value also has attributes or child
+  metadata;
 - repeated XML elements use arrays;
-- one occurrence can be an object rather than a one-element array;
-- element text can use `#text` when attributes are also present.
+- a repeatable location accepts a singleton value or an array, so one
+  occurrence can be an object rather than a one-element array.
+
+The importer can coerce numeric/boolean element text, even for XSD string
+types: `<id>123</id>` becomes `{"id":123}`. Generated value schemas accept the
+coerced scalars alongside strings, while enum and fixed-value checks include
+their parsed equivalents. Attributes retain string text. String facets cannot
+always be checked after the parser loses the original spelling (for example,
+leading zeros); the schema marks this with `x-xsd-unsupported` and leaves full
+lexical validation to the XSD validator.
+
+Follow `column.valueTypeRef` to validate or render the stored object. Within a
+definition, follow `field.type.valueTypeRef` for nested objects. Keep a set of
+visited registry keys while traversing because recursive XSD types can point
+back to an ancestor.
+
+Particle nesting preserves conditional requiredness. A child with
+`minOccurs: 1` inside a `choice` is required only when that branch is selected;
+it is not an unconditional property requirement on the enclosing object.
 
 Use a helper that accepts both one object and an array. The worked example uses
 `asArray()` for this reason.
@@ -1352,8 +1396,17 @@ node scripts/validate-xsd11.js \
   --xml /mounted/import/message.xml
 ```
 
-The generated JSON Schema describes IR entities. It is not a replacement for
-validation of the complete S3000L message envelope and all XSD 1.1 assertions.
+The generated draft-07 JSON Schema keeps the existing entity `$defs` contract
+and adds complex JSON values under `definitions`. Each value-type key is used
+directly; `$ref` JSON Pointer tokens escape `~` as `~0` and `/` as `~1`, for
+example `#/definitions/record~1value~1anonymous-1`. Entity and value-type names
+cannot collide because they are in separate namespaces.
+
+The schema represents choices, occurrence, constraints, and assertions when
+they can be expressed safely. Definitions retain `x-xsd-unsupported` annotations for
+XSD semantics that cannot be translated. This shape validation is not a
+replacement for validation of the complete S3000L message envelope or full
+XSD 1.1 validation.
 
 ### Database reads
 
@@ -1378,7 +1431,12 @@ npm run visualize:1_1
 ```
 
 It shows entity definitions, fields, relations, connected components, and XSD
-constraints. It does not query MariaDB and it does not display project records.
+constraints. JSON-backed fields with `valueTypeRef` have a lazy **Structure**
+control. It displays particles and choice context, required or optional
+occurrence, nillability, attributes, text, constraints, documentation,
+assertions, nested references, and unsupported annotations. Nested definitions
+expand on demand and recursive references stop at the first repeated registry
+key. The viewer does not query MariaDB and it does not display project records.
 
 Use `buildVisualizationModel(ir)` when a browser needs a JSON-safe form of the
 schema IR:

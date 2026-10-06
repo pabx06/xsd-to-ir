@@ -59,9 +59,10 @@
     "libxmljs2": "Native libxml2 bindings for XSD 1.0 validation (optionalDependencies). Requires node-gyp. Falls back to structural check if absent or unsupported."
   },
   "devDependencies": {
-    "espree": "9.6.1",
+    "ajv": "^6.15.0",
     "eslint": "^8.57.1",
     "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-plugin-import": "^2.32.0"
+    "eslint-plugin-import": "^2.32.0",
+    "espree": "9.6.1"
   }
 }

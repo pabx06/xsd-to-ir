@@ -73,8 +73,11 @@ node scripts/visualize.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --open
 The viewer defaults to `127.0.0.1:4173` (use `--port 0` for an available
 ephemeral port). It provides the S3000L primary/supporting-data hierarchy, a
 searchable entity list, a focused one- or two-hop relationship graph, and
-field-level XML/SQL/JSON metadata. It displays schema metadata, not persisted
-project rows. The `visualize:1_1` npm script launches the same bundled viewer.
+field-level XML/SQL/JSON metadata. JSON-backed columns expose their retained
+complex-type structure through lazy expanders, including choices, occurrence,
+nillability, constraints, documentation, and nested type references. It
+displays schema metadata, not persisted project rows. The `visualize:1_1` npm
+script launches the same bundled viewer.
 
 Validate a custom XML instance against the S3000L XSD:
 
@@ -138,6 +141,12 @@ const schema = parseXSD('s3000l/2_0/s3000l_2-0_lsaDataset.xsd');
 const ir = new IRBuilder(schema).build();
 ```
 
+Complex values stored in JSON columns retain their XSD shape in
+`ir.valueTypes`. Resolve a column through its exact `valueTypeRef`; anonymous
+definitions use stable path keys, so `column.xsdType` is not a reliable lookup
+key. Nested `TypeUse.valueTypeRef` values use the same registry. This metadata
+does not add tables or change the generated MariaDB layout.
+
 Generate MariaDB DDL and JSON Schema:
 
 ```javascript
@@ -150,6 +159,13 @@ const jsonSchema = generateJSONSchema(ir, {
   schemaId: 'https://example.com/s3000l-generated-schema.json',
 });
 ```
+
+The draft-07 output keeps entity schemas in the existing `$defs` namespace and
+adds JSON-backed complex values under `definitions`. Value-type `$ref` values
+use `#/definitions/<key>` with JSON Pointer escaping (`~` becomes `~0`, `/`
+becomes `~1`). The generated shapes preserve representable choices and
+assertions and annotate unsupported XSD semantics; use real XSD 1.1 validation
+for complete instance acceptance.
 
 Run lightweight runtime XML validation:
 
@@ -223,6 +239,16 @@ The CLI writes these files to the selected `--out` directory:
 
 `output/` is ignored by git. Regenerate it when the XSD or generator behavior
 changes.
+
+JSON stored in an object-valued `LONGTEXT` column follows the XML parser form:
+attributes are `@_<name>`, element text is `#text`, and repeatable elements
+accept either a singleton value or an array. The XML parser can coerce numeric
+and boolean element text even for XSD string types. Value schemas accept those
+stored scalars as well as strings; string enums retain their parsed equivalents.
+String facets whose original spelling cannot be recovered are annotated with
+`x-xsd-unsupported`. Attribute text stays a string. Particle nesting in
+`ir.valueTypes` preserves choice-dependent requiredness: a required member of
+one choice branch is required only when that branch is selected.
 
 ## MariaDB Notes
 

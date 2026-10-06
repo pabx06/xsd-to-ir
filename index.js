@@ -60,6 +60,7 @@ function irToJSON(ir) {
     joinTables: Object.fromEntries(ir.joinTables),
     enums: Object.fromEntries(ir.enums),
     simpleTypes: Object.fromEntries(ir.simpleTypes),
+    valueTypes: Object.fromEntries(ir.valueTypes || []),
     assertions: Object.fromEntries(ir.assertions),
     assertionPaths: Object.fromEntries(ir.assertionPaths),
     s3000lMode: !!ir.s3000lMode,
