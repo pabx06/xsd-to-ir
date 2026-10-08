@@ -1468,6 +1468,17 @@ Aircraft Product (PROD-1)
 
 The quantity follows `×`. The reference designator is in square brackets.
 
+Product and product-variant nodes expose an `identifiers` array containing
+every complete identifier object, including optional `class` and `setBy`
+metadata. Labels show all identifiers in source order, with each available
+class in square brackets; for example,
+`Yeti SB5 Beti (YBSB5 [PVC], B5 [UOC])`. The existing `identifier` property
+still contains the first identifier's ID for compatibility.
+
+Each `prodVar` record produces one variant node with its own breakdown.
+Multiple `prodVarId` values identify that same variant and share its node.
+The loader handles any number of variants and identifiers per variant.
+
 ### What the example reads from the IR
 
 The example does not hard-code table names or parent foreign-key names. It uses:
