@@ -93,6 +93,13 @@ function joinedLabel(name, identifier, fallback) {
   return name || identifier || fallback;
 }
 
+function identifierLabel(identifier) {
+  const id = firstScalar(identifier, ['id']);
+  if (id === null) return null;
+  const identifierClass = firstScalar(identifier?.class, ['code']);
+  return identifierClass ? `${id} [${identifierClass}]` : id;
+}
+
 function sortRows(rows) {
   return [...rows].sort((left, right) => {
     const leftKey = String(left.uid ?? left.id ?? '');
@@ -286,10 +293,11 @@ function breakdownNodes(rawBkdns, index, ownerKey) {
 }
 
 function ownerNode(row, kind, entityName, identifierColumn, elementIndex) {
-  const identifier = firstScalar(
+  const identifiers = asArray(
     parseJsonCell(row[identifierColumn], `${entityName}[uid=${row.uid}].${identifierColumn}`),
-    ['id'],
   );
+  const identifier = firstScalar(identifiers, ['id']);
+  const identifierLabels = identifiers.map(identifierLabel).filter(Boolean).join(', ');
   const name = firstScalar(
     parseJsonCell(row.name, `${entityName}[uid=${row.uid}].name`),
     ['descr', 'name'],
@@ -303,7 +311,8 @@ function ownerNode(row, kind, entityName, identifierColumn, elementIndex) {
     uid: row.uid || null,
     databaseId: row.id,
     identifier,
-    label: joinedLabel(name, identifier, row.uid || `${entityName} ${row.id}`),
+    identifiers,
+    label: joinedLabel(name, identifierLabels, row.uid || `${entityName} ${row.id}`),
     children: breakdownNodes(row.bkdns, elementIndex, key),
   };
 }

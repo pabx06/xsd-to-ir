@@ -133,6 +133,79 @@ test('Issue 1.1 example builds a display tree from database entities and inline 
   ].join('\n'));
 });
 
+test('Issue 1.1 example retains every variant identifier and its metadata in one node', async () => {
+  const identifiers = [
+    { id: 'YBSB5', class: 'PVC', setBy: { orgId: { id: 'ORG-1' } } },
+    { id: 'B5', class: 'UOC' },
+    { id: 'ALT-B5' },
+    { id: 'B5', class: 'PVC' },
+  ];
+
+  for (const identifierCell of [JSON.stringify(identifiers), identifiers]) {
+    const rows = exampleRows();
+    rows.productVariant[0].prod_var_id = identifierCell;
+    rows.productVariant[0].name = JSON.stringify({ descr: 'Yeti SB5 Beti' });
+
+    const nodes = await loadIssue11ProductBreakdown(getIssue11Ir(), fakeDb(rows));
+    const variants = nodes[0].children.filter((node) => node.kind === 'product-variant');
+
+    assert.equal(variants.length, 1);
+    assert.deepEqual(variants[0].identifiers, identifiers);
+    assert.equal(variants[0].identifier, 'YBSB5');
+    assert.equal(variants[0].key, 'productVariant:prodv1');
+    assert.equal(variants[0].label, 'Yeti SB5 Beti (YBSB5 [PVC], B5 [UOC], ALT-B5, B5 [PVC])');
+    assert.deepEqual(variants[0].children.map((node) => node.label), ['HY breakdown']);
+    assert.ok(renderTextTree(nodes).includes(variants[0].label));
+  }
+});
+
+test('Issue 1.1 example handles varying numbers of variants and identifiers per variant', async () => {
+  for (const variantCount of [0, 1, 3, 7]) {
+    const rows = exampleRows();
+    const template = rows.productVariant[0];
+    const expectedVariants = Array.from({ length: variantCount }, (_, position) => ({
+      ...template,
+      id: position + 2,
+      uid: `prodv${position + 1}`,
+      prod_var_id: JSON.stringify(Array.from({ length: position + 1 }, (_identifier, identifierPosition) => ({
+        id: `PV-${position + 1}-${identifierPosition + 1}`,
+      }))),
+    }));
+    rows.productVariant = [...expectedVariants].reverse();
+    rows.productVariant.push({
+      ...template,
+      id: 100,
+      uid: 'prodv100',
+      product_prod_var_parent_id: 100,
+    });
+
+    const nodes = await loadIssue11ProductBreakdown(getIssue11Ir(), fakeDb(rows));
+    const variants = nodes[0].children.filter((node) => node.kind === 'product-variant');
+
+    assert.deepEqual(variants.map((node) => node.uid), expectedVariants.map((row) => row.uid));
+    variants.forEach((variant, position) => {
+      const identifiers = JSON.parse(expectedVariants[position].prod_var_id);
+      assert.deepEqual(variant.identifiers, identifiers);
+      for (const identifier of identifiers) assert.ok(variant.label.includes(identifier.id));
+    });
+  }
+});
+
+test('Issue 1.1 example retains repeated product identifiers and normalizes singleton variant identifiers', async () => {
+  const rows = exampleRows();
+  const identifiers = [{ id: 'PROD-1' }, { id: 'ALT-PROD-1' }];
+  rows.product[0].prod_id = JSON.stringify(identifiers);
+
+  const nodes = await loadIssue11ProductBreakdown(getIssue11Ir(), fakeDb(rows));
+
+  assert.deepEqual(nodes[0].identifiers, identifiers);
+  assert.equal(nodes[0].identifier, 'PROD-1');
+  assert.equal(nodes[0].label, 'Aircraft Product (PROD-1, ALT-PROD-1)');
+  const variant = nodes[0].children.find((node) => node.kind === 'product-variant');
+  assert.deepEqual(variant.identifiers, [{ id: 'PV-1' }]);
+  assert.equal(variant.label, 'Trainer Variant (PV-1)');
+});
+
 test('Issue 1.1 example can select one product UID', async () => {
   const rows = exampleRows();
   rows.product.push({
