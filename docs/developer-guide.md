@@ -254,8 +254,9 @@ one choice branch is required only when that branch is selected.
 
 [`test/json-representation-baseline.test.js`](../test/json-representation-baseline.test.js)
 tracks the importer, generated JSON Schema, and XML serializer against the
-original assessment in commit `7df4826`. String preservation is now implemented;
-array/numeric normalization and TypeScript generation remain separate steps.
+original assessment in commit `7df4826`. String preservation and schema support
+for exact numeric strings are implemented; array/numeric normalization and
+TypeScript generation remain separate steps.
 
 Run the baseline with known defects marked as executed TODO tests:
 
@@ -270,10 +271,10 @@ npm run test:json-baseline:strict
 ```
 
 The original assessment had 51 tests: 29 passing checks and 22 failing
-desired-behavior assertions across seven defect groups. **Currently, 47 pass and
-4 remain TODO**: the 18 assertions for `JSON-001` through `JSON-005` are ordinary
+desired-behavior assertions across seven defect groups. **Currently, 49 pass and
+2 remain TODO**: the 20 assertions for `JSON-001` through `JSON-006` are ordinary
 passing tests. Normal mode exits successfully and runs as part of `npm test`.
-Strict mode still exits nonzero for the four assertions in `JSON-006/007`; it is
+Strict mode still exits nonzero for the two assertions in `JSON-007`; it is
 not a passing CI gate yet. TODOs execute their assertions rather than skipping
 them. Remove each TODO classification when its defect is fixed.
 
@@ -284,7 +285,7 @@ them. Remove each TODO classification when its defect is fixed.
 | `JSON-003` | Preserve boundary whitespace for `xs:string`. | Fixed: whitespace follows the XSD type and inherited `whiteSpace` facet. |
 | `JSON-004` | Keep the string enum member `01` in JSON and exported XML. | Fixed: `01` remains a string and exports unchanged. |
 | `JSON-005` | Preserve string simple content, including `#text`, alongside attributes. | Fixed: text remains a string with or without attributes. |
-| `JSON-006` | Accept exact numeric values actually produced by import in generated JSON Schema. | The tested large integer and precise decimal survive as strings, but their numeric JSON schemas reject them. No precision loss is demonstrated for these examples. |
+| `JSON-006` | Accept exact numeric values actually produced by import in generated JSON Schema. | Fixed: large integer and precise decimal strings pass the generated value schemas without conversion. |
 | `JSON-007` | Export children in XSD sequence order independently of JSON property insertion order. | `{ class: 'EIAC', id: 'PRODUCT-A' }` passes JSON Schema but exports `<class>` before required-first `<id>`. |
 
 The representation comparisons establish which choices need coordinated importer,
@@ -352,6 +353,31 @@ applies to new imports and does not migrate existing rows. Already-lost identifi
 spelling cannot be reconstructed from a number; repair requires original source
 data. Decide the public JSON contract and migration strategy before tightening
 schemas or normalizing arrays and numbers.
+
+Numeric fields inside JSON columns accept JSON numbers and XML numeric strings.
+`TypeUse.numericKind` distinguishes integer, decimal, float, and double, including
+named restrictions. Integer strings reject decimal points and exponents; decimal
+strings reject exponent notation and floating-point specials; float/double
+strings allow scientific notation and XSD `INF`/`NaN` forms. Boundary XML
+whitespace is accepted for lexical values retained by union types; malformed
+values such as `1 2`, `0x10`, or an empty string are rejected.
+
+Integer/decimal enums and fixed values compare exact values: leading `+`/zeros or
+trailing decimal zeros can spell the same value, while rounded neighbors fail.
+Unrepresentable constants and defaults remain strings. Raw declarations are
+available as `x-xsd-enumeration` and `x-xsd-fixed`.
+
+The number branch retains representable numeric bounds. Numeric keywords such as
+`minimum` do not validate strings in [JSON Schema draft-07](https://json-schema.org/draft-07/draft-handrews-json-schema-validation-01#rfc.section.6.2).
+String branches retain exact bounds and digit facets in `x-xsd-facets`, with an
+`x-xsd-unsupported` warning on the owning definition; **these facets still require
+XSD validation**, so lexical acceptance alone does not prove a value is in range.
+Bounds that would round when serialized by this JavaScript generator are also
+annotated and left to XSD validation. Alternate floating-point enum/fixed
+spellings beyond those represented by the schema carry the same warning.
+[`test/numeric-value-schema.test.js`](../test/numeric-value-schema.test.js) tests
+these rules using standard Ajv without coercion after serializing the schema.
+Import, database storage, and XML serialization are unchanged by this schema fix.
 
 ## MariaDB Notes
 

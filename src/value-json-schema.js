@@ -1,6 +1,7 @@
 const { XMLParser } = require('fast-xml-parser');
+const { numericSchema, numericChoices, numericValue } = require('./numeric-value-schema');
 
-// Match XMLDeserializer's element-text coercion without changing stored JSON.
+// Match legacy XMLDeserializer coercion for compatibility with stored string fields.
 const textParser = new XMLParser({ trimValues: true });
 function parsedText(value) {
   const text = String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -44,8 +45,8 @@ function combine(schemas) {
   return result;
 }
 
-function scalarValue(value, type) {
-  if (['integer', 'number'].includes(type) && value !== '' && Number.isFinite(Number(value))) return Number(value);
+function scalarValue(value, type, numericKind) {
+  if (['integer', 'number'].includes(type)) return numericValue(value, numericKind);
   if (type === 'boolean' && ['true', '1', 'false', '0'].includes(String(value))) {
     return value === true || value === 1 || value === 'true' || value === '1';
   }
@@ -202,16 +203,7 @@ class ValueJSONSchema {
       if (attribute) forms.push(...values.flatMap((value) => (value ? ['true', '1'] : ['false', '0'])));
       return { enum: [...new Set(forms)] };
     }
-    if (!attribute || !['integer', 'number'].includes(use.jsonType)) return schema;
-    const lexical = { type: 'string' };
-    if (constraints.enum) lexical.enum = [...new Set(constraints.enum)];
-    else {
-      lexical.pattern = use.jsonType === 'integer' ? '^[+-]?[0-9]+$' : '^[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)$';
-      if (Object.keys(constraints).some((key) => /[mM](in|ax)/.test(key))) {
-        warnings.add('Numeric XML attribute bounds on lexical strings require XSD validation.');
-      }
-    }
-    return { anyOf: [schema, lexical] };
+    return ['integer', 'number'].includes(use.jsonType) ? numericSchema(schema, use, warnings) : schema;
   }
 
   nilValue(use, warnings) {
@@ -229,7 +221,12 @@ class ValueJSONSchema {
   fieldValue(field, warnings) {
     const attribute = field.kind === 'attribute';
     let schema = this.scalar(field.type, attribute, warnings);
-    if (field.fixedValue !== null) {
+    if (field.fixedValue !== null && ['integer', 'number'].includes(field.type.jsonType)) {
+      schema = {
+        allOf: [schema, numericChoices([field.fixedValue], field.type, warnings)],
+        'x-xsd-fixed': field.fixedValue,
+      };
+    } else if (field.fixedValue !== null) {
       const fixed = scalarValue(field.fixedValue, attribute ? 'string' : field.type.jsonType);
       const values = attribute ? [fixed] : [fixed, parsedText(field.fixedValue)];
       if (field.type.jsonType === 'boolean') {
@@ -253,7 +250,10 @@ class ValueJSONSchema {
     if (field.nillable) schema = { anyOf: [schema, this.nilValue(field.type, warnings)] };
     if (field.documentation) schema = { ...schema, description: field.documentation };
     if (field.defaultValue !== null) {
-      schema = { ...schema, default: scalarValue(field.defaultValue, attribute ? 'string' : field.type.jsonType) };
+      schema = {
+        ...schema,
+        default: scalarValue(field.defaultValue, attribute ? 'string' : field.type.jsonType, field.type.numericKind),
+      };
     }
     return schema;
   }

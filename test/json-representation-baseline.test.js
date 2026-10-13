@@ -243,7 +243,7 @@ for (const [field, text] of [['integer', '9007199254740993'], ['decimal', '1.234
     assert.equal(exportedProduct(await serialize('fixture', row)).payload[field], text);
   });
 
-  defect('JSON-006', `generated JSON Schema accepts the exact ${field} string produced by import`, () => {
+  test(`JSON-006: generated JSON Schema accepts the exact ${field} string produced by import`, () => {
     const value = importPayload(`<${field}>${text}</${field}>`);
     expectValid('fixture', 'payload', value);
   });

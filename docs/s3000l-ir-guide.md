@@ -1235,8 +1235,11 @@ cannot always be checked on those older values after their spelling has been
 lost; `x-xsd-unsupported` documents this limitation. Existing rows are not migrated,
 and lost leading zeros require the original source data to recover. See the
 [JSON representation assessment](developer-guide.md#json-representation-baseline)
-for the remaining numeric-schema and XML-order defects. Full XSD validation is
-still required.
+for the remaining XML-order defect. Numeric value schemas accept exact integer
+and decimal strings alongside numbers; for example, `"9007199254740993"` is valid
+for an `xs:integer` field without converting it to a JavaScript number. Numeric
+string bounds and digit facets remain in `x-xsd-facets` and are marked as requiring
+XSD validation. Full XSD validation is still required.
 
 Follow `column.valueTypeRef` to validate or render the stored object. Within a
 definition, follow `field.type.valueTypeRef` for nested objects. Keep a set of

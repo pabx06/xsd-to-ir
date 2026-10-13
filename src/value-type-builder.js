@@ -122,6 +122,9 @@ class ValueTypeBuilder {
     const primitive = XSD_PRIMITIVES[xsdType];
     if (primitive && !inline?.simpleType) {
       use.jsonType = typeof primitive.jsonType === 'string' ? primitive.jsonType : null;
+      if (['integer', 'number'].includes(use.jsonType)) {
+        use.numericKind = use.jsonType === 'integer' ? 'integer' : xsdType;
+      }
       use.constraints.whiteSpace = primitiveWhitespace(xsdType);
       for (const key of ['format', 'minimum', 'maximum', 'contentEncoding']) {
         if (primitive[key] !== undefined) use.constraints[key] = primitive[key];
