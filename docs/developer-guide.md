@@ -250,6 +250,86 @@ String facets whose original spelling cannot be recovered are annotated with
 `ir.valueTypes` preserves choice-dependent requiredness: a required member of
 one choice branch is required only when that branch is selected.
 
+## JSON Representation Baseline
+
+[`test/json-representation-baseline.test.js`](../test/json-representation-baseline.test.js)
+assesses the current importer, generated JSON Schema, and XML serializer before
+changing their representation contract. It changes no runtime behavior and does
+not implement TypeScript generation or commit to array/numeric normalization.
+
+Run the baseline with known defects marked as executed TODO tests:
+
+```bash
+npm run test:json-baseline
+```
+
+Run the same assertions as ordinary tests to reproduce the failures:
+
+```bash
+npm run test:json-baseline:strict
+```
+
+At this baseline there are **51 tests: 29 passing compatibility checks and 22
+failing desired-behavior assertions** across seven defect groups. Normal mode
+reports those 22 failures as TODO, exits successfully, and runs as part of
+`npm test`. Strict mode exits nonzero with 22 failures; this is an intentional
+assessment result, not a command to include as a passing CI gate yet. TODOs
+execute their assertions rather than skipping them. When fixing a defect, remove
+its TODO classification and update any characterization of the old behavior;
+strict mode should eventually pass without exceptions.
+
+| Defect | Desired behavior tested | Current result |
+| --- | --- | --- |
+| `JSON-001` | Keep `prodId.id` strings `001234`, `1234.00`, `1234`, `true`, and `false` in both issues. | Numeric/boolean-looking strings become numbers or booleans. |
+| `JSON-002` | Preserve identifier spelling through XML import and record export in both issues. | `001234` and `1234.00` both export as `1234`. |
+| `JSON-003` | Preserve boundary whitespace for `xs:string`. | The XML parser trims it; the control case uses `xs:token`, where trimming boundary spaces is appropriate. |
+| `JSON-004` | Keep the string enum member `01` in JSON and exported XML. | It becomes number `1`, then exports a value outside the declared enum. |
+| `JSON-005` | Preserve string simple content, including `#text`, alongside attributes. | `001234` becomes number `1234` even when stored under `#text`. |
+| `JSON-006` | Accept exact numeric values actually produced by import in generated JSON Schema. | The tested large integer and precise decimal survive as strings, but their numeric JSON schemas reject them. No precision loss is demonstrated for these examples. |
+| `JSON-007` | Export children in XSD sequence order independently of JSON property insertion order. | `{ class: 'EIAC', id: 'PRODUCT-A' }` passes JSON Schema but exports `<class>` before required-first `<id>`. |
+
+The representation comparisons establish which choices need coordinated importer,
+JSON Schema, and serializer changes:
+
+| Comparison | XML effect | Reimport / validation effect |
+| --- | --- | --- |
+| Repeatable singleton object vs one-item array | Same XML for `prodId`, nested `bkdn`, and fixture primitive/complex repeats. | Single occurrences reimport as singletons; JSON array shape is not retained. |
+| Multiple repeated values | Same values in the supplied order. | Reimport retains an array and its order. |
+| Empty required array | No XML occurrence. | JSON Schema rejects it; serialization alone does not enforce minimum occurrences. |
+| Empty optional array vs omission | Same XML absence. | The tested nested field's schema currently requires omission instead of `[]`; reimport omits the field. |
+| Array on a non-repeatable field | Serializer still emits one or multiple occurrences. | JSON Schema rejects the array. Array normalization must respect multiplicity. |
+| SQL `NULL` / missing column vs JSON text `"null"` / `{}` | SQL absence omits the element; parsed JSON null and empty object emit an empty element. | Neither spelling is a substitute for explicit `xsi:nil`. |
+| Nested JSON null vs explicit nil object | Null emits an empty element; the nil object emits `xsi:nil` and preserves attributes. | The tested nested null fails JSON Schema; the explicit nil object passes and survives reimport. |
+| Missing vs empty string | An absent child differs from a present empty child. | Empty string remains present when the type allows it. |
+| Boolean `true`/`false` vs numeric `1`/`0` | Different XML spelling with equivalent XSD boolean meaning. | Both forms pass the current schema; canonical booleans would be a deliberate representation change. |
+| Simple-content scalar vs `#text` object | Same XML text without attributes. | Attributes require the object form; tested text and attributes survive reimport. |
+| Plain property vs `@_` property | Child element vs XML attribute. | Removing the prefix changes the XML meaning. Numeric/boolean-looking attribute text is already preserved as strings. |
+| Encoded JSON column vs already decoded object | Same XML. | This is an existing serializer capability, not an automatic API decoding contract. |
+
+Both bundled issue IRs are used for product identifiers, nested breakdowns,
+multiplicity, nil, and element-order tests. A small
+[`json-representation-baseline.xsd`](../test/fixtures/json-representation-baseline.xsd)
+isolates whitespace, enums, simple content, numeric precision, booleans, and
+empty values. Safe numbers and escaped/Unicode text provide positive controls.
+
+The output oracle disables numeric/boolean parsing and whitespace trimming, so it
+cannot hide a string loss by coercing both sides of a comparison. It ignores only
+pretty-print indentation in containers with child elements. Leaf text and simple
+content remain exact. Array checks distinguish XML equivalence from JSON shape
+equality; they do not promise byte-identical original XML.
+
+These tests use the public importer and serializer with in-memory database rows;
+they do not assess MariaDB driver conversions. Issue 1.1 tests inspect exported
+record fragments and explicitly put them back into the matching input fixture
+envelope for reimport. **They do not certify Issue 1.1 whole-document export**:
+the serializer still emits the Issue 2.0 envelope (`REV-005`). The Issue 2.0
+whole-envelope test proves current importer/serializer compatibility, not full
+XSD acceptance. Existing Java/Xerces acceptance checks remain necessary.
+
+Before implementing normalization, decide the public JSON contract and how
+existing stored values will be read or migrated. Already-lost identifier spelling
+cannot be reconstructed from a number; repair requires original source data.
+
 ## MariaDB Notes
 
 Generated DDL targets MariaDB and uses `mysql2` through knex. The Docker-backed

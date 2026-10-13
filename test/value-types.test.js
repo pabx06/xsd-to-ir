@@ -119,6 +119,8 @@ test('Issue 1.1 anonymous breakdown wrapper has a stable definition and preserve
   assert.equal(validate({ bkdn: {} }), false);
 });
 
+// Current-storage compatibility, not a lossless-import guarantee. The desired
+// string behavior is exercised by JSON-001/002 in json-representation-baseline.test.js.
 test('generated schemas accept numeric and boolean text exactly as imported into JSON columns', () => {
   const { ir, schema } = dialect('2.0');
   const xml = `<lsaDataset><msgId>NUMERIC-ID</msgId><msgDate>2026-10-06</msgDate>
