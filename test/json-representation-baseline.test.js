@@ -103,13 +103,6 @@ function reimportFragment(key, xml) {
   return rows[0];
 }
 
-function defect(id, title, fn) {
-  // TODO tests still execute their desired-behavior assertions. Strict mode turns
-  // them into ordinary failing tests, independently reproducible before the fix.
-  const todo = process.env.JSON_BASELINE_STRICT === '1' ? false : `${id}: known representation defect`;
-  test(`${id}: ${title}`, { todo }, fn);
-}
-
 for (const issue of ['1.1', '2.0']) {
   for (const text of ['001234', '1234.00', '1234', 'true', 'false']) {
     test(`JSON-001: Issue ${issue} stores prodId ${JSON.stringify(text)} as an XSD string`, () => {
@@ -195,11 +188,12 @@ for (const issue of ['1.1', '2.0']) {
     );
   });
 
-  defect('JSON-007', `Issue ${issue} emits prodId children in XSD sequence order regardless of JSON key order`, async () => {
+  test(`JSON-007: Issue ${issue} emits prodId children in XSD sequence order regardless of JSON key order`, async () => {
     const value = { class: 'EIAC', id: 'PRODUCT-A' };
     expectValid(issue, 'prodId', value);
     const xml = await serialize(issue, { prod_id: JSON.stringify(value) });
     assert.deepEqual(Object.keys(exportedProduct(xml).prodId), ['id', 'class']);
+    assert.deepEqual(Object.keys(JSON.parse(reimportFragment(issue, xml).prod_id)), ['id', 'class']);
   });
 }
 

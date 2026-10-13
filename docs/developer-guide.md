@@ -242,9 +242,9 @@ changes.
 
 JSON stored in an object-valued `LONGTEXT` column follows the XML parser form:
 attributes are `@_<name>`, element text is `#text`, and repeatable elements
-accept either a singleton value or an array. The XML parser can coerce numeric
-and boolean element text even for XSD string types. Value schemas accept those
-stored scalars as well as strings; string enums retain their parsed equivalents.
+accept either a singleton value or an array. Older imports can contain coerced
+numeric and boolean element text even for XSD string types. Value schemas accept
+those stored scalars as well as strings; string enums retain their parsed equivalents.
 String facets whose original spelling cannot be recovered are annotated with
 `x-xsd-unsupported`. Attribute text stays a string. Particle nesting in
 `ir.valueTypes` preserves choice-dependent requiredness: a required member of
@@ -254,29 +254,26 @@ one choice branch is required only when that branch is selected.
 
 [`test/json-representation-baseline.test.js`](../test/json-representation-baseline.test.js)
 tracks the importer, generated JSON Schema, and XML serializer against the
-original assessment in commit `7df4826`. String preservation and schema support
-for exact numeric strings are implemented; array/numeric normalization and
-TypeScript generation remain separate steps.
+original assessment in commit `7df4826`. String preservation, schema support
+for exact numeric strings, and typed XML child ordering are implemented.
+Array/numeric normalization and TypeScript generation remain separate steps.
 
-Run the baseline with known defects marked as executed TODO tests:
+Run the baseline:
 
 ```bash
 npm run test:json-baseline
 ```
 
-Run the same assertions as ordinary tests to reproduce the failures:
+The original strict command remains available and now runs the same passing assertions:
 
 ```bash
 npm run test:json-baseline:strict
 ```
 
 The original assessment had 51 tests: 29 passing checks and 22 failing
-desired-behavior assertions across seven defect groups. **Currently, 49 pass and
-2 remain TODO**: the 20 assertions for `JSON-001` through `JSON-006` are ordinary
-passing tests. Normal mode exits successfully and runs as part of `npm test`.
-Strict mode still exits nonzero for the two assertions in `JSON-007`; it is
-not a passing CI gate yet. TODOs execute their assertions rather than skipping
-them. Remove each TODO classification when its defect is fixed.
+desired-behavior assertions across seven defect groups. **All 51 now pass with
+no TODOs**: `JSON-001` through `JSON-007` are ordinary passing tests, included
+in `npm test`. The original failures can still be reproduced at commit `7df4826`.
 
 | Defect | Desired behavior tested | Current result |
 | --- | --- | --- |
@@ -286,7 +283,31 @@ them. Remove each TODO classification when its defect is fixed.
 | `JSON-004` | Keep the string enum member `01` in JSON and exported XML. | Fixed: `01` remains a string and exports unchanged. |
 | `JSON-005` | Preserve string simple content, including `#text`, alongside attributes. | Fixed: text remains a string with or without attributes. |
 | `JSON-006` | Accept exact numeric values actually produced by import in generated JSON Schema. | Fixed: large integer and precise decimal strings pass the generated value schemas without conversion. |
-| `JSON-007` | Export children in XSD sequence order independently of JSON property insertion order. | `{ class: 'EIAC', id: 'PRODUCT-A' }` passes JSON Schema but exports `<class>` before required-first `<id>`. |
+| `JSON-007` | Export children in XSD sequence order independently of JSON property insertion order. | Fixed: typed JSON children follow the IR's particle order recursively, including `<id>` before `<class>` in both issues. |
+
+The serializer follows `column.valueTypeRef` and nested type references to order
+known children. XSD parsing preserves declaration order across interleaved
+elements, choices, and groups in the value-type particles. Extension content
+follows its base; restrictions use their own content. Choice branches are
+selected from the present children and required members. This changes exported
+child order without changing stored JSON, scalar
+values, array item order, attributes, or explicit nil values. It works with both
+JSON text columns and already decoded objects.
+
+[`test/xml-value-order.test.js`](../test/xml-value-order.test.js) additionally
+covers inheritance, named groups, overlapping choice branches, optional fields,
+recursive types, and immutable inputs. Unknown keys retain their input slots.
+Values without type metadata retain their property order. Mixed content retains
+its direct child order; typed nested values can still be ordered. Repeated
+compositors with multiple child names present also retain their direct order:
+grouped object properties cannot recover interleaving such as `a, b, a, b` from
+separate `a` and `b` arrays. Absent groups or groups with one present child name
+still allow surrounding siblings to be ordered. Types that reuse the same
+element name at distinct sequence positions retain their direct order for the
+same reason. Full XSD
+validation remains necessary; ordering does not validate scalar facets, wildcard
+placement, or occurrence counts. Regenerate older IR artifacts to obtain the
+corrected particle order.
 
 The representation comparisons establish which choices need coordinated importer,
 JSON Schema, and serializer changes:

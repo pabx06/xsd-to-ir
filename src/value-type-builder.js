@@ -1,6 +1,7 @@
 const { XSD_PRIMITIVES } = require('./type-resolver');
 const { extractAssertionSets } = require('./xsd-assertion-metadata');
 const { primitiveWhitespace } = require('./xml-value-normalizer');
+const { orderedChildren } = require('./xsd-parser');
 
 const nodes = (value) => {
   if (Array.isArray(value)) return value;
@@ -194,27 +195,25 @@ class ValueTypeBuilder {
 
   _content(node, owner, groups) {
     const children = [];
-    for (const [kind, values] of Object.entries(node)) {
-      if (!['element', 'sequence', 'choice', 'all', 'group', 'any'].includes(kind)) continue;
-      for (const item of nodes(values)) {
-        if (kind === 'element') children.push(this._field(item, kind));
-        else if (kind === 'any') owner.unsupported.push('xs:any requires XSD validation.');
-        else {
-          const ref = localName(item['@_ref']);
-          const group = ref ? this.resolver.getGroup(ref) : item;
-          const child = {
-            kind, minOccurs: occurs(item['@_minOccurs']), maxOccurs: occurs(item['@_maxOccurs']), children: [],
-          };
-          if (ref) child.ref = ref;
-          if (!group || (ref && groups.has(ref))) {
-            owner.unsupported.push(`Unresolved or recursive group: ${ref}`);
-          } else {
-            const visiting = new Set(groups);
-            if (ref) visiting.add(ref);
-            child.children = this._content(group, owner, visiting)?.children || [];
-          }
-          children.push(child);
+    const particles = orderedChildren(node, ['element', 'sequence', 'choice', 'all', 'group', 'any']);
+    for (const [kind, item] of particles) {
+      if (kind === 'element') children.push(this._field(item, kind));
+      else if (kind === 'any') owner.unsupported.push('xs:any requires XSD validation.');
+      else {
+        const ref = localName(item['@_ref']);
+        const group = ref ? this.resolver.getGroup(ref) : item;
+        const child = {
+          kind, minOccurs: occurs(item['@_minOccurs']), maxOccurs: occurs(item['@_maxOccurs']), children: [],
+        };
+        if (ref) child.ref = ref;
+        if (!group || (ref && groups.has(ref))) {
+          owner.unsupported.push(`Unresolved or recursive group: ${ref}`);
+        } else {
+          const visiting = new Set(groups);
+          if (ref) visiting.add(ref);
+          child.children = this._content(group, owner, visiting)?.children || [];
         }
+        children.push(child);
       }
     }
     return children.length ? {
