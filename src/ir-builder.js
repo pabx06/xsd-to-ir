@@ -190,6 +190,17 @@ class IRBuilder {
       }
     }
 
+    // Preserve inherited XSD whitespace rules for scalar database columns too.
+    // Inline fields carry the same rules on their TypeUse constraints.
+    for (const entity of this.entities.values()) {
+      for (const column of entity.columns) {
+        if (!column.xsdType || column.valueTypeRef
+            || !['element', 'attribute'].includes(column.xmlKind)) continue;
+        const use = this._valueTypeBuilder.typeUse(column.xsdType);
+        if (use.constraints.whiteSpace) column.constraints.whiteSpace = use.constraints.whiteSpace;
+      }
+    }
+
     // 5. Collect nested assertion paths only for opaque inline value types
     //    that are actually persisted as LONGTEXT JSON columns. This keeps the
     //    path graph bounded to what import/export can validate.
@@ -682,7 +693,7 @@ class IRBuilder {
     const nullable = isS3000LUid || isS3000LCrud ? false : use !== 'required';
 
     const resolved = typeName ? this.resolver.resolve(typeName) : { kind: 'primitive', sqlType: 'TEXT', jsonType: 'string' };
-    entity.columns.push(attributeColumn({
+    const column = attributeColumn({
       fieldName: effectiveName,
       typeName,
       resolved,
@@ -692,7 +703,12 @@ class IRBuilder {
       documentation: _docs(attr),
       isS3000LUid,
       helpers: _irBuilderHelperOptions(),
-    }));
+    });
+    // S3000L uid uses an anonymous restriction of xs:ID in both bundled issues.
+    // Its whitespace rule must survive even though the column has no xsdType name.
+    const type = this._valueTypeBuilder.typeUse(typeName, attr);
+    if (type.constraints.whiteSpace) column.constraints.whiteSpace = type.constraints.whiteSpace;
+    entity.columns.push(column);
   }
 
   // ── relation helper ────────────────────────────────────────────────────────

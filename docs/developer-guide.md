@@ -253,9 +253,9 @@ one choice branch is required only when that branch is selected.
 ## JSON Representation Baseline
 
 [`test/json-representation-baseline.test.js`](../test/json-representation-baseline.test.js)
-assesses the current importer, generated JSON Schema, and XML serializer before
-changing their representation contract. It changes no runtime behavior and does
-not implement TypeScript generation or commit to array/numeric normalization.
+tracks the importer, generated JSON Schema, and XML serializer against the
+original assessment in commit `7df4826`. String preservation is now implemented;
+array/numeric normalization and TypeScript generation remain separate steps.
 
 Run the baseline with known defects marked as executed TODO tests:
 
@@ -269,22 +269,21 @@ Run the same assertions as ordinary tests to reproduce the failures:
 npm run test:json-baseline:strict
 ```
 
-At this baseline there are **51 tests: 29 passing compatibility checks and 22
-failing desired-behavior assertions** across seven defect groups. Normal mode
-reports those 22 failures as TODO, exits successfully, and runs as part of
-`npm test`. Strict mode exits nonzero with 22 failures; this is an intentional
-assessment result, not a command to include as a passing CI gate yet. TODOs
-execute their assertions rather than skipping them. When fixing a defect, remove
-its TODO classification and update any characterization of the old behavior;
-strict mode should eventually pass without exceptions.
+The original assessment had 51 tests: 29 passing checks and 22 failing
+desired-behavior assertions across seven defect groups. **Currently, 47 pass and
+4 remain TODO**: the 18 assertions for `JSON-001` through `JSON-005` are ordinary
+passing tests. Normal mode exits successfully and runs as part of `npm test`.
+Strict mode still exits nonzero for the four assertions in `JSON-006/007`; it is
+not a passing CI gate yet. TODOs execute their assertions rather than skipping
+them. Remove each TODO classification when its defect is fixed.
 
 | Defect | Desired behavior tested | Current result |
 | --- | --- | --- |
-| `JSON-001` | Keep `prodId.id` strings `001234`, `1234.00`, `1234`, `true`, and `false` in both issues. | Numeric/boolean-looking strings become numbers or booleans. |
-| `JSON-002` | Preserve identifier spelling through XML import and record export in both issues. | `001234` and `1234.00` both export as `1234`. |
-| `JSON-003` | Preserve boundary whitespace for `xs:string`. | The XML parser trims it; the control case uses `xs:token`, where trimming boundary spaces is appropriate. |
-| `JSON-004` | Keep the string enum member `01` in JSON and exported XML. | It becomes number `1`, then exports a value outside the declared enum. |
-| `JSON-005` | Preserve string simple content, including `#text`, alongside attributes. | `001234` becomes number `1234` even when stored under `#text`. |
+| `JSON-001` | Keep `prodId.id` strings `001234`, `1234.00`, `1234`, `true`, and `false` in both issues. | Fixed: new imports retain strings. |
+| `JSON-002` | Preserve identifier spelling through XML import and record export in both issues. | Fixed: the original spelling survives. |
+| `JSON-003` | Preserve boundary whitespace for `xs:string`. | Fixed: whitespace follows the XSD type and inherited `whiteSpace` facet. |
+| `JSON-004` | Keep the string enum member `01` in JSON and exported XML. | Fixed: `01` remains a string and exports unchanged. |
+| `JSON-005` | Preserve string simple content, including `#text`, alongside attributes. | Fixed: text remains a string with or without attributes. |
 | `JSON-006` | Accept exact numeric values actually produced by import in generated JSON Schema. | The tested large integer and precise decimal survive as strings, but their numeric JSON schemas reject them. No precision loss is demonstrated for these examples. |
 | `JSON-007` | Export children in XSD sequence order independently of JSON property insertion order. | `{ class: 'EIAC', id: 'PRODUCT-A' }` passes JSON Schema but exports `<class>` before required-first `<id>`. |
 
@@ -326,9 +325,33 @@ the serializer still emits the Issue 2.0 envelope (`REV-005`). The Issue 2.0
 whole-envelope test proves current importer/serializer compatibility, not full
 XSD acceptance. Existing Java/Xerces acceptance checks remain necessary.
 
-Before implementing normalization, decide the public JSON contract and how
-existing stored values will be read or migrated. Already-lost identifier spelling
-cannot be reconstructed from a number; repair requires original source data.
+The importer reads XML text without automatic number/boolean conversion or
+trimming. It then uses `ir.valueTypes` and scalar column constraints to normalize
+known types: `xs:string` preserves whitespace, `xs:normalizedString` replaces XML
+tabs/newlines with spaces, and `xs:token` collapses XML whitespace. Named
+restrictions inherit or override these rules. NBSP is not XML whitespace. These
+rules follow the [XSD whitespace definitions](https://www.w3.org/TR/xmlschema11-2/#rf-whiteSpace).
+
+[`test/xml-string-preservation.test.js`](../test/xml-string-preservation.test.js)
+also covers direct columns, recursive and inherited inline fields, simple-content
+restrictions, attributes, and scalar simple-content export. Unknown types and
+union values remain lexical because the importer cannot safely select a union
+member without validating its facets. Numeric and boolean inline elements keep
+the existing number/exact-string and boolean/numeric-spelling behavior; attributes
+remain strings. Element-only indentation is discarded, while mixed text remains
+present; preserving mixed-content order is not part of this fix.
+
+Real-schema regressions also cover anonymous `xs:ID` restrictions on record UIDs:
+stored IDs, update/delete keys, and relation references use the same normalized
+value. Envelope dates, times, message IDs, and related-message references retain
+their required whitespace normalization.
+
+Generated JSON Schema still accepts legacy numeric/boolean values in string
+locations, and singleton/array and nil representations are unchanged. This fix
+applies to new imports and does not migrate existing rows. Already-lost identifier
+spelling cannot be reconstructed from a number; repair requires original source
+data. Decide the public JSON contract and migration strategy before tightening
+schemas or normalizing arrays and numbers.
 
 ## MariaDB Notes
 

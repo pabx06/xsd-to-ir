@@ -112,24 +112,24 @@ function defect(id, title, fn) {
 
 for (const issue of ['1.1', '2.0']) {
   for (const text of ['001234', '1234.00', '1234', 'true', 'false']) {
-    defect('JSON-001', `Issue ${issue} stores prodId ${JSON.stringify(text)} as an XSD string`, () => {
+    test(`JSON-001: Issue ${issue} stores prodId ${JSON.stringify(text)} as an XSD string`, () => {
       const row = importProduct(issue, `<prodId><id>${text}</id></prodId>`);
       assert.deepEqual(JSON.parse(row.prod_id), { id: text });
     });
   }
 
   for (const text of ['001234', '1234.00']) {
-    defect('JSON-002', `Issue ${issue} preserves prodId ${text} through import and record export`, async () => {
+    test(`JSON-002: Issue ${issue} preserves prodId ${text} through import and record export`, async () => {
       const row = importProduct(issue, `<prodId><id>${text}</id></prodId>`);
       const xml = await serialize(issue, row);
       assert.equal(exportedProduct(xml).prodId.id, text);
     });
   }
 
-  test(`Issue ${issue}: numeric/boolean-looking text can survive XML output despite a JSON type change`, async () => {
+  test(`Issue ${issue}: numeric/boolean-looking prodId text remains a string through XML output`, async () => {
     for (const text of ['1234', 'true', 'false']) {
       const row = importProduct(issue, `<prodId><id>${text}</id></prodId>`);
-      assert.notEqual(typeof JSON.parse(row.prod_id).id, 'string');
+      assert.equal(typeof JSON.parse(row.prod_id).id, 'string');
       assert.equal(exportedProduct(await serialize(issue, row)).prodId.id, text);
     }
   });
@@ -210,7 +210,7 @@ test('Issue 2.0: complete current-envelope export/reimport retains safe inline J
   assert.deepEqual(JSON.parse(again.prod_id), JSON.parse(row.prod_id));
 });
 
-defect('JSON-003', 'xs:string preserves leading and trailing whitespace inside an inline JSON column', () => {
+test('JSON-003: xs:string preserves leading and trailing whitespace inside an inline JSON column', () => {
   assert.equal(importPayload('<text>  alpha  beta  </text>').text, '  alpha  beta  ');
 });
 
@@ -220,18 +220,18 @@ test('xs:token boundary whitespace is trimmed, unlike whitespace that must survi
   expectValid('fixture', 'payload', value);
 });
 
-defect('JSON-004', 'numeric-looking string enums retain their declared spelling in stored JSON', () => {
+test('JSON-004: numeric-looking string enums retain their declared spelling in stored JSON', () => {
   assert.equal(importPayload('<code>01</code>').code, '01');
 });
 
-defect('JSON-004', 'an imported enum member exports as a declared enum member', async () => {
+test('JSON-004: an imported enum member exports as a declared enum member', async () => {
   const row = importProduct('fixture', '<payload><code>01</code></payload>');
   const { code } = exportedProduct(await serialize('fixture', row)).payload;
   const allowed = bundle('fixture').ir.enums.get('Code').values;
   assert.ok(allowed.includes(code), `Exported ${JSON.stringify(code)} is not in ${JSON.stringify(allowed)}`);
 });
 
-defect('JSON-005', 'xs:string simpleContent preserves numeric-looking #text alongside attributes', () => {
+test('JSON-005: xs:string simpleContent preserves numeric-looking #text alongside attributes', () => {
   const value = importPayload('<note lang="en">001234</note>');
   assert.deepEqual(value.note, { '#text': '001234', '@_lang': 'en' });
 });

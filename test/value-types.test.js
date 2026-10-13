@@ -119,9 +119,7 @@ test('Issue 1.1 anonymous breakdown wrapper has a stable definition and preserve
   assert.equal(validate({ bkdn: {} }), false);
 });
 
-// Current-storage compatibility, not a lossless-import guarantee. The desired
-// string behavior is exercised by JSON-001/002 in json-representation-baseline.test.js.
-test('generated schemas accept numeric and boolean text exactly as imported into JSON columns', () => {
+test('string fields import numeric and boolean text lexically while schemas accept legacy values', () => {
   const { ir, schema } = dialect('2.0');
   const xml = `<lsaDataset><msgId>NUMERIC-ID</msgId><msgDate>2026-10-06</msgDate>
     <msgType><code>B</code></msgType><logisticsSupportAnalysisData><lsaPrimaryData><products>
@@ -130,10 +128,11 @@ test('generated schemas accept numeric and boolean text exactly as imported into
     </products></lsaPrimaryData></logisticsSupportAnalysisData></lsaDataset>`;
   const rows = deserializeXML(xml, ir).batches.get('product').insert;
   const values = rows.map((row) => JSON.parse(row.prod_id));
-  assert.deepEqual(values, [{ id: 123 }, { id: true }]);
+  assert.deepEqual(values, [{ id: '123' }, { id: 'true' }]);
   const validate = validator(schema, '$defs/product/properties/prodId');
   values.forEach((value) => expectValid(validate, value));
-  expectValid(validate, { id: '123' });
+  expectValid(validate, { id: 123 });
+  expectValid(validate, { id: true });
   assert.equal(validate({ id: '' }), false);
 });
 

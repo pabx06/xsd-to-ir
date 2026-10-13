@@ -1222,13 +1222,21 @@ Preserve the XML parser representation:
 - a repeatable location accepts a singleton value or an array, so one
   occurrence can be an object rather than a one-element array.
 
-The importer can coerce numeric/boolean element text, even for XSD string
-types: `<id>123</id>` becomes `{"id":123}`. Generated value schemas accept the
-coerced scalars alongside strings, while enum and fixed-value checks include
-their parsed equivalents. Attributes retain string text. String facets cannot
-always be checked after the parser loses the original spelling (for example,
-leading zeros); the schema marks this with `x-xsd-unsupported` and leaves full
-lexical validation to the XSD validator.
+New imports use value-type metadata to preserve XSD strings:
+`<id>001234</id>` becomes `{"id":"001234"}`. Whitespace follows each type's
+effective `whiteSpace` rule, including inherited restrictions. Simple content
+without attributes is stored as a JSON scalar; text with attributes uses `#text`.
+Attributes retain string values. Numeric and boolean element types keep their
+existing representation, and unknown or union types retain lexical text.
+
+Generated value schemas still accept numeric/boolean scalars from older imports
+alongside strings, including parsed enum and fixed-value equivalents. Facets
+cannot always be checked on those older values after their spelling has been
+lost; `x-xsd-unsupported` documents this limitation. Existing rows are not migrated,
+and lost leading zeros require the original source data to recover. See the
+[JSON representation assessment](developer-guide.md#json-representation-baseline)
+for the remaining numeric-schema and XML-order defects. Full XSD validation is
+still required.
 
 Follow `column.valueTypeRef` to validate or render the stored object. Within a
 definition, follow `field.type.valueTypeRef` for nested objects. Keep a set of

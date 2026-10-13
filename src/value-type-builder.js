@@ -1,5 +1,6 @@
 const { XSD_PRIMITIVES } = require('./type-resolver');
 const { extractAssertionSets } = require('./xsd-assertion-metadata');
+const { primitiveWhitespace } = require('./xml-value-normalizer');
 
 const nodes = (value) => {
   if (Array.isArray(value)) return value;
@@ -85,8 +86,9 @@ class ValueTypeBuilder {
       const base = localName(body['@_base']);
       type.baseTypeRef = this.reference(base);
       if (simple && !type.baseTypeRef) type.text = this.typeUse(base);
-      if (simple && type.derivation === 'restriction' && type.text) {
-        type.text.constraints = { ...type.text.constraints, ...facets(body) };
+      if (simple && type.derivation === 'restriction') {
+        const text = type.text || this._textType(type.baseTypeRef);
+        if (text) type.text = { ...text, constraints: { ...text.constraints, ...facets(body) } };
       }
       type.mixed ||= complex?.['@_mixed'] === 'true';
     }
@@ -95,6 +97,12 @@ class ValueTypeBuilder {
     if (type.mixed) type.unsupported.push('Mixed XML text order is not represented by object properties.');
     if (body.anyAttribute) type.unsupported.push('xs:anyAttribute requires XSD validation.');
     return id;
+  }
+
+  _textType(name, seen = new Set()) {
+    if (!name || seen.has(name)) return null;
+    const type = this.types.get(name);
+    return type?.text || this._textType(type?.baseTypeRef, new Set([...seen, name]));
   }
 
   typeUse(name, inline = null, seen = new Set()) {
@@ -114,6 +122,7 @@ class ValueTypeBuilder {
     const primitive = XSD_PRIMITIVES[xsdType];
     if (primitive && !inline?.simpleType) {
       use.jsonType = typeof primitive.jsonType === 'string' ? primitive.jsonType : null;
+      use.constraints.whiteSpace = primitiveWhitespace(xsdType);
       for (const key of ['format', 'minimum', 'maximum', 'contentEncoding']) {
         if (primitive[key] !== undefined) use.constraints[key] = primitive[key];
       }
@@ -147,6 +156,7 @@ class ValueTypeBuilder {
     const list = first(simple.list);
     if (list) {
       use.jsonType = 'string';
+      use.constraints.whiteSpace = 'collapse';
       use.itemType = this.typeUse(list['@_itemType'], list, visiting);
       use.unsupported.push('XML whitespace-separated list item validation requires XSD validation.');
       return use;
