@@ -48,7 +48,8 @@ function caseValue(item) {
 }
 
 function runtimeResult(item) {
-  const type = item.issue === 'fixture' ? fixtureColumn(item.field).xsdType : item.typeName;
+  const column = item.issue === 'fixture' ? fixtureColumn(item.field) : null;
+  const type = column ? column.valueTypeRef || column.xsdType : item.typeName;
   return validateValueAssertions(bundle(item.issue).ir, type, caseValue(item));
 }
 
@@ -131,6 +132,7 @@ const shapeCases = [
   shapeCase('direct-identifier', 'direct', '<direct><id>ID-1</id></direct>', { id: 'ID-1' }, true),
   shapeCase('direct-uid', 'direct', '<direct uidRef="ref1"/>', { '@_uidRef': 'ref1' }, true),
   shapeCase('direct-neither', 'direct', '<direct/>', {}, false),
+  shapeCase('direct-empty-text', 'direct', '<direct/>', '', false),
   shapeCase('direct-both', 'direct', '<direct uidRef="ref1"><id>ID-1</id></direct>', both, false),
   shapeCase('empty-element', 'direct', '<direct><id/></direct>', { id: '' }, true),
   shapeCase('empty-attribute', 'direct', '<direct uidRef=""/>', { '@_uidRef': '' }, true),
@@ -215,13 +217,29 @@ const shapeCases = [
     false,
   ),
   shapeCase('anonymous-valid', 'anonymous', '<anonymous><id>ID-1</id></anonymous>', { id: 'ID-1' }, true),
+  shapeCase('anonymous-empty-id', 'anonymous', '<anonymous><id/></anonymous>', { id: '' }, true),
+  shapeCase('anonymous-neither', 'anonymous', '<anonymous/>', {}, false),
+  shapeCase('anonymous-empty-text', 'anonymous', '<anonymous/>', '', false),
+  shapeCase(
+    'anonymous-repeated-valid',
+    'anonymous',
+    '<anonymous><id>ID-1</id></anonymous><anonymous uidRef="ref1"/>',
+    [{ id: 'ID-1' }, { '@_uidRef': 'ref1' }],
+    true,
+  ),
+  shapeCase(
+    'anonymous-repeated-invalid',
+    'anonymous',
+    '<anonymous><id>ID-1</id></anonymous><anonymous uidRef="ref1"><id>ID-1</id></anonymous>',
+    [{ id: 'ID-1' }, both],
+    false,
+  ),
   shapeCase(
     'anonymous-invalid',
     'anonymous',
     '<anonymous uidRef="ref1"><id>ID-1</id></anonymous>',
     both,
     false,
-    runtimeGap('ASSERT-004'),
   ),
   shapeCase(
     'derived-valid',
@@ -290,13 +308,63 @@ const shapeCases = [
     true,
   ),
   shapeCase(
+    'anonymous-nested-valid',
+    'anonymousNested',
+    '<anonymousNested><ref><id/></ref></anonymousNested>',
+    { ref: { id: '' } },
+    true,
+  ),
+  shapeCase(
     'anonymous-nested-invalid',
     'anonymousNested',
     '<anonymousNested><ref uidRef="ref1"><id>ID-1</id></ref></anonymousNested>',
     { ref: both },
     false,
-    runtimeGap('ASSERT-004'),
   ),
+  shapeCase(
+    'anonymous-nested-repeated-valid',
+    'anonymousNested',
+    '<anonymousNested><ref><id>ID-1</id></ref><ref uidRef="ref1"/></anonymousNested>',
+    { ref: [{ id: 'ID-1' }, { '@_uidRef': 'ref1' }] },
+    true,
+  ),
+  shapeCase(
+    'anonymous-nested-repeated-invalid',
+    'anonymousNested',
+    '<anonymousNested><ref><id>ID-1</id></ref><ref uidRef="ref1"><id>ID-1</id></ref></anonymousNested>',
+    { ref: [{ id: 'ID-1' }, both] },
+    false,
+  ),
+  shapeCase(
+    'anonymous-wrapper-valid',
+    'anonymousWrapper',
+    '<anonymousWrapper><wrapper><ref><id>ID-1</id></ref></wrapper></anonymousWrapper>',
+    { wrapper: { ref: { id: 'ID-1' } } },
+    true,
+  ),
+  shapeCase(
+    'anonymous-wrapper-invalid',
+    'anonymousWrapper',
+    '<anonymousWrapper><wrapper><ref uidRef="ref1"><id>ID-1</id></ref></wrapper></anonymousWrapper>',
+    { wrapper: { ref: both } },
+    false,
+  ),
+  shapeCase(
+    'anonymous-comparison-valid',
+    'anonymousComparison',
+    '<anonymousComparison><lower>1</lower><upper>2</upper></anonymousComparison>',
+    { lower: 1, upper: 2 },
+    true,
+  ),
+  {
+    ...shapeCase(
+      'anonymous-comparison-invalid',
+      'anonymousComparison',
+      '<anonymousComparison><lower>3</lower><upper>2</upper></anonymousComparison>',
+      { lower: 3, upper: 2 },
+      false,
+    ), boundary: true,
+  },
   shapeCase(
     'comparison-valid',
     'comparison',

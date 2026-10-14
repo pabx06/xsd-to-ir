@@ -695,13 +695,14 @@ class XMLDeserializer {
   }
 
   _validateColumnAssertions(entity, col, raw) {
-    if (!col.xsdType) return;
-    const result = validateValueAssertions(this.ir, col.xsdType, raw);
+    const typeName = col.valueTypeRef || col.xsdType;
+    if (!typeName) return;
+    const result = validateValueAssertions(this.ir, typeName, raw);
     if (!result.valid) {
       const err = result.errors[0];
       throw new Error(
         `XSD assertion failed while deserializing ${entity.name}.${col.name} `
-        + `as ${col.xsdType}: ${err.message}`,
+        + `as ${typeName}: ${err.message}`,
       );
     }
   }

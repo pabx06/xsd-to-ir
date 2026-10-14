@@ -406,7 +406,7 @@ Import, database storage, and XML serialization are unchanged by this schema fix
 generated JSON Schema and runtime assertion checks with independently specified
 XSD 1.1 expectations. The initial assessment in `6e29c07` added tests and
 documentation after the JSON-007 fix, without changing production behavior.
-`ASSERT-001` through `ASSERT-003` are now fixed; the other three groups remain open.
+`ASSERT-001` through `ASSERT-004` are now fixed; the other two groups remain open.
 
 ```bash
 npm run test:assertion-baseline
@@ -414,17 +414,17 @@ npm run test:assertion-baseline:xsd11
 npm run test:assertion-baseline:strict
 ```
 
-The normal baseline now has **263 tests: 248 pass and 15 expected failures are
-marked TODO**, across three remaining gap groups. The original assessment had
+The normal baseline now has **325 tests: 316 pass and 9 expected failures are
+marked TODO**, across two remaining gap groups. The original assessment had
 191 tests, with 145 passing and 46 TODOs; its failures remain reproducible at
 `6e29c07`. TODO tests execute their desired-behavior
 assertions; they are not skipped. Strict mode removes those markers and exits
-nonzero with the 15 remaining failures. New failures outside the explicit TODO cases fail
+nonzero with the 9 remaining failures. New failures outside the explicit TODO cases fail
 the normal suite. When fixing a gap, remove its TODO markers and retain the tests.
 The normal tests run in `npm test`; `npm run ci` also runs the required Java/Xerces
 oracle. Strict mode is a diagnostic command until the gaps are fixed.
 
-The oracle validates **83 cases: 39 against actual Issue 1.1/2.0 types and 44
+The oracle validates **99 cases: 42 against actual Issue 1.1/2.0 types and 57
 against a small synthetic schema**. It uses the existing pinned, checksum-verified
 Xerces runner, with its assertion self-test enabled on the first call. Missing
 Java, schema compilation failures, wrong rejection reasons, and unrelated errors
@@ -451,7 +451,7 @@ resolve and appear in JSON Schema annotations.
 | `ASSERT-001` | Enforce Issue 1.1 grouped presence alternatives in `conditionTypeValueReference`, `documentIssueReference`, and `documentReference`. | Fixed: runtime and JSON Schema enforce exactly one group with any present member. All 12 former TODOs pass, with 40 additional cross-layer grouped checks. |
 | `ASSERT-002` | Test XML node presence independently of its text value. | Fixed: simple and grouped rules use node existence. All 14 former TODOs pass. Empty elements/attributes count as present, and combining an empty alternative with another alternative fails. The real Issue 2.0 empty `organizationRef.uriRef` also passes JSON Schema and an in-memory XML round trip. |
 | `ASSERT-003` | Validate each occurrence of a repeatable asserted value. | Fixed: runtime checks every root-array member and its nested paths. All five former TODOs pass. Diagnostics include the root occurrence index. |
-| `ASSERT-004` | Enforce anonymous assertions using retained value-type metadata, including nested anonymous types. | Metadata and JSON Schema retain/enforce the tested rules, but runtime import/export miss them. A direct column's synthetic `xsdType` differs from its assertion-bearing `valueTypeRef`. |
+| `ASSERT-004` | Enforce anonymous assertions using retained value-type metadata, including nested anonymous types. | Fixed: runtime import/export use `valueTypeRef`, and assertion paths follow retained value definitions through anonymous wrappers. All six former TODOs pass. Added controls cover repeated values, empty values, anonymous nesting, serialized metadata, and real Issue 1.1 applicability references. |
 | `ASSERT-005` | Apply inherited base assertions to derived values. | JSON Schema rejects the invalid derived reference; runtime import/export accept it. |
 | `ASSERT-006` | Reach asserted values beyond two child steps and through recursive values. | Runtime misses the tested third-level and recursive-child violations; generated JSON Schema rejects them. Two-level controls work. |
 
@@ -490,6 +490,22 @@ URI references as well as conflicts involving an empty URI. Regenerate IR and
 JSON Schema artifacts to remove the old URI format constraint. This changes
 constraint metadata, not the IR structure or stored JSON representation.
 
+The anonymous-type fix makes import/export resolve assertions through the column's
+exact `valueTypeRef`, with `xsdType` retained as a fallback for older IRs. Nested
+assertion paths also follow retained value definitions, so both asserted anonymous
+children and named references inside anonymous wrappers are reached. Path sets and
+their targets can now use the existing stable anonymous type IDs. Empty complex
+values stored as `""` no longer bypass assertion checks on export.
+
+This adds 238 assertion paths for Issue 1.1 without losing existing paths; Issue
+2.0's 771 paths are unchanged. For example, an invalid reference inside
+`productName.applic.applicRef` is now rejected. Regenerate existing IR artifacts
+to obtain these paths. The IR structure and stored JSON representation are
+unchanged, and JSON Schema already enforced these retained anonymous assertions.
+Anonymous raw XPath still appears as unsupported metadata and skipped runtime
+rules. Inheritance and traversal beyond the current depth/recursion bounds remain
+the separate `ASSERT-005` and `ASSERT-006` gaps.
+
 Per-occurrence validation also protects Issue 1.1's repeatable
 `subtaskByExternalReference.docRef` from being rejected when its formerly raw
 grouped rule becomes enforceable. It applies to simple and grouped assertions,
@@ -512,7 +528,7 @@ import/export with in-memory rows. The oracle checks the independently authored
 input fragments; it does not certify complete S3000L messages, every assertion
 path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
 
-Next, fix `ASSERT-004` through `ASSERT-006` with the XSD oracle retained, decide which
+Next, fix `ASSERT-005` and `ASSERT-006` with the XSD oracle retained, decide which
 unsupported rules remain explicitly XSD-only, then define the versioned public
 JSON contract before implementing the TypeScript generator.
 

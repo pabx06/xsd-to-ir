@@ -1,5 +1,34 @@
 [
   {
+    "id": "issue-1-1-product-name-anonymous-wrapper-valid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A named reference inside an anonymous applicability wrapper is valid with a UID.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef uidRef=\"applst1\"/></applic></probe>",
+    "anchorUid": "applst1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-product-name-anonymous-wrapper-invalid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "An anonymous applicability wrapper must not hide a reference with no selected alternative.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef/></applic></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-product-name-anonymous-wrapper-nil",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A nil applicability wrapper has no reference child to validate.",
+    "xml": "<probe><descr>Product</descr><applic xsi:nil=\"true\"/></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
     "id": "issue-1-1-condition-value-code",
     "issue": "1.1",
     "typeName": "conditionTypeValueReference",

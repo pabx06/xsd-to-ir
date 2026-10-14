@@ -30,38 +30,26 @@ function extractAssertionSets(schema) {
 
 function extractAssertionPaths({
   entities,
-  resolver,
+  valueTypes,
   assertions,
 }) {
   const assertionPaths = new Map();
   const typeNames = new Set();
-  const pathCache = new Map();
 
   for (const entity of entities.values()) {
     for (const col of entity.columns) {
-      if (col.sqlType === 'LONGTEXT' && col.xsdType) typeNames.add(col.xsdType);
+      const typeName = col.valueTypeRef || col.xsdType;
+      if (col.sqlType === 'LONGTEXT' && typeName) typeNames.add(typeName);
     }
   }
 
-  const assertionPathsForType = (typeName) => {
-    if (pathCache.has(typeName)) return pathCache.get(typeName);
-
-    const ct = resolver.getComplexType(typeName);
-    if (!ct) return [];
-
+  for (const typeName of typeNames) {
     const paths = assertionChildPaths({
-      resolver,
+      valueTypes,
       assertions,
-      node: ct,
+      typeName,
       seenTypes: new Set([typeName]),
     });
-
-    pathCache.set(typeName, paths);
-    return paths;
-  };
-
-  for (const typeName of typeNames) {
-    const paths = assertionPathsForType(typeName);
     if (paths.length > 0) {
       assertionPaths.set(typeName, { typeName, paths });
     }
@@ -71,96 +59,55 @@ function extractAssertionPaths({
 }
 
 function assertionChildPaths({
-  resolver,
+  valueTypes,
   assertions,
-  node,
+  typeName,
   seenTypes,
   prefix = [],
-  seenGroups = new Set(),
 }) {
   const paths = [];
 
-  for (const child of directTypedChildElements(node, resolver, seenGroups)) {
-    if (!child.name) continue;
+  for (const child of childElements(valueTypes.get(typeName)?.content)) {
+    const childType = child.type.valueTypeRef;
+    if (!childType) continue;
 
     const step = {
       kind: 'element',
       name: child.name,
-      xmlName: child.name,
+      xmlName: child.xmlName,
       minOccurs: child.minOccurs,
       maxOccurs: child.maxOccurs,
     };
     const childPath = [...prefix, step];
 
-    if (child.type && assertions.has(child.type)) {
+    if (assertions.has(childType)) {
       paths.push({
         path: childPath,
-        typeName: child.type,
+        typeName: childType,
         direct: childPath.length === 1,
-        ruleIds: assertions.get(child.type).rules.map((rule) => rule.id),
+        ruleIds: assertions.get(childType).rules.map((rule) => rule.id),
       });
     }
 
-    const childNode = child.type ? resolver.getComplexType(child.type) : child.node;
-    if (!childNode || !child.type || seenTypes.has(child.type)) continue;
+    if (seenTypes.has(childType)) continue;
     if (childPath.length >= MAX_ASSERTION_PATH_DEPTH) continue;
 
     paths.push(...assertionChildPaths({
-      resolver,
+      valueTypes,
       assertions,
-      node: childNode,
-      seenTypes: new Set([...seenTypes, child.type]),
+      typeName: childType,
+      seenTypes: new Set([...seenTypes, childType]),
       prefix: childPath,
-      seenGroups: new Set(),
     }));
   }
 
   return paths;
 }
 
-function directTypedChildElements(node, resolver, seenGroups = new Set()) {
-  const out = [];
-  if (!node || typeof node !== 'object') return out;
-
-  for (const el of (node.element || [])) {
-    const name = el['@_name'] || el['@_ref'];
-    if (!name) continue;
-
-    const anonComplexType = (el.complexType || [])[0] || null;
-    out.push({
-      name,
-      type: el['@_type'],
-      node: anonComplexType,
-      minOccurs: parseOccurs(el['@_minOccurs'], 1),
-      maxOccurs: parseOccurs(el['@_maxOccurs'], 1),
-    });
-  }
-
-  for (const groupRef of (node.group || [])) {
-    const ref = groupRef['@_ref'];
-    if (!ref || seenGroups.has(ref)) continue;
-    const group = resolver.getGroup(ref);
-    if (!group) continue;
-
-    seenGroups.add(ref);
-    out.push(...directTypedChildElements(group, resolver, seenGroups));
-    seenGroups.delete(ref);
-  }
-
-  for (const key of ['sequence', 'choice', 'all', 'complexContent', 'simpleContent', 'extension', 'restriction']) {
-    for (const child of (node[key] || [])) {
-      out.push(...directTypedChildElements(child, resolver, seenGroups));
-    }
-  }
-
-  return out.filter((child) => child.name && (child.type || child.node));
-}
-
-function parseOccurs(val, defaultVal) {
-  if (val === undefined || val === null) return defaultVal;
-  if (val === 'unbounded') return 'unbounded';
-  const n = parseInt(val, 10);
-  return Number.isNaN(n) ? defaultVal : n;
+function childElements(particle) {
+  if (!particle) return [];
+  if (particle.kind === 'element') return [particle];
+  return particle.children.flatMap(childElements);
 }
 
 function classifyAssert(test) {

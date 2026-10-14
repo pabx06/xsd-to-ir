@@ -201,12 +201,11 @@ class IRBuilder {
       }
     }
 
-    // 5. Collect nested assertion paths only for opaque inline value types
-    //    that are actually persisted as LONGTEXT JSON columns. This keeps the
-    //    path graph bounded to what import/export can validate.
+    // 5. Follow retained value definitions, including anonymous types, for
+    //    nested assertions in persisted LONGTEXT JSON columns.
     this.assertionPaths = extractAssertionPaths({
       entities: this.entities,
-      resolver: this.resolver,
+      valueTypes: this._valueTypeBuilder.types,
       assertions: this.assertions,
     });
 

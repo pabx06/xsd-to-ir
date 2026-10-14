@@ -23,7 +23,7 @@
     <xs:sequence>
       <xs:element name="direct" type="Reference" minOccurs="0"/>
       <xs:element name="repeated" type="Reference" minOccurs="0" maxOccurs="unbounded"/>
-      <xs:element name="anonymous" minOccurs="0">
+      <xs:element name="anonymous" minOccurs="0" maxOccurs="unbounded">
         <xs:complexType>
           <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0"/></xs:sequence>
           <xs:attribute name="uidRef" type="xs:string"/>
@@ -40,6 +40,20 @@
       <xs:element name="number" type="NumberReference" minOccurs="0"/>
       <xs:element name="comparison" type="Window" minOccurs="0"/>
       <xs:element name="grouped" type="GroupedReference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="anonymousWrapper" minOccurs="0">
+        <xs:complexType><xs:sequence><xs:element name="wrapper">
+          <xs:complexType><xs:sequence><xs:element name="ref" type="Reference"/></xs:sequence></xs:complexType>
+        </xs:element></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="anonymousComparison" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="lower" type="xs:int"/>
+            <xs:element name="upper" type="xs:int"/>
+          </xs:sequence>
+          <xs:assert test="lower le upper"/>
+        </xs:complexType>
+      </xs:element>
     </xs:sequence>
     <xs:attribute name="uid" type="xs:ID" use="required"/>
     <xs:attribute name="crud" type="xs:string" use="required"/>
@@ -70,7 +84,7 @@
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="AnonymousNested">
-    <xs:sequence><xs:element name="ref">
+    <xs:sequence><xs:element name="ref" maxOccurs="unbounded">
       <xs:complexType>
         <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0"/></xs:sequence>
         <xs:attribute name="uidRef" type="xs:string"/>

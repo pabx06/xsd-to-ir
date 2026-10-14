@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
 const { parseXSD } = require('../src/xsd-parser');
 const { IRBuilder } = require('../src/ir-builder');
@@ -130,6 +131,53 @@ test('Issue 1.1 repeatable document references accept valid arrays and reject an
   const invalid = validateValueAssertions(ir, col.xsdType, [...refs, { '@_uidRef': 'doc3', docId: { id: 'DOC-3' } }]);
   assert.equal(invalid.valid, false);
   assert.deepEqual(invalid.errors.map((error) => error.path), [[2]]);
+});
+
+test('Issue 1.1 import and export validate references inside anonymous applicability wrappers', async () => {
+  const ir = new IRBuilder(parseXSD('s3000l/1_1/s3000l_1-1_lsa_dataset.xsd')).build();
+  const template = fs.readFileSync('test/fixtures/rev-004-issue-1-valid.xml', 'utf8');
+  const product = ir.entities.get('product');
+  const col = product.columns.find((item) => item.name === 'name');
+  const wrap = (ref) => template.replace('</prod>', `<name><descr>Product</descr><applic>${ref}</applic></name></prod>`);
+  const row = deserializeXML(wrap('<applicRef uidRef="applst1"/>'), ir).batches.get('product').insert[0];
+  const value = JSON.parse(row[col.columnName]);
+  assert.deepEqual(value.applic.applicRef, { '@_uidRef': 'applst1' });
+  const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
+  const exported = await new XMLSerializer(ir, db).serialize({ collections: ['product'] });
+  assert.match(exported, /<applicRef uidRef="applst1"/);
+  assert.throws(
+    () => deserializeXML(wrap('<applicRef/>'), ir),
+    /XSD assertion failed while deserializing product\.name/,
+  );
+  row[col.columnName] = JSON.stringify({ ...value, applic: { applicRef: {} } });
+  await assert.rejects(
+    () => new XMLSerializer(ir, db).serialize({ collections: ['product'] }),
+    /XSD assertion failed while serializing product\.name/,
+  );
+});
+
+test('named asserted columns retain the xsdType fallback for older IRs', async () => {
+  const source = buildIr();
+  const entity = source.entities.get('maintenanceFacility');
+  const ir = { ...source, entities: new Map(source.entities) };
+  ir.entities.set(entity.name, {
+    ...entity,
+    columns: entity.columns.map((col) => (col.name === 'maintCap' ? { ...col, valueTypeRef: undefined } : col)),
+  });
+  const xml = s3000lEnvelope({
+    supporting: '<facilities><maintFclty uid="fclty1" crud="I">'
+      + '<maintCap uidRef="mlv1"><mlvId><id>MLV-1</id></mlvId></maintCap></maintFclty></facilities>',
+  });
+  assert.throws(
+    () => deserializeXML(xml, ir),
+    /XSD assertion failed while deserializing maintenanceFacility\.maintCap/,
+  );
+  const row = { uid: 'fclty1', maint_cap: JSON.stringify({ '@_uidRef': 'mlv1', mlvId: { id: 'MLV-1' } }) };
+  const db = { queryEntity: async (name) => (name === entity.name ? [row] : []) };
+  await assert.rejects(
+    () => new XMLSerializer(ir, db).serialize({ collections: [entity.name] }),
+    /XSD assertion failed while serializing maintenanceFacility\.maintCap/,
+  );
 });
 
 test('IR extracts and classifies S3000L xsd:assert rules', () => {

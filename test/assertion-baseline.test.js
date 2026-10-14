@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { validateNodeAssertions } = require('../src/assertion-validator');
+const { validateNodeAssertions, validateValueAssertions } = require('../src/assertion-validator');
 const { deserializeXML } = require('../src/xml-deserializer');
 const {
   bundle, caseValue, exportCase, fixtureColumn, importCase, inventory,
@@ -52,7 +52,10 @@ for (const item of shapeCases) {
   });
 }
 
-for (const id of ['empty-element', 'empty-attribute', 'nil-element', 'repeat-empty-values']) {
+for (const id of [
+  'empty-element', 'empty-attribute', 'nil-element', 'repeat-empty-values',
+  'anonymous-repeated-valid', 'anonymous-nested-repeated-valid', 'anonymous-wrapper-valid',
+]) {
   test(`${id}: XML import, stored JSON, export and reimport retain node presence`, async () => {
     const item = shapeCases.find((candidate) => candidate.id === id);
     const { columnName } = fixtureColumn(item.field);
@@ -100,6 +103,7 @@ for (const [issue, expected] of [['1.1', [36, 33, 3, 0, 36, 0]], ['2.0', [200, 2
 test('raw XPath survives in IR and JSON Schema warnings, and runtime reports it as skipped', () => {
   for (const [issue, typeName] of [
     ['fixture', 'Window'],
+    ['fixture', fixtureColumn('anonymousComparison').valueTypeRef],
   ]) {
     const { ir, schema } = bundle(issue);
     const rule = ir.assertions.get(typeName).rules[0];
@@ -123,4 +127,30 @@ test('anonymous assertion metadata is retained under valueTypeRef and works when
   assert.equal(rule.kind, 'exactlyOne');
   assert.equal(validateNodeAssertions(ir, col.valueTypeRef, { id: 'ID-1' }).valid, true);
   assert.equal(validateNodeAssertions(ir, col.valueTypeRef, { id: 'ID-1', '@_uidRef': 'ref1' }).valid, false);
+});
+
+test('anonymous assertion paths and diagnostics survive IR serialization', () => {
+  const { ir } = bundle('fixture');
+  const serialized = JSON.parse(JSON.stringify({
+    assertions: Object.fromEntries(ir.assertions),
+    assertionPaths: Object.fromEntries(ir.assertionPaths),
+  }));
+  const nestedType = fixtureColumn('anonymousNested').valueTypeRef;
+  const path = serialized.assertionPaths[nestedType].paths.find((item) => item.path[0].name === 'ref');
+  assert.match(path.typeName, /^@anonymous\//);
+  assert.deepEqual(path.ruleIds, serialized.assertions[path.typeName].rules.map((rule) => rule.id));
+  const invalid = { id: 'ID-1', '@_uidRef': 'ref1' };
+  const nested = validateValueAssertions(serialized, nestedType, { ref: invalid });
+  assert.equal(nested.valid, false);
+  assert.equal(nested.errors[0].typeName, path.typeName);
+  assert.equal(nested.errors[0].ruleId, path.ruleIds[0]);
+  assert.deepEqual(nested.errors[0].path, ['ref']);
+  const repeated = validateValueAssertions(serialized, fixtureColumn('anonymous').valueTypeRef, [{ id: '' }, invalid]);
+  assert.equal(repeated.valid, false);
+  assert.deepEqual(repeated.errors[0].path, [1]);
+  const wrapperType = fixtureColumn('anonymousWrapper').valueTypeRef;
+  assert.match(wrapperType, /^@anonymous\//);
+  const wrapped = validateValueAssertions(serialized, wrapperType, { wrapper: { ref: invalid } });
+  assert.equal(wrapped.valid, false);
+  assert.deepEqual(wrapped.errors[0].path, ['wrapper', 'ref']);
 });

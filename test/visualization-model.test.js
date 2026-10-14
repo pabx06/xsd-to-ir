@@ -64,7 +64,7 @@ test('Issue 1.1 visualization model preserves IR counts and mappings', () => {
   assert.equal(current.stats.simpleTypes, 24);
   assert.equal(current.stats.valueTypes, Object.keys(current.valueTypes).length);
   assert.equal(current.stats.assertions, 36);
-  assert.equal(current.stats.assertionPaths, 131);
+  assert.equal(current.stats.assertionPaths, 267); // Includes paths through anonymous value definitions.
   assert.equal(current.collections.product.collectionName, 'products');
   assert.equal(current.collections.product.recordName, 'prod');
   assert.equal(current.collections.product.section, 'lsaPrimaryData');

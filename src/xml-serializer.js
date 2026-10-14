@@ -258,13 +258,14 @@ function _crudForRow(row, msgType, since) {
 }
 
 function _validateColumnAssertions(ir, entity, col, value) {
-  if (!col.xsdType || value === null || typeof value !== 'object') return;
-  const result = validateValueAssertions(ir, col.xsdType, value);
+  const typeName = col.valueTypeRef || col.xsdType;
+  if (!typeName || value === null) return;
+  const result = validateValueAssertions(ir, typeName, value);
   if (!result.valid) {
     const err = result.errors[0];
     throw new Error(
       `XSD assertion failed while serializing ${entity.name}.${col.name} `
-      + `as ${col.xsdType}: ${err.message}`,
+      + `as ${typeName}: ${err.message}`,
     );
   }
 }

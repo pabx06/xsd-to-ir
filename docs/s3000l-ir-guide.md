@@ -1001,7 +1001,13 @@ JSON Schema enforces field datatypes and occurrence bounds separately from these
 presence rules. Runtime assertion checks do not replace full XSD validation.
 
 `assertionPaths` identifies asserted types nested inside persisted JSON
-columns. The runtime assertion validator checks each root-array occurrence and
+columns. Import/export resolve assertions through `valueTypeRef`, falling back
+to `xsdType` for older IRs. Paths follow retained value definitions, including
+anonymous wrappers and anonymous asserted children; their roots and targets may
+use stable anonymous type IDs. Regenerate older IR artifacts to obtain these
+additional paths; the metadata structure is unchanged.
+
+The runtime assertion validator checks each root-array occurrence and
 follows direct paths and paths up to two elements deep. Array diagnostics prefix
 paths with the root occurrence index. It is not a complete XPath or XSD 1.1 engine.
 
