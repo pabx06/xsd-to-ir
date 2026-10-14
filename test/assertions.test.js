@@ -11,6 +11,7 @@ const {
 const { deserializeXML } = require('../src/xml-deserializer');
 const { XMLSerializer } = require('../src/xml-serializer');
 const { classifyAssert } = require('../src/xsd-assertion-metadata');
+const { s3000lEnvelope } = require('./helpers/s3000l-fixtures');
 
 let cachedIr = null;
 
@@ -57,6 +58,28 @@ test('grouped assertion metadata survives JSON serialization and counts XML node
     assert.deepEqual(result.skipped, []);
   }
   assert.throws(() => validateNodeAssertions(ir, 'Reference', {}, { throw: true }), AssertionValidationError);
+});
+
+test('exactly-one assertions use XML node names and presence in serialized IR', () => {
+  const rule = {
+    id: 'Reference#assert1',
+    ...classifyAssert('(@uidRef and not(id)) or (not(@uidRef) and id)'),
+  };
+  const ir = JSON.parse(JSON.stringify({ assertions: { Reference: { rules: [rule] } } }));
+  for (const [node, expected] of [
+    [{ id: '' }, true], [{ '@_uidRef': '' }, true], [{ id: 0 }, true], [{ id: false }, true],
+    [{ id: { '@_xsi:nil': 'true' } }, true], [{ id: null }, true],
+    [{ id: [] }, false], [{ id: [''] }, true], [{ id: undefined }, false],
+    [{ '@_uidRef': null }, false], [{ uidRef: 'R' }, false],
+    [Object.create({ id: '' }), false],
+  ]) {
+    assert.equal(validateNodeAssertions(ir, 'Reference', node).valid, expected, JSON.stringify(node));
+  }
+  const invalid = { '@_uidRef': '', id: '' };
+  const result = validateNodeAssertions(ir, 'Reference', invalid);
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors[0].presentFields, ['@uidRef', 'id']);
+  assert.throws(() => validateNodeAssertions(ir, 'Reference', invalid, { throw: true }), AssertionValidationError);
 });
 
 function buildIr() {
@@ -153,6 +176,40 @@ test('assertion validator accepts exactly one present reference field', () => {
     validateNodeAssertions(ir, 'aggregatedElementRef', { '@_uriRef': 'urn:test' }).valid,
     true,
   );
+});
+
+test('Issue 2.0 empty URI references survive XML import, stored JSON, export and reimport', async () => {
+  const ir = buildIr();
+  const xml = s3000lEnvelope({
+    primary: '<products><prod uid="prod1" crud="I">'
+      + '<prodId><id>PROD-1</id><setBy uriRef=""/></prodId></prod></products>',
+  });
+  const row = deserializeXML(xml, ir).batches.get('product').insert[0];
+  assert.deepEqual(JSON.parse(row.prod_id), { id: 'PROD-1', setBy: { '@_uriRef': '' } });
+  const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
+  const exported = await new XMLSerializer(ir, db).serialize({ collections: ['product'] });
+  assert.match(exported, /<setBy uriRef=""/);
+  const again = deserializeXML(exported, ir).batches.get('product').insert[0];
+  assert.deepEqual(JSON.parse(again.prod_id), JSON.parse(row.prod_id));
+});
+
+test('Issue 2.0 import and export reject an empty URI combined with another reference', async () => {
+  const ir = buildIr();
+  for (const [xml, reference] of [
+    ['<setBy uidRef="org1" uriRef=""/>', { '@_uidRef': 'org1', '@_uriRef': '' }],
+    ['<setBy uriRef=""><orgId><id>ORG-1</id></orgId></setBy>', { '@_uriRef': '', orgId: { id: 'ORG-1' } }],
+  ]) {
+    const source = s3000lEnvelope({
+      primary: `<products><prod uid="prod1" crud="I"><prodId><id>PROD-1</id>${xml}</prodId></prod></products>`,
+    });
+    assert.throws(() => deserializeXML(source, ir), /XSD assertion failed while deserializing product\.prodId/);
+    const row = { uid: 'prod1', prod_id: JSON.stringify({ id: 'PROD-1', setBy: reference }) };
+    const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
+    await assert.rejects(
+      () => new XMLSerializer(ir, db).serialize({ collections: ['product'] }),
+      /XSD assertion failed while serializing product\.prodId/,
+    );
+  }
 });
 
 test('assertion validator walks nested asserted reference paths', () => {

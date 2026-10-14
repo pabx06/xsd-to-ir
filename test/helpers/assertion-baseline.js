@@ -92,7 +92,6 @@ function shapeCase(id, field, xml, value, expectedXsd, gaps = {}) {
 }
 
 const runtimeGap = (id) => ({ runtime: id, import: id, export: id });
-const allGap = (id) => ({ ...runtimeGap(id), schema: id });
 const both = { '@_uidRef': 'ref1', id: 'ID-1' };
 const shapeCases = [
   shapeCase('grouped-uid', 'grouped', '<grouped uidRef="ref1"/>', { '@_uidRef': 'ref1' }, true),
@@ -133,15 +132,28 @@ const shapeCases = [
   shapeCase('direct-uid', 'direct', '<direct uidRef="ref1"/>', { '@_uidRef': 'ref1' }, true),
   shapeCase('direct-neither', 'direct', '<direct/>', {}, false),
   shapeCase('direct-both', 'direct', '<direct uidRef="ref1"><id>ID-1</id></direct>', both, false),
-  shapeCase('empty-element', 'direct', '<direct><id/></direct>', { id: '' }, true, allGap('ASSERT-002')),
-  shapeCase('empty-attribute', 'direct', '<direct uidRef=""/>', { '@_uidRef': '' }, true, allGap('ASSERT-002')),
+  shapeCase('empty-element', 'direct', '<direct><id/></direct>', { id: '' }, true),
+  shapeCase('empty-attribute', 'direct', '<direct uidRef=""/>', { '@_uidRef': '' }, true),
   shapeCase(
     'uid-and-empty-element',
     'direct',
     '<direct uidRef="ref1"><id/></direct>',
     { '@_uidRef': 'ref1', id: '' },
     false,
-    allGap('ASSERT-002'),
+  ),
+  shapeCase(
+    'empty-attribute-and-identifier',
+    'direct',
+    '<direct uidRef=""><id>ID-1</id></direct>',
+    { '@_uidRef': '', id: 'ID-1' },
+    false,
+  ),
+  shapeCase(
+    'empty-attribute-and-empty-element',
+    'direct',
+    '<direct uidRef=""><id/></direct>',
+    { '@_uidRef': '', id: '' },
+    false,
   ),
   shapeCase(
     'nil-element',
@@ -149,6 +161,13 @@ const shapeCases = [
     '<direct><id xsi:nil="true"/></direct>',
     { id: { '@_xsi:nil': 'true' } },
     true,
+  ),
+  shapeCase(
+    'uid-and-nil-element',
+    'direct',
+    '<direct uidRef="ref1"><id xsi:nil="true"/></direct>',
+    { '@_uidRef': 'ref1', id: { '@_xsi:nil': 'true' } },
+    false,
   ),
   shapeCase('false-element', 'flag', '<flag><flag>false</flag></flag>', { flag: false }, true),
   shapeCase('zero-element', 'number', '<number><number>0</number></number>', { number: 0 }, true),
@@ -179,6 +198,20 @@ const shapeCases = [
     'repeated',
     '<repeated><id>ID-1</id></repeated><repeated uidRef="ref1"><id>ID-1</id></repeated>',
     [{ id: 'ID-1' }, both],
+    false,
+  ),
+  shapeCase(
+    'repeat-empty-values',
+    'repeated',
+    '<repeated><id/></repeated><repeated uidRef=""/>',
+    [{ id: '' }, { '@_uidRef': '' }],
+    true,
+  ),
+  shapeCase(
+    'repeat-empty-conflict',
+    'repeated',
+    '<repeated><id>ID-1</id></repeated><repeated uidRef=""><id/></repeated>',
+    [{ id: 'ID-1' }, { '@_uidRef': '', id: '' }],
     false,
   ),
   shapeCase('anonymous-valid', 'anonymous', '<anonymous><id>ID-1</id></anonymous>', { id: 'ID-1' }, true),

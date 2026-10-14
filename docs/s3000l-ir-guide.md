@@ -994,6 +994,12 @@ that group are permitted by the assertion. XSD particles separately constrain
 their combinations. Other XPath rules remain raw metadata. Regenerate older IRs
 to obtain the grouped classification; stored rule IDs and XPath text are stable.
 
+Simple and grouped rules test XML node existence using each field's `xmlName`,
+including the `@_` attribute prefix. Empty strings, zero, false, and explicit nil
+elements count as present; missing properties and empty occurrence arrays do not.
+JSON Schema enforces field datatypes and occurrence bounds separately from these
+presence rules. Runtime assertion checks do not replace full XSD validation.
+
 `assertionPaths` identifies asserted types nested inside persisted JSON
 columns. The runtime assertion validator checks each root-array occurrence and
 follows direct paths and paths up to two elements deep. Array diagnostics prefix

@@ -126,13 +126,11 @@ class ValueJSONSchema {
         warnings.add(`Assertion ${rule.id} requires XSD validation.`);
         continue;
       }
-      const names = rule.fields.map((field) => (field.kind === 'attribute' ? `@_${field.name}` : field.name));
       object.allOf ||= [];
+      // XPath tests node existence, including empty text. Field schemas already
+      // enforce datatypes and nonempty occurrence arrays independently.
       object.allOf.push({
-        oneOf: names.map((key) => ({
-          required: [key],
-          properties: { [key]: { not: { enum: [null, '', []] } } },
-        })),
+        oneOf: rule.fields.map((field) => ({ required: [field.xmlName] })),
       });
     }
     const result = type.text && !attributes.required?.length && !rules.length

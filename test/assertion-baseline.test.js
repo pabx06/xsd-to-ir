@@ -1,19 +1,15 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const { validateNodeAssertions } = require('../src/assertion-validator');
+const { deserializeXML } = require('../src/xml-deserializer');
 const {
   bundle, caseValue, exportCase, fixtureColumn, importCase, inventory,
   realCases, runtimeResult, schemaValidator, shapeCases,
 } = require('./helpers/assertion-baseline');
 
 const STRICT = process.env.ASSERTION_BASELINE_STRICT === '1';
-function gapFor(item, layer) {
-  if (item.id === 'issue-2-0-organization-empty-uri') return 'ASSERT-002';
-  return item.gaps?.[layer];
-}
-
 function baselineTest(item, layer, fn) {
-  const gap = gapFor(item, layer);
+  const gap = item.gaps?.[layer];
   const name = `${gap || (item.boundary ? 'XSD-only boundary' : 'control')}: ${item.id} / ${layer}`;
   test(name, { todo: gap && !STRICT ? gap : false }, fn);
 }
@@ -53,6 +49,19 @@ for (const item of shapeCases) {
     } else {
       await assert.rejects(() => exportCase(item), /XSD assertion failed while serializing/);
     }
+  });
+}
+
+for (const id of ['empty-element', 'empty-attribute', 'nil-element', 'repeat-empty-values']) {
+  test(`${id}: XML import, stored JSON, export and reimport retain node presence`, async () => {
+    const item = shapeCases.find((candidate) => candidate.id === id);
+    const { columnName } = fixtureColumn(item.field);
+    const value = JSON.parse(importCase(item)[columnName]);
+    const xml = await exportCase({ ...item, value });
+    const row = deserializeXML(xml, bundle('fixture').ir).batches.get('product').insert[0];
+    assert.deepEqual(JSON.parse(row[columnName]), value);
+    const validate = schemaValidator(item);
+    assert.equal(validate(value), true, JSON.stringify(validate.errors));
   });
 }
 

@@ -40,7 +40,7 @@ function validateNodeAssertions(ir, typeName, node, opts = {}) {
       continue;
     }
     if (rule.kind === 'exactlyOne') {
-      const present = rule.fields.filter((field) => _hasField(node, field));
+      const present = rule.fields.filter((field) => _hasNode(node, field));
       if (present.length !== 1) {
         errors.push({
           typeName,
@@ -146,18 +146,6 @@ function _valuesAtPath(node, path) {
   }
 
   return current.filter((value) => value !== undefined && value !== null);
-}
-
-function _hasField(node, field) {
-  if (!node || typeof node !== 'object') return false;
-  const value = field.kind === 'attribute'
-    ? node[field.xmlName] ?? node[`@_${field.name}`] ?? node[field.name]
-    : node[field.xmlName] ?? node[field.name];
-
-  if (value === undefined || value === null) return false;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'string') return value.length > 0;
-  return true;
 }
 
 function _hasNode(node, field) {

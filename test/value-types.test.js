@@ -166,6 +166,39 @@ test('parser-coerced string enums, fixed values and numeric booleans retain rest
   assert.ok(schema.definitions.Payload['x-xsd-unsupported'].some((reason) => reason.includes('original text spelling')));
 });
 
+test('XSD 1.1 anyURI permits empty and relative values while retaining declared facets', () => {
+  const { schema } = fixture(`
+    <xs:simpleType name="NonEmptyURI"><xs:restriction base="xs:anyURI">
+      <xs:minLength value="1"/>
+    </xs:restriction></xs:simpleType>
+    <xs:simpleType name="SelectedURI"><xs:restriction base="xs:anyURI">
+      <xs:enumeration value=""/><xs:enumeration value="#chosen"/>
+    </xs:restriction></xs:simpleType>
+    <xs:simpleType name="FragmentURI"><xs:restriction base="xs:anyURI">
+      <xs:pattern value="^#[A-Z]+$"/>
+    </xs:restriction></xs:simpleType>
+    <xs:complexType name="Payload">
+      <xs:sequence><xs:element name="uri" type="xs:anyURI"/></xs:sequence>
+      <xs:attribute name="uri" type="xs:anyURI" use="required"/>
+      <xs:attribute name="nonEmpty" type="NonEmptyURI"/>
+      <xs:attribute name="selected" type="SelectedURI"/>
+      <xs:attribute name="fragment" type="FragmentURI"/>
+    </xs:complexType>`);
+  const validate = validator(JSON.parse(JSON.stringify(schema)), 'definitions/Payload');
+  for (const uri of ['', '../organizations/1', '#details', 'https://example.test/1', 'organisations/équipe technique']) {
+    expectValid(validate, { uri, '@_uri': uri });
+  }
+  const value = { uri: '', '@_uri': '' };
+  expectValid(validate, {
+    ...value, '@_nonEmpty': '#A', '@_selected': '', '@_fragment': '#A',
+  });
+  assert.equal(validate({ ...value, '@_nonEmpty': '' }), false);
+  assert.equal(validate({ ...value, '@_selected': '#other' }), false);
+  assert.equal(validate({ ...value, '@_fragment': 'A' }), false);
+  assert.equal(validate({ ...value, '@_uri': null }), false);
+  assert.equal(validate({ ...value, uri: [] }), false);
+});
+
 test('optional groups and choices enforce conditional requiredness without requiring every branch', () => {
   const { ir, schema } = fixture(`
     <xs:group name="pair"><xs:sequence>

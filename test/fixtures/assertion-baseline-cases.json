@@ -307,6 +307,45 @@
     "note": "Demonstrates attribute presence rather than string truthiness."
   },
   {
+    "id": "issue-2-0-organization-relative-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An anyURI reference may be relative.",
+    "xml": "<probe uriRef=\"../organizations/1#details\"/>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-unescaped-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "XSD 1.1 anyURI accepts Unicode and spaces without requiring URI escaping.",
+    "xml": "<probe uriRef=\"organisations/équipe technique\"/>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-uid-and-empty-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An empty URI is present and conflicts with a UID reference.",
+    "xml": "<probe uidRef=\"org1\" uriRef=\"\"/>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-organization-identifier-and-empty-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An empty URI is present and conflicts with an organization identifier.",
+    "xml": "<probe uriRef=\"\"><orgId><id>ORG-1</id></orgId></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
     "id": "issue-2-0-organization-nil-identifier",
     "issue": "2.0",
     "typeName": "organizationRef",

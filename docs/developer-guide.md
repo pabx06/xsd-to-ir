@@ -406,7 +406,7 @@ Import, database storage, and XML serialization are unchanged by this schema fix
 generated JSON Schema and runtime assertion checks with independently specified
 XSD 1.1 expectations. The initial assessment in `6e29c07` added tests and
 documentation after the JSON-007 fix, without changing production behavior.
-`ASSERT-001` and `ASSERT-003` are now fixed; the other four groups remain open.
+`ASSERT-001` through `ASSERT-003` are now fixed; the other three groups remain open.
 
 ```bash
 npm run test:assertion-baseline
@@ -414,17 +414,17 @@ npm run test:assertion-baseline:xsd11
 npm run test:assertion-baseline:strict
 ```
 
-The normal baseline now has **231 tests: 202 pass and 29 expected failures are
-marked TODO**, across four remaining gap groups. The original assessment had
+The normal baseline now has **263 tests: 248 pass and 15 expected failures are
+marked TODO**, across three remaining gap groups. The original assessment had
 191 tests, with 145 passing and 46 TODOs; its failures remain reproducible at
 `6e29c07`. TODO tests execute their desired-behavior
 assertions; they are not skipped. Strict mode removes those markers and exits
-nonzero with the 29 remaining failures. New failures outside the explicit TODO cases fail
+nonzero with the 15 remaining failures. New failures outside the explicit TODO cases fail
 the normal suite. When fixing a gap, remove its TODO markers and retain the tests.
 The normal tests run in `npm test`; `npm run ci` also runs the required Java/Xerces
 oracle. Strict mode is a diagnostic command until the gaps are fixed.
 
-The oracle validates **74 cases: 35 against actual Issue 1.1/2.0 types and 39
+The oracle validates **83 cases: 39 against actual Issue 1.1/2.0 types and 44
 against a small synthetic schema**. It uses the existing pinned, checksum-verified
 Xerces runner, with its assertion self-test enabled on the first call. Missing
 Java, schema compilation failures, wrong rejection reasons, and unrelated errors
@@ -449,7 +449,7 @@ resolve and appear in JSON Schema annotations.
 | Gap | Desired behavior | Observed result |
 | --- | --- | --- |
 | `ASSERT-001` | Enforce Issue 1.1 grouped presence alternatives in `conditionTypeValueReference`, `documentIssueReference`, and `documentReference`. | Fixed: runtime and JSON Schema enforce exactly one group with any present member. All 12 former TODOs pass, with 40 additional cross-layer grouped checks. |
-| `ASSERT-002` | Test XML node presence independently of its text value. | Simple `exactlyOne` rules still reject valid empty elements/attributes and accept a tested invalid UID-plus-empty-element combination. An empty `organizationRef.uriRef` in Issue 2.0 is a real-schema example. |
+| `ASSERT-002` | Test XML node presence independently of its text value. | Fixed: simple and grouped rules use node existence. All 14 former TODOs pass. Empty elements/attributes count as present, and combining an empty alternative with another alternative fails. The real Issue 2.0 empty `organizationRef.uriRef` also passes JSON Schema and an in-memory XML round trip. |
 | `ASSERT-003` | Validate each occurrence of a repeatable asserted value. | Fixed: runtime checks every root-array member and its nested paths. All five former TODOs pass. Diagnostics include the root occurrence index. |
 | `ASSERT-004` | Enforce anonymous assertions using retained value-type metadata, including nested anonymous types. | Metadata and JSON Schema retain/enforce the tested rules, but runtime import/export miss them. A direct column's synthetic `xsdType` differs from its assertion-bearing `valueTypeRef`. |
 | `ASSERT-005` | Apply inherited base assertions to derived values. | JSON Schema rejects the invalid derived reference; runtime import/export accept it. |
@@ -473,6 +473,23 @@ paths, prefixed names, comparisons, and other XPath expressions stay raw.
 Regenerate existing IR and JSON Schema artifacts to classify the three formerly
 raw Issue 1.1 rules. Older IR artifacts retain their original classifications.
 
+The presence fix uses the same runtime node check for simple and grouped rules.
+Both address the exact `xmlName` from the IR: attributes use `@_`, so `uidRef`
+without that prefix does not stand in for an attribute. Empty text, zero, false,
+and explicit `xsi:nil` elements still supply nodes. Absent properties and empty
+occurrence arrays do not. JSON Schema counts present properties independently of
+text content; field schemas retain their datatype, facet, and occurrence checks.
+Runtime assertion checks alone do not establish full datatype validity.
+
+The real empty-URI case also exposed an incorrect `format: "uri"` mapping.
+[`xs:anyURI` in XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#anyURI)
+permits empty, relative, Unicode, and unescaped text, so the primitive mapping no
+longer imposes a JSON Schema URI format. Explicit restrictions such as `minLength`,
+`pattern`, and enumeration still apply. The oracle covers relative and unescaped
+URI references as well as conflicts involving an empty URI. Regenerate IR and
+JSON Schema artifacts to remove the old URI format constraint. This changes
+constraint metadata, not the IR structure or stored JSON representation.
+
 Per-occurrence validation also protects Issue 1.1's repeatable
 `subtaskByExternalReference.docRef` from being rejected when its formerly raw
 grouped rule becomes enforceable. It applies to simple and grouped assertions,
@@ -495,7 +512,7 @@ import/export with in-memory rows. The oracle checks the independently authored
 input fragments; it does not certify complete S3000L messages, every assertion
 path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
 
-Next, fix `ASSERT-002` and the remaining gaps with the XSD oracle retained, decide which
+Next, fix `ASSERT-004` through `ASSERT-006` with the XSD oracle retained, decide which
 unsupported rules remain explicitly XSD-only, then define the versioned public
 JSON contract before implementing the TypeScript generator.
 
