@@ -39,6 +39,7 @@
       <xs:element name="flag" type="FlagReference" minOccurs="0"/>
       <xs:element name="number" type="NumberReference" minOccurs="0"/>
       <xs:element name="comparison" type="Window" minOccurs="0"/>
+      <xs:element name="grouped" type="GroupedReference" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attribute name="uid" type="xs:ID" use="required"/>
     <xs:attribute name="crud" type="xs:string" use="required"/>
@@ -93,5 +94,15 @@
       <xs:element name="upper" type="xs:int"/>
     </xs:sequence>
     <xs:assert test="lower le upper"/>
+  </xs:complexType>
+  <!-- Both id and code may coexist: the assertion itself permits any member
+       count inside the identifier group. No surrounding choice masks that. -->
+  <xs:complexType name="GroupedReference">
+    <xs:sequence>
+      <xs:element name="id" type="xs:string" minOccurs="0"/>
+      <xs:element name="code" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uidRef" type="xs:string"/>
+    <xs:assert test="(@uidRef and not(id or code)) or (not(@uidRef) and (id or code))"/>
   </xs:complexType>
 </xs:schema>

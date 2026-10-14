@@ -10,8 +10,54 @@ const {
 } = require('../src/assertion-validator');
 const { deserializeXML } = require('../src/xml-deserializer');
 const { XMLSerializer } = require('../src/xml-serializer');
+const { classifyAssert } = require('../src/xsd-assertion-metadata');
 
 let cachedIr = null;
+
+test('grouped presence classification retains alternatives and tolerates whitespace and member order', () => {
+  const rule = classifyAssert(' ( @uidRef and not ( id or code ) ) or\n( not ( @uidRef ) and ( code or id ) ) ');
+  assert.equal(rule.kind, 'exactlyOneGroup');
+  assert.equal(rule.enforceable, true);
+  assert.deepEqual(rule.groups.map((group) => group.map((field) => field.xmlName)), [['@_uidRef'], ['code', 'id']]);
+  assert.deepEqual(rule.fields, rule.groups.flat());
+});
+
+test('grouped classification leaves unsupported and non-equivalent XPath raw', () => {
+  for (const xpath of [
+    '(@uidRef and not(id or code)) or (not(@other) and (id or code))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or other))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id and code))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or code or other))',
+    '(@uidRef and not(id or @uidRef)) or (not(@uidRef) and (id or @uidRef))',
+    '(@uidRef and not(id or id)) or (not(@uidRef) and (id or id))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or id))',
+    '(@uidRef and not(id/value or code)) or (not(@uidRef) and (id/value or code))',
+    '(@uidRef and not(s:id or code)) or (not(@uidRef) and (s:id or code))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or code)) or other',
+    'lower le upper',
+  ]) {
+    assert.equal(classifyAssert(xpath).kind, 'rawXPath', xpath);
+  }
+});
+
+test('grouped assertion metadata survives JSON serialization and counts XML nodes independently of text', () => {
+  const rule = {
+    id: 'Reference#assert1', ...classifyAssert(
+      '(@uidRef and not(id or code)) or (not(@uidRef) and (id or code))',
+    ),
+  };
+  const ir = JSON.parse(JSON.stringify({ assertions: { Reference: { rules: [rule] } } }));
+  for (const [node, expected] of [
+    [{}, false], [{ id: '' }, true], [{ id: null }, true], [{ id: [] }, false],
+    [{ id: [''] }, true], [{ id: 'A', code: 'B' }, true], [{ '@_uidRef': '' }, true],
+    [{ '@_uidRef': 'R', id: '' }, false], [{ uidRef: 'R' }, false], [{ '@_uidRef': null }, false],
+  ]) {
+    const result = validateNodeAssertions(ir, 'Reference', node);
+    assert.equal(result.valid, expected, JSON.stringify(node));
+    assert.deepEqual(result.skipped, []);
+  }
+  assert.throws(() => validateNodeAssertions(ir, 'Reference', {}, { throw: true }), AssertionValidationError);
+});
 
 function buildIr() {
   if (!cachedIr) {
@@ -19,6 +65,49 @@ function buildIr() {
   }
   return cachedIr;
 }
+
+test('value assertions validate each root occurrence and retain its index in diagnostics', () => {
+  const ir = buildIr();
+  const valid = { '@_uidRef': 'org1' };
+  assert.equal(validateValueAssertions(ir, 'organizationRef', [valid]).valid, true);
+  assert.equal(validateValueAssertions(ir, 'organizationRef', [valid, valid]).valid, true);
+  const invalid = validateValueAssertions(ir, 'organizationRef', [valid, {}, valid]);
+  assert.equal(invalid.valid, false);
+  assert.deepEqual(invalid.errors.map((error) => error.path), [[1]]);
+  assert.throws(
+    () => validateValueAssertions(ir, 'organizationRef', [valid, {}], { throw: true }),
+    AssertionValidationError,
+  );
+});
+
+test('root arrays also traverse nested assertions within every occurrence', () => {
+  const ir = buildIr();
+  const valid = { providedBy: { '@_uidRef': 'org1' } };
+  const invalid = { providedBy: { '@_uidRef': 'org1', orgId: { id: 'ORG-1' } } };
+  assert.equal(validateValueAssertions(ir, 'breakdownElementName', [valid, valid]).valid, true);
+  const result = validateValueAssertions(ir, 'breakdownElementName', [valid, invalid]);
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors.map((error) => error.path), [[1, 'providedBy']]);
+});
+
+test('root arrays retain skipped rules per occurrence; cardinality stays a schema responsibility', () => {
+  const ir = { assertions: { Window: { rules: [{ id: 'Window#assert1', kind: 'rawXPath', test: 'lower le upper' }] } } };
+  const result = validateValueAssertions(ir, 'Window', [{ lower: 1 }, { lower: 2 }]);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.skipped.map((skip) => skip.path), [[0], [1]]);
+  assert.deepEqual(validateValueAssertions(buildIr(), 'organizationRef', []), { valid: true, errors: [], skipped: [] });
+});
+
+test('Issue 1.1 repeatable document references accept valid arrays and reject an invalid member', () => {
+  const ir = new IRBuilder(parseXSD('s3000l/1_1/s3000l_1-1_lsa_dataset.xsd')).build();
+  const col = ir.entities.get('subtaskByExternalReference').columns.find((item) => item.name === 'docRef');
+  assert.equal(col.maxOccurs, 'unbounded');
+  const refs = [{ '@_uidRef': 'doc1' }, { docId: { id: 'DOC-2' } }];
+  assert.equal(validateValueAssertions(ir, col.xsdType, refs).valid, true);
+  const invalid = validateValueAssertions(ir, col.xsdType, [...refs, { '@_uidRef': 'doc3', docId: { id: 'DOC-3' } }]);
+  assert.equal(invalid.valid, false);
+  assert.deepEqual(invalid.errors.map((error) => error.path), [[2]]);
+});
 
 test('IR extracts and classifies S3000L xsd:assert rules', () => {
   const ir = buildIr();

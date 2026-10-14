@@ -113,6 +113,15 @@ class ValueJSONSchema {
     const rules = [...this.ir.assertions?.values() || []].flatMap((set) => set.rules)
       .filter((rule) => type.assertionRefs.includes(rule.id));
     for (const rule of rules) {
+      if (rule.kind === 'exactlyOneGroup') {
+        object.allOf ||= [];
+        object.allOf.push({
+          oneOf: rule.groups.map((group) => ({
+            anyOf: group.map((field) => ({ required: [field.xmlName] })),
+          })),
+        });
+        continue;
+      }
       if (rule.kind !== 'exactlyOne') {
         warnings.add(`Assertion ${rule.id} requires XSD validation.`);
         continue;

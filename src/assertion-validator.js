@@ -3,7 +3,8 @@
  *
  * This is not a general XPath engine. It supports the S3000L reference pattern
  * classified by IRBuilder as:
- *   exactly one of @uidRef, natural-key element, @uriRef must be present.
+ *   exactly one of @uidRef, natural-key element, @uriRef must be present,
+ *   or exactly one group of alternative fields must have a present member.
  */
 
 class AssertionValidationError extends Error {
@@ -22,6 +23,22 @@ function validateNodeAssertions(ir, typeName, node, opts = {}) {
   const skipped = [];
 
   for (const rule of rules) {
+    if (rule.kind === 'exactlyOneGroup') {
+      const presentGroups = rule.groups.filter((group) => group.some((field) => _hasNode(node, field)));
+      if (presentGroups.length !== 1) {
+        errors.push({
+          typeName,
+          ruleId: rule.id,
+          kind: rule.kind,
+          message: `${typeName}: ${rule.description}`,
+          presentFields: rule.fields.filter((field) => _hasNode(node, field)).map(_fieldLabel),
+          expected: rule.fields.map(_fieldLabel),
+          expectedGroups: rule.groups.map((group) => group.map(_fieldLabel)),
+          test: rule.test,
+        });
+      }
+      continue;
+    }
     if (rule.kind === 'exactlyOne') {
       const present = rule.fields.filter((field) => _hasField(node, field));
       if (present.length !== 1) {
@@ -62,24 +79,28 @@ function validateValueAssertions(ir, typeName, node, opts = {}) {
   const errors = [];
   const skipped = [];
 
-  const direct = validateNodeAssertions(ir, typeName, node);
-  errors.push(...direct.errors.map((error) => ({ ...error, path: [] })));
-  skipped.push(...direct.skipped.map((skip) => ({ ...skip, path: [] })));
+  const occurrences = Array.isArray(node) ? node : [node];
+  for (const [index, occurrence] of occurrences.entries()) {
+    const prefix = Array.isArray(node) ? [index] : [];
+    const direct = validateNodeAssertions(ir, typeName, occurrence);
+    errors.push(...direct.errors.map((error) => ({ ...error, path: prefix })));
+    skipped.push(...direct.skipped.map((skip) => ({ ...skip, path: prefix })));
 
-  const pathSet = _assertionPathSet(ir, typeName);
-  for (const assertionPath of (pathSet?.paths || [])) {
-    const values = _valuesAtPath(node, assertionPath.path);
-    for (const value of values) {
-      const result = validateNodeAssertions(ir, assertionPath.typeName, value);
-      const path = assertionPath.path.map((step) => step.name);
-      errors.push(...result.errors.map((error) => ({
-        ...error,
-        path,
-      })));
-      skipped.push(...result.skipped.map((skip) => ({
-        ...skip,
-        path,
-      })));
+    const pathSet = _assertionPathSet(ir, typeName);
+    for (const assertionPath of (pathSet?.paths || [])) {
+      const values = _valuesAtPath(occurrence, assertionPath.path);
+      for (const value of values) {
+        const result = validateNodeAssertions(ir, assertionPath.typeName, value);
+        const path = [...prefix, ...assertionPath.path.map((step) => step.name)];
+        errors.push(...result.errors.map((error) => ({
+          ...error,
+          path,
+        })));
+        skipped.push(...result.skipped.map((skip) => ({
+          ...skip,
+          path,
+        })));
+      }
     }
   }
 
@@ -137,6 +158,15 @@ function _hasField(node, field) {
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === 'string') return value.length > 0;
   return true;
+}
+
+function _hasNode(node, field) {
+  if (!node || typeof node !== 'object' || !Object.prototype.hasOwnProperty.call(node, field.xmlName)) return false;
+  const value = node[field.xmlName];
+  // Empty element text still represents a node. Empty arrays emit no nodes;
+  // null element values emit empty nodes, while null attributes are omitted.
+  if (value === undefined || (field.kind === 'attribute' && value === null)) return false;
+  return !Array.isArray(value) || value.length > 0;
 }
 
 function _fieldLabel(field) {

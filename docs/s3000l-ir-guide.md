@@ -986,12 +986,18 @@ references.
 
 `assertions` inventories named complex types and retained anonymous value types
 that contain `xs:assert`.
-Recognized exactly-one reference rules are marked as enforceable. Other XPath
-rules remain raw metadata.
+Recognized exactly-one reference rules are marked as enforceable. Issue 1.1's
+grouped UID-or-identifier pattern uses `kind: "exactlyOneGroup"`: `groups` holds
+arrays of field descriptors, and `fields` retains the flattened descriptors.
+Exactly one group must have at least one present member; multiple members within
+that group are permitted by the assertion. XSD particles separately constrain
+their combinations. Other XPath rules remain raw metadata. Regenerate older IRs
+to obtain the grouped classification; stored rule IDs and XPath text are stable.
 
 `assertionPaths` identifies asserted types nested inside persisted JSON
-columns. The runtime assertion validator follows direct paths and paths up to
-two elements deep. It is not a complete XPath or XSD 1.1 engine.
+columns. The runtime assertion validator checks each root-array occurrence and
+follows direct paths and paths up to two elements deep. Array diagnostics prefix
+paths with the root occurrence index. It is not a complete XPath or XSD 1.1 engine.
 
 ### `s3000lMode` and `s3000lDialect`
 

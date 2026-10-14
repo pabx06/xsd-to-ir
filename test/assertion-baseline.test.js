@@ -7,18 +7,7 @@ const {
 } = require('./helpers/assertion-baseline');
 
 const STRICT = process.env.ASSERTION_BASELINE_STRICT === '1';
-// Explicit IDs keep unexpected failures outside the known TODO set.
-const groupedFailures = new Set([
-  'issue-1-1-condition-value-neither',
-  'issue-1-1-condition-value-uid-and-code',
-  'issue-1-1-document-issue-neither',
-  'issue-1-1-document-issue-uid-and-document-identifiers',
-  'issue-1-1-document-neither',
-  'issue-1-1-document-uid-and-document-id',
-]);
-
 function gapFor(item, layer) {
-  if (groupedFailures.has(item.id)) return 'ASSERT-001';
   if (item.id === 'issue-2-0-organization-empty-uri') return 'ASSERT-002';
   return item.gaps?.[layer];
 }
@@ -81,11 +70,11 @@ test('catalog IDs are unique; assertion-only negatives have distinct structural 
   }
 });
 
-for (const [issue, expected] of [['1.1', [36, 33, 3, 36, 0]], ['2.0', [200, 200, 0, 79, 121]]]) {
+for (const [issue, expected] of [['1.1', [36, 33, 3, 0, 36, 0]], ['2.0', [200, 200, 0, 0, 79, 121]]]) {
   test(`Issue ${issue}: distinguish extracted assertions from emitted value-definition coverage`, () => {
     const report = inventory(issue);
     assert.deepEqual([
-      report.extracted, report.exactlyOne, report.rawXPath,
+      report.extracted, report.exactlyOne, report.exactlyOneGroup, report.rawXPath,
       report.referencedByValueDefinitions, report.outsideValueDefinitions.length,
     ], expected);
     const { ir, schema } = bundle(issue);
@@ -101,8 +90,7 @@ for (const [issue, expected] of [['1.1', [36, 33, 3, 36, 0]], ['2.0', [200, 200,
 
 test('raw XPath survives in IR and JSON Schema warnings, and runtime reports it as skipped', () => {
   for (const [issue, typeName] of [
-    ['1.1', 'conditionTypeValueReference'], ['1.1', 'documentIssueReference'],
-    ['1.1', 'documentReference'], ['fixture', 'Window'],
+    ['fixture', 'Window'],
   ]) {
     const { ir, schema } = bundle(issue);
     const rule = ir.assertions.get(typeName).rules[0];

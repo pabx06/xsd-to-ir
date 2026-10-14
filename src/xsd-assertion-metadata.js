@@ -174,12 +174,46 @@ function classifyAssert(test) {
     };
   }
 
+  const groups = parseExactlyOneGroupAssert(test);
+  if (groups) {
+    return {
+      kind: 'exactlyOneGroup',
+      enforceable: true,
+      fields: groups.flat(),
+      groups,
+      description: `Exactly one group must have a present member: ${groups
+        .map((group) => `(${group.map(fieldLabel).join(' or ')})`).join(', ')}`,
+    };
+  }
+
   return {
     kind: 'rawXPath',
     enforceable: false,
     fields: [],
     description: 'Raw XSD 1.1 assertion; requires a full XPath/XSD 1.1 validator',
   };
+}
+
+// Recognize only the binary presence pattern used by Issue 1.1:
+// (a and not(b or c)) or (not(a) and (b or c)). The identifier group
+// means ANY member, not exactly one member; XSD particles enforce choices.
+// Other XPath syntax stays raw rather than being partially interpreted.
+function parseExactlyOneGroupAssert(test) {
+  if (typeof test !== 'string') return null;
+  const field = '@?[A-Za-z_][A-Za-z0-9_.-]*';
+  const list = `${field}(?:\\s+or\\s+${field})+`;
+  const pattern = new RegExp([
+    `^\\s*\\(\\s*(${field})\\s+and\\s+not\\s*\\(\\s*(${list})\\s*\\)\\s*\\)`,
+    `\\s+or\\s+\\(\\s*not\\s*\\(\\s*(${field})\\s*\\)\\s+and\\s*\\(\\s*(${list})\\s*\\)\\s*\\)\\s*$`,
+  ].join(''));
+  const match = test.match(pattern);
+  if (!match || match[1] !== match[3]) return null;
+  const negative = match[2].split(/\s+or\s+/);
+  const positive = match[4].split(/\s+or\s+/);
+  const members = new Set(negative);
+  if (members.has(match[1]) || members.size !== negative.length || members.size !== positive.length) return null;
+  if (new Set(positive).size !== members.size || positive.some((name) => !members.has(name))) return null;
+  return [[assertField(match[1])], positive.map(assertField)];
 }
 
 function parseExactlyOneAssert(test) {

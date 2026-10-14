@@ -95,6 +95,40 @@ const runtimeGap = (id) => ({ runtime: id, import: id, export: id });
 const allGap = (id) => ({ ...runtimeGap(id), schema: id });
 const both = { '@_uidRef': 'ref1', id: 'ID-1' };
 const shapeCases = [
+  shapeCase('grouped-uid', 'grouped', '<grouped uidRef="ref1"/>', { '@_uidRef': 'ref1' }, true),
+  shapeCase('grouped-id', 'grouped', '<grouped><id>ID-1</id></grouped>', { id: 'ID-1' }, true),
+  shapeCase('grouped-code', 'grouped', '<grouped><code>CODE-1</code></grouped>', { code: 'CODE-1' }, true),
+  shapeCase(
+    'grouped-two-members',
+    'grouped',
+    '<grouped><id>ID-1</id><code>CODE-1</code></grouped>',
+    { id: 'ID-1', code: 'CODE-1' },
+    true,
+  ),
+  shapeCase('grouped-neither', 'grouped', '<grouped/>', {}, false),
+  shapeCase('grouped-both-groups', 'grouped', '<grouped uidRef="ref1"><id>ID-1</id></grouped>', both, false),
+  shapeCase('grouped-empty-id', 'grouped', '<grouped><id/></grouped>', { id: '' }, true),
+  shapeCase(
+    'grouped-repeated-valid',
+    'grouped',
+    '<grouped uidRef="ref1"/><grouped><id>ID-1</id></grouped>',
+    [{ '@_uidRef': 'ref1' }, { id: 'ID-1' }],
+    true,
+  ),
+  shapeCase(
+    'grouped-repeated-invalid',
+    'grouped',
+    '<grouped uidRef="ref1"/><grouped uidRef="ref2"><code>CODE-1</code></grouped>',
+    [{ '@_uidRef': 'ref1' }, { '@_uidRef': 'ref2', code: 'CODE-1' }],
+    false,
+  ),
+  shapeCase(
+    'grouped-uid-empty-id',
+    'grouped',
+    '<grouped uidRef="ref1"><id/></grouped>',
+    { '@_uidRef': 'ref1', id: '' },
+    false,
+  ),
   shapeCase('direct-identifier', 'direct', '<direct><id>ID-1</id></direct>', { id: 'ID-1' }, true),
   shapeCase('direct-uid', 'direct', '<direct uidRef="ref1"/>', { '@_uidRef': 'ref1' }, true),
   shapeCase('direct-neither', 'direct', '<direct/>', {}, false),
@@ -132,7 +166,6 @@ const shapeCases = [
     '<repeated><id>ID-1</id></repeated>',
     [{ id: 'ID-1' }],
     true,
-    { runtime: 'ASSERT-003', export: 'ASSERT-003' },
   ),
   shapeCase(
     'repeat-two-array',
@@ -140,7 +173,6 @@ const shapeCases = [
     '<repeated><id>ID-1</id></repeated><repeated uidRef="ref1"/>',
     [{ id: 'ID-1' }, { '@_uidRef': 'ref1' }],
     true,
-    runtimeGap('ASSERT-003'),
   ),
   shapeCase(
     'repeat-invalid-member',
@@ -258,6 +290,7 @@ function inventory(issue) {
     issue,
     extracted: rules.length,
     exactlyOne: rules.filter((rule) => rule.kind === 'exactlyOne').length,
+    exactlyOneGroup: rules.filter((rule) => rule.kind === 'exactlyOneGroup').length,
     rawXPath: rules.filter((rule) => rule.kind === 'rawXPath').length,
     referencedByValueDefinitions: emitted.size,
     outsideValueDefinitions: rules.filter((rule) => !emitted.has(rule.id)).map((rule) => rule.id).sort(),
