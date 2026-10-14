@@ -400,6 +400,84 @@ spellings beyond those represented by the schema carry the same warning.
 these rules using standard Ajv without coercion after serializing the schema.
 Import, database storage, and XML serialization are unchanged by this schema fix.
 
+## Assertion Baseline
+
+[`test/assertion-baseline.test.js`](../test/assertion-baseline.test.js) compares
+generated JSON Schema and runtime assertion checks with independently specified
+XSD 1.1 expectations. This assessment starts from `f17eee8` (the JSON-007 fix).
+It adds tests and documentation; it does not change production assertion logic,
+the IR shape, storage representation, or generated types.
+
+```bash
+npm run test:assertion-baseline
+npm run test:assertion-baseline:xsd11
+npm run test:assertion-baseline:strict
+```
+
+The normal baseline has **191 tests: 145 pass and 46 expected failures are
+marked TODO**, across six gap groups. TODO tests execute their desired-behavior
+assertions; they are not skipped. Strict mode removes those markers and exits
+nonzero with the 46 failures. New failures outside the explicit TODO cases fail
+the normal suite. When fixing a gap, remove its TODO markers and retain the tests.
+The normal tests run in `npm test`; `npm run ci` also runs the required Java/Xerces
+oracle. Strict mode is a diagnostic command until the gaps are fixed.
+
+The oracle validates **64 cases: 35 against actual Issue 1.1/2.0 types and 29
+against a small synthetic schema**. It uses the existing pinned, checksum-verified
+Xerces runner, with its assertion self-test enabled on the first call. Missing
+Java, schema compilation failures, wrong rejection reasons, and unrelated errors
+in assertion-only negative cases fail the oracle command. Acceptance expectations
+are written in the fixtures, not inferred from the current JSON Schema or runtime.
+
+| Inventory | Issue 1.1 | Issue 2.0 |
+| --- | ---: | ---: |
+| Extracted assertion rules | 36 | 200 |
+| Classified `exactlyOne` | 33 | 200 |
+| Retained as `rawXPath` | 3 | 0 |
+| Rule IDs referenced by emitted value definitions | 36 | 79 |
+| Rule IDs outside those value definitions | 0 | 121 |
+
+Classification counts are not enforcement coverage. The 121 Issue 2.0 rules
+outside the emitted value definitions remain in `ir.assertions`; this inventory
+does not establish that they should all be emitted, or that they are all missing
+from runtime paths. The tests check that retained value-type assertion references
+resolve and appear in JSON Schema annotations.
+
+| Gap | Desired behavior | Observed result |
+| --- | --- | --- |
+| `ASSERT-001` | Enforce Issue 1.1 grouped presence alternatives in `conditionTypeValueReference`, `documentIssueReference`, and `documentReference`. | Runtime skips these three raw rules; JSON Schema annotates them but accepts the tested assertion violations. |
+| `ASSERT-002` | Test XML node presence independently of its text value. | Runtime and JSON Schema reject valid empty elements/attributes and accept a tested invalid UID-plus-empty-element combination. An empty `organizationRef.uriRef` in Issue 2.0 is a real-schema example. |
+| `ASSERT-003` | Validate each occurrence of a repeatable asserted value. | Direct arrays are checked as one reference object. Valid one-item arrays fail export; valid multi-item arrays fail import/export. Nested array controls work. |
+| `ASSERT-004` | Enforce anonymous assertions using retained value-type metadata, including nested anonymous types. | Metadata and JSON Schema retain/enforce the tested rules, but runtime import/export miss them. A direct column's synthetic `xsdType` differs from its assertion-bearing `valueTypeRef`. |
+| `ASSERT-005` | Apply inherited base assertions to derived values. | JSON Schema rejects the invalid derived reference; runtime import/export accept it. |
+| `ASSERT-006` | Reach asserted values beyond two child steps and through recursive values. | Runtime misses the tested third-level and recursive-child violations; generated JSON Schema rejects them. Two-level controls work. |
+
+The real-schema catalog distinguishes assertion validity from complete XSD
+validity. For example, `(docId or dmc or pmc)` tests whether the group has a
+member; the surrounding XSD choice enforces mutual exclusion. Likewise, an empty
+code element exists for XPath but may violate its datatype. These cases must not
+be mistaken for assertion failures. Positive controls include UID and identifier
+alternatives, nil values, empty URI attributes, zero, false, singleton/array
+forms, and valid inherited/recursive values.
+
+A synthetic `lower le upper` comparison records the general XPath boundary:
+Xerces rejects reversed bounds, while runtime reports the rule in `skipped` and
+JSON Schema carries a `requires XSD validation` annotation. Runtime `valid: true`
+with skipped rules proves only that the checked subset passed. Import/export do
+not currently surface those skipped-rule notices. Arbitrary XPath translation is
+not promised by the six reference-assertion fixes.
+
+Real cases use wrapper schemas importing the bundled issue schema and apply
+`xsi:type` to a probe. An ID anchor resolves UIDREFs so unrelated identity errors
+cannot disguise an assertion failure. Synthetic cases exercise public
+import/export with in-memory rows. The oracle checks the independently authored
+input fragments; it does not certify complete S3000L messages, every assertion
+path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
+
+Next, fix these gaps in small steps with the XSD oracle retained, decide which
+unsupported rules remain explicitly XSD-only, then define the versioned public
+JSON contract before implementing the TypeScript generator.
+
 ## MariaDB Notes
 
 Generated DDL targets MariaDB and uses `mysql2` through knex. The Docker-backed
