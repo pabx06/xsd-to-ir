@@ -1,5 +1,7 @@
 const { effectiveAssertionRules, effectiveValueContent } = require('./value-type-inheritance');
 
+// Compatibility catalog for IR consumers without valueTypes. Runtime validation
+// follows the complete value graph; this finite catalog is not its depth limit.
 const MAX_ASSERTION_PATH_DEPTH = 2;
 
 function extractAssertionSets(schema) {

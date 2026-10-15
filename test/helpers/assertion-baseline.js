@@ -92,7 +92,6 @@ function shapeCase(id, field, xml, value, expectedXsd, gaps = {}) {
   };
 }
 
-const runtimeGap = (id) => ({ runtime: id, import: id, export: id });
 const both = { '@_uidRef': 'ref1', id: 'ID-1' };
 const shapeCases = [
   shapeCase('grouped-uid', 'grouped', '<grouped uidRef="ref1"/>', { '@_uidRef': 'ref1' }, true),
@@ -455,7 +454,6 @@ const shapeCases = [
     '<deep><outer><middle><ref uidRef="ref1"><id>ID-1</id></ref></middle></outer></deep>',
     { outer: { middle: { ref: both } } },
     false,
-    runtimeGap('ASSERT-006'),
   ),
   shapeCase(
     'depth-three-valid',
@@ -470,7 +468,6 @@ const shapeCases = [
     '<recursive><child><ref uidRef="ref1"><id>ID-1</id></ref></child></recursive>',
     { child: { ref: both } },
     false,
-    runtimeGap('ASSERT-006'),
   ),
   shapeCase(
     'recursive-valid',
@@ -479,6 +476,104 @@ const shapeCases = [
     { child: { ref: { id: 'ID-1' } } },
     true,
   ),
+  shapeCase(
+    'recursive-chain-valid',
+    'recursive',
+    '<recursive><child><child><child><ref><id>ID-1</id></ref></child></child></child></recursive>',
+    { child: { child: { child: { ref: { id: 'ID-1' } } } } },
+    true,
+  ),
+  shapeCase(
+    'recursive-chain-invalid',
+    'recursive',
+    '<recursive><child><child><child><ref uidRef="ref1"><id>ID-1</id></ref></child></child></child></recursive>',
+    { child: { child: { child: { ref: both } } } },
+    false,
+  ),
+  shapeCase(
+    'recursive-array-valid',
+    'recursive',
+    '<recursive><ref><id>ROOT-1</id></ref></recursive>'
+      + '<recursive><child><ref uidRef="ref1"/></child>'
+      + '<child><ref><id>ID-1</id></ref><ref uidRef="ref2"/></child></recursive>',
+    [{ ref: { id: 'ROOT-1' } }, {
+      child: [
+        { ref: { '@_uidRef': 'ref1' } }, { ref: [{ id: 'ID-1' }, { '@_uidRef': 'ref2' }] },
+      ],
+    }],
+    true,
+  ),
+  shapeCase(
+    'recursive-array-invalid',
+    'recursive',
+    '<recursive><ref><id>ROOT-1</id></ref></recursive>'
+      + '<recursive><child><ref uidRef="ref1"/></child>'
+      + '<child><ref><id>ID-1</id></ref><ref uidRef="ref1"><id>ID-1</id></ref></child></recursive>',
+    [{ ref: { id: 'ROOT-1' } }, {
+      child: [
+        { ref: { '@_uidRef': 'ref1' } }, { ref: [{ id: 'ID-1' }, both] },
+      ],
+    }],
+    false,
+  ),
+  shapeCase(
+    'recursive-empty-ref',
+    'recursive',
+    '<recursive><child><child><ref/></child></child></recursive>',
+    { child: { child: { ref: '' } } },
+    false,
+  ),
+  shapeCase(
+    'recursive-null-ref',
+    'recursive',
+    '<recursive><child><child><ref/></child></child></recursive>',
+    { child: { child: { ref: null } } },
+    false,
+  ),
+  shapeCase(
+    'mutual-anonymous-valid',
+    'mutual',
+    '<mutual><branch><child><branch><anonymous><ref><id>ID-1</id></ref></anonymous></branch></child></branch></mutual>',
+    { branch: { child: { branch: { anonymous: { ref: { id: 'ID-1' } } } } } },
+    true,
+  ),
+  shapeCase(
+    'mutual-anonymous-invalid',
+    'mutual',
+    '<mutual><branch><child><branch><anonymous><ref uidRef="ref1"><id>ID-1</id></ref></anonymous></branch></child></branch></mutual>',
+    { branch: { child: { branch: { anonymous: { ref: both } } } } },
+    false,
+  ),
+  shapeCase(
+    'mutual-inherited-valid',
+    'mutual',
+    '<mutual><branch><child><ref left="L"><id>ID-1</id></ref></child></branch></mutual>',
+    { branch: { child: { ref: { '@_left': 'L', id: 'ID-1' } } } },
+    true,
+  ),
+  shapeCase(
+    'mutual-inherited-invalid',
+    'mutual',
+    '<mutual><branch><child><ref left="L" uidRef="ref1"><id>ID-1</id></ref></child></branch></mutual>',
+    { branch: { child: { ref: { '@_left': 'L', ...both } } } },
+    false,
+  ),
+  shapeCase(
+    'mutual-nil-wrapper',
+    'mutual',
+    '<mutual><branch><child><branch><anonymous xsi:nil="true"/></branch></child></branch></mutual>',
+    { branch: { child: { branch: { anonymous: { '@_xsi:nil': 'true' } } } } },
+    true,
+  ),
+  {
+    ...shapeCase(
+      'mutual-raw-xpath',
+      'mutual',
+      '<mutual><branch><child><branch><window><lower>3</lower><upper>2</upper></window></branch></child></branch></mutual>',
+      { branch: { child: { branch: { window: { lower: 3, upper: 2 } } } } },
+      false,
+    ), boundary: true,
+  },
   shapeCase(
     'anonymous-nested-valid',
     'anonymousNested',

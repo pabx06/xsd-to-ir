@@ -58,6 +58,8 @@ for (const id of [
   'derived-repeated-valid', 'derived-local-valid', 'restricted-valid',
   'derived-nested-valid', 'nested-derived-valid', 'anonymous-derived-valid',
   'text-derived-valid', 'text-restricted-valid',
+  'depth-three-valid', 'recursive-chain-valid', 'recursive-array-valid',
+  'mutual-anonymous-valid', 'mutual-inherited-valid', 'mutual-nil-wrapper',
 ]) {
   test(`${id}: XML import, stored JSON, export and reimport retain node presence`, async () => {
     const item = shapeCases.find((candidate) => candidate.id === id);

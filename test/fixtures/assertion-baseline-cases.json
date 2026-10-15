@@ -1,5 +1,47 @@
 [
   {
+    "id": "issue-1-1-deep-applicability-valid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A reference four child steps inside an anonymous applicability wrapper is valid.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef><applicId><id>APPLIC-1</id><setBy uidRef=\"org1\"/></applicId></applicRef></applic></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-deep-applicability-invalid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A deep organization reference must choose either a UID or an identifier.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef><applicId><id>APPLIC-1</id><setBy uidRef=\"org1\"><orgId><id>ORG-1</id></orgId></setBy></applicId></applicRef></applic></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-recursive-set-by-valid",
+    "issue": "2.0",
+    "typeName": "productIdentifier",
+    "description": "Repeated organization reference types are valid at every occurrence of the setBy chain.",
+    "xml": "<probe><id>PROD-1</id><setBy><orgId><id>ORG-1</id><setBy><orgId><id>ORG-2</id><setBy uidRef=\"org1\"/></orgId></setBy></orgId></setBy></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-recursive-set-by-invalid",
+    "issue": "2.0",
+    "typeName": "productIdentifier",
+    "description": "A conflicting reference five child steps deep must not be hidden by a repeated type.",
+    "xml": "<probe><id>PROD-1</id><setBy><orgId><id>ORG-1</id><setBy><orgId><id>ORG-2</id><setBy uidRef=\"org1\" uriRef=\"\"/></orgId></setBy></orgId></setBy></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
     "id": "issue-1-1-product-name-anonymous-wrapper-valid",
     "issue": "1.1",
     "typeName": "productName",

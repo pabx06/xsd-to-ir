@@ -107,7 +107,7 @@ well designed.
 |---|---|---|---|
 | XML well-formedness | `fast-xml-parser` through `src/xml-validator.js` | XML syntax, one root element, closed tags | XSD types, order, occurrence rules, enums, `xs:assert` |
 | Runtime lightweight validation | `validateXML()` / `validateXMLSync()` in `src/xml-validator.js` | Well-formedness, root `<lsaDataset>`, required envelope elements, optional `libxmljs2` XSD 1.0-style validation when available | Full S3000L XSD 1.1; `xs:assert` is not guaranteed here |
-| App-level assertion subset | `src/assertion-validator.js` during import/export | Extracted S3000L exactly-one and grouped reference assertions for persisted inline values, direct nested asserted paths, and bounded two-step recursive asserted paths | Arbitrary XPath, unbounded recursion, full XSD 1.1 schema semantics |
+| App-level assertion subset | `src/assertion-validator.js` during import/export | Extracted exactly-one and grouped reference assertions throughout persisted inline values, following retained type links through arrays, anonymous/inherited types, and recursion | Arbitrary XPath, full XSD 1.1 schema semantics; older IRs without `valueTypes` retain finite path coverage |
 | Real XSD 1.1 acceptance validation | `npm run test:xsd11`, `npm run test:xsd11:invalid`, `npm run test:xsd11:assert-invalid`, or `node scripts/validate-xsd11.js --xsd ... --xml ...` | XML against the real S3000L XSD using Java Xerces XSD 1.1, including order, occurrence, datatypes, enums, and `xs:assert` | It is an acceptance/CI gate by default, not automatically called by every runtime import |
 
 Current policy: Java-backed XSD 1.1 validation is the source of truth for
@@ -406,7 +406,7 @@ Import, database storage, and XML serialization are unchanged by this schema fix
 generated JSON Schema and runtime assertion checks with independently specified
 XSD 1.1 expectations. The initial assessment in `6e29c07` added tests and
 documentation after the JSON-007 fix, without changing production behavior.
-`ASSERT-001` through `ASSERT-005` are now fixed; `ASSERT-006` remains open.
+`ASSERT-001` through `ASSERT-006` are now fixed.
 
 ```bash
 npm run test:assertion-baseline
@@ -414,17 +414,12 @@ npm run test:assertion-baseline:xsd11
 npm run test:assertion-baseline:strict
 ```
 
-The normal baseline now has **433 tests: 427 pass and 6 expected failures are
-marked TODO**, all in the remaining traversal gap. The original assessment had
-191 tests, with 145 passing and 46 TODOs; its failures remain reproducible at
-`6e29c07`. TODO tests execute their desired-behavior
-assertions; they are not skipped. Strict mode removes those markers and exits
-nonzero with the 6 remaining failures. New failures outside the explicit TODO cases fail
-the normal suite. When fixing a gap, remove its TODO markers and retain the tests.
-The normal tests run in `npm test`; `npm run ci` also runs the required Java/Xerces
-oracle. Strict mode is a diagnostic command until the gaps are fixed.
+The normal baseline now has **495 passing tests and no TODOs**. Strict mode also
+passes. The original assessment had 191 tests, with 145 passing and 46 executable
+TODOs; its failures remain reproducible at `6e29c07`. The normal tests run in
+`npm test`; `npm run ci` also runs the required Java/Xerces oracle.
 
-The oracle validates **124 cases: 42 against actual Issue 1.1/2.0 types and 82
+The oracle validates **140 cases: 46 against actual Issue 1.1/2.0 types and 94
 against a small synthetic schema**. It uses the existing pinned, checksum-verified
 Xerces runner, with its assertion self-test enabled on the first call. Missing
 Java, schema compilation failures, wrong rejection reasons, and unrelated errors
@@ -453,7 +448,7 @@ resolve and appear in JSON Schema annotations.
 | `ASSERT-003` | Validate each occurrence of a repeatable asserted value. | Fixed: runtime checks every root-array member and its nested paths. All five former TODOs pass. Diagnostics include the root occurrence index. |
 | `ASSERT-004` | Enforce anonymous assertions using retained value-type metadata, including nested anonymous types. | Fixed: runtime import/export use `valueTypeRef`, and assertion paths follow retained value definitions through anonymous wrappers. All six former TODOs pass. Added controls cover repeated values, empty values, anonymous nesting, serialized metadata, and real Issue 1.1 applicability references. |
 | `ASSERT-005` | Apply inherited base assertions to derived values. | Fixed: runtime and JSON Schema resolve base and local assertions through `baseTypeRef`, including extension, restriction, and inherited child content. All three former TODOs pass. Added controls cover multi-level derivation, anonymous and simple-content derivation, nested values, repeated values, serialized metadata, and inherited raw XPath. |
-| `ASSERT-006` | Reach asserted values beyond two child steps and through recursive values. | Runtime misses the tested third-level and recursive-child violations; generated JSON Schema rejects them. Two-level controls work. |
+| `ASSERT-006` | Reach asserted values beyond two child steps and through recursive values. | Fixed: runtime walks present values through `valueTypes` without a fixed depth or repeated-type cutoff. All six former TODOs pass. Added controls cover mutual recursion, deep anonymous/inherited values, nested arrays, skipped XPath, and real deep references in both issues. Diagnostics identify every array position. |
 
 The real-schema catalog distinguishes assertion validity from complete XSD
 validity. For example, `(docId or dmc or pmc)` tests whether the group has a
@@ -503,8 +498,7 @@ This adds 238 assertion paths for Issue 1.1 without losing existing paths; Issue
 to obtain these paths. The IR structure and stored JSON representation are
 unchanged, and JSON Schema already enforced these retained anonymous assertions.
 Anonymous raw XPath still appears as unsupported metadata and skipped runtime
-rules. Traversal beyond the current depth/recursion bounds remains the separate
-`ASSERT-006` gap.
+rules.
 
 The inheritance fix resolves assertions from the base type first, then local
 rules, for both extension and restriction, following the
@@ -537,8 +531,35 @@ Per-occurrence validation also protects Issue 1.1's repeatable
 grouped rule becomes enforceable. It applies to simple and grouped assertions,
 including nested paths and skipped rules within each root occurrence. An empty
 array has no assertions to evaluate; occurrence limits remain a JSON Schema/XSD
-responsibility. This does not normalize singleton/array storage or remove the
-depth and recursion limits tracked by `ASSERT-006`.
+responsibility. Singleton/array storage is unchanged.
+
+The traversal fix walks actual values through retained `valueTypes` and their
+effective inherited content. `validateValueAssertions` follows every present
+complex child, including repeated occurrences of recursive types, while
+`validateNodeAssertions` continues to check only the requested node's rules.
+Missing children and empty arrays supply no occurrences; empty complex elements
+still undergo assertion validation. Unknown properties are outside this assertion
+subset. Errors and skipped rules include every property and array index, for
+example `[1, "child", 1, "ref", 1]`.
+
+An explicit stack avoids call-stack recursion in the assertion validator.
+Regression tests validate a 12,000-level finite value. Input object cycles
+encountered during traversal throw `TypeError`; shared objects used at separate
+occurrences are checked independently. This does not promise the same depth
+capacity for XML parsing, normalization, serialization, or third-party validators.
+[`test/assertion-traversal.test.js`](../test/assertion-traversal.test.js) covers
+these boundaries, diagnostic paths, legacy IR, and real import/export checks.
+Real cases include Issue 1.1's
+`productName.applic.applicRef.applicId.setBy` and Issue 2.0's recursive
+`productIdentifier.setBy.orgId.setBy.orgId.setBy`.
+
+The finite `assertionPaths` catalog remains unchanged for compatibility: it
+contains paths up to two child steps and stops expanding repeated types. It is
+no longer the runtime traversal plan when a retained value definition exists.
+Older IRs without those definitions still use their catalog's limited coverage.
+Regenerate those older artifacts for full traversal; existing complete
+`valueTypes` graphs work immediately. The IR structure and stored JSON shapes
+are unchanged, and generated JSON Schema already follows recursive type references.
 
 A synthetic `lower le upper` comparison records the general XPath boundary:
 Xerces rejects reversed bounds, while runtime reports the rule in `skipped` and
@@ -554,9 +575,8 @@ import/export with in-memory rows. The oracle checks the independently authored
 input fragments; it does not certify complete S3000L messages, every assertion
 path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
 
-Next, fix `ASSERT-006` with the XSD oracle retained, decide which
-unsupported rules remain explicitly XSD-only, then define the versioned public
-JSON contract before implementing the TypeScript generator.
+Next, confirm which unsupported rules remain explicitly XSD-only, then define
+the versioned public JSON contract before implementing the TypeScript generator.
 
 ## MariaDB Notes
 

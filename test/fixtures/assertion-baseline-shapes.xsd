@@ -49,7 +49,8 @@
       <xs:element name="nested" type="Nested" minOccurs="0"/>
       <xs:element name="depthTwo" type="DepthTwo" minOccurs="0"/>
       <xs:element name="deep" type="Deep" minOccurs="0"/>
-      <xs:element name="recursive" type="Recursive" minOccurs="0"/>
+      <xs:element name="recursive" type="Recursive" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="mutual" type="MutualA" minOccurs="0"/>
       <xs:element name="anonymousNested" type="AnonymousNested" minOccurs="0"/>
       <xs:element name="flag" type="FlagReference" minOccurs="0"/>
       <xs:element name="number" type="NumberReference" minOccurs="0"/>
@@ -150,8 +151,21 @@
   </xs:complexType>
   <xs:complexType name="Recursive">
     <xs:sequence>
-      <xs:element name="ref" type="Reference" minOccurs="0"/>
-      <xs:element name="child" type="Recursive" minOccurs="0"/>
+      <xs:element name="ref" type="Reference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="child" type="Recursive" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MutualA">
+    <xs:sequence>
+      <xs:element name="ref" type="LocalReference" minOccurs="0"/>
+      <xs:element name="branch" type="MutualB" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MutualB">
+    <xs:sequence>
+      <xs:element name="anonymous" type="AnonymousNested" minOccurs="0" nillable="true"/>
+      <xs:element name="window" type="DerivedWindow" minOccurs="0"/>
+      <xs:element name="child" type="MutualA" minOccurs="0"/>
     </xs:sequence>
   </xs:complexType>
   <xs:complexType name="AnonymousNested">

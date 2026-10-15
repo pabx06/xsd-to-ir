@@ -1005,8 +1005,10 @@ elements count as present; missing properties and empty occurrence arrays do not
 JSON Schema enforces field datatypes and occurrence bounds separately from these
 presence rules. Runtime assertion checks do not replace full XSD validation.
 
-`assertionPaths` identifies asserted types nested inside persisted JSON
-columns. Import/export resolve assertions through `valueTypeRef`, falling back
+`assertionPaths` is a finite compatibility catalog of asserted types nested
+inside persisted JSON columns. It records paths up to two child steps and stops
+expanding repeated types, so it is not a complete inventory of possible runtime
+paths. Import/export resolve assertions through `valueTypeRef`, falling back
 to `xsdType` for older IRs. Paths follow retained value definitions, including
 anonymous wrappers and anonymous asserted children; their roots and targets may
 use stable anonymous type IDs. Paths include children inherited by extension and
@@ -1015,9 +1017,18 @@ particle, so removed children are excluded. Regenerate older IR and JSON Schema
 artifacts to obtain derivation-body rules and these additional paths; the
 metadata structure is unchanged.
 
-The runtime assertion validator checks each root-array occurrence and
-follows direct paths and paths up to two elements deep. Array diagnostics prefix
-paths with the root occurrence index. It is not a complete XPath or XSD 1.1 engine.
+`validateValueAssertions` traverses present JSON values through `valueTypes`,
+including anonymous and inherited definitions, with no fixed depth or
+repeated-type cutoff. It does not use `assertionPaths` when the value definition
+is available. Diagnostics include property names and array indices at every
+level. An explicit traversal stack handles deep finite values; input object
+cycles encountered during traversal throw `TypeError`, while shared objects are
+checked at every occurrence. `validateNodeAssertions` checks only one node.
+
+Older IRs without retained value definitions fall back to their finite path
+catalog; regenerate those artifacts for full traversal. Complete existing type
+graphs need no structural update. The assertion validator is not a complete
+XPath or XSD 1.1 engine.
 
 ### `s3000lMode` and `s3000lDialect`
 
