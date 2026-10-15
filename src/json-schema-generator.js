@@ -17,16 +17,20 @@ const { ValueJSONSchema } = require('./value-json-schema');
  * @param {string} [options.rootEntity]    Name of the root entity to use as
  *                                          the document root (optional).
  * @param {string} [options.schemaId]      Value for the "$id" field.
+ * @param {ValueJSONSchema} [options.valueSchemas] Internal value-schema strategy.
+ * @param {Function} [options.entitySchema] Internal entity-schema strategy.
  * @returns {object}  A JSON Schema draft-07 object (not yet serialised).
  */
 function generateJSONSchema(ir, options = {}) {
   const {
     rootEntity = null,
     schemaId = 'https://example.com/schema.json',
+    valueSchemas: suppliedValueSchemas = null,
+    entitySchema = null,
   } = options;
 
   const defs = {};
-  const valueSchemas = new ValueJSONSchema(ir);
+  const valueSchemas = suppliedValueSchemas || new ValueJSONSchema(ir);
 
   // ── enum definitions ────────────────────────────────────────────────────────
   for (const [name, enumDef] of ir.enums) {
@@ -45,7 +49,7 @@ function generateJSONSchema(ir, options = {}) {
 
   // ── entity definitions ──────────────────────────────────────────────────────
   for (const [name, entity] of ir.entities) {
-    defs[name] = _entityDef(entity, ir, valueSchemas);
+    defs[name] = entitySchema ? entitySchema(name) : _entityDef(entity, ir, valueSchemas);
   }
 
   // ── root schema ─────────────────────────────────────────────────────────────

@@ -54,7 +54,7 @@ test('both issue modules compile together and check real UI and assertion exampl
   const dir = directory(t);
   const sources = {};
   for (const issue of ['1.1', '2.0', 'fixture']) {
-    sources[`issue-${issue}`] = generateTypeScript(bundle(issue).ir);
+    sources[`issue-${issue}`] = generateTypeScript(bundle(issue).ir, { representation: 'xml' });
   }
   const catalog = [
     // Facets such as minimum string length remain a runtime concern.
@@ -127,7 +127,7 @@ test('both issue modules compile together and check real UI and assertion exampl
 test('choices, optional groups, bounded arrays, nil attributes, literals and names stay typed', (t) => {
   const dir = directory(t);
   const ir = new IRBuilder(parseXSD(fixturePath)).build();
-  const generated = generateTypeScript(ir);
+  const generated = generateTypeScript(ir, { representation: 'xml' });
   const base = { code: 'A', fixed: '123', nodes: [{ id: '001' }, { id: '002' }] };
   const cases = [
     ['base', base, true],
@@ -184,11 +184,11 @@ test('live IR and serialized snapshots produce the same stable output without mu
     value instanceof Map ? Object.fromEntries(value) : value
   )));
   const before = JSON.stringify(snapshot);
-  const generated = generateTypeScript(ir);
+  const generated = generateTypeScript(ir, { representation: 'xml' });
   assert.equal(JSON.stringify(ir, (_key, value) => (
     value instanceof Map ? Object.fromEntries(value) : value
   )), before, 'generation does not mutate the live IR');
-  assert.equal(generateTypeScript(snapshot), generated);
+  assert.equal(generateTypeScript(snapshot, { representation: 'xml' }), generated);
   for (const value of Object.values(ir)) {
     if (value instanceof Map) {
       const entries = [...value].reverse();
@@ -196,7 +196,11 @@ test('live IR and serialized snapshots produce the same stable output without mu
       entries.forEach(([key, item]) => value.set(key, item));
     }
   }
-  assert.equal(generateTypeScript(ir), generated, 'registry insertion order does not rename types');
+  assert.equal(
+    generateTypeScript(ir, { representation: 'xml' }),
+    generated,
+    'registry insertion order does not rename types',
+  );
   assert.equal(JSON.stringify(snapshot), before);
   const ast = ts.createSourceFile('types.ts', generated, ts.ScriptTarget.Latest, true);
   function visit(node) {
@@ -219,7 +223,7 @@ test('generic schemas retain inherited entity fields and compile without S3000L 
   const ir = new IRBuilder(parseXSD(file)).build();
   assert.equal(ir.s3000lMode, false);
   compile(dir, {
-    types: generateTypeScript(ir),
+    types: generateTypeScript(ir, { representation: 'xml' }),
     use: `
       import type { Entities, SimpleTypes } from './types';
       const name: SimpleTypes['Types'] = 'Hello';
@@ -232,7 +236,7 @@ test('generic schemas retain inherited entity fields and compile without S3000L 
   });
 });
 
-test('CLI emits the same TypeScript module and supports --no-typescript', (t) => {
+test('CLI emits clean and XML TypeScript modules and supports --no-typescript', (t) => {
   const dir = directory(t);
   const run = (out, extra) => execFileSync(process.execPath, [
     path.join(__dirname, '../index.js'), fixturePath, '--out', out, '--no-sql', '--no-json', ...extra,
@@ -240,9 +244,24 @@ test('CLI emits the same TypeScript module and supports --no-typescript', (t) =>
   run(dir, []);
   const snapshot = JSON.parse(fs.readFileSync(path.join(dir, 'ir.json'), 'utf8'));
   assert.equal(fs.readFileSync(path.join(dir, 'types.ts'), 'utf8'), generateTypeScript(snapshot));
+  assert.equal(
+    fs.readFileSync(path.join(dir, 'xml-types.ts'), 'utf8'),
+    generateTypeScript(snapshot, { representation: 'xml' }),
+  );
   const skipped = path.join(dir, 'skip');
   run(skipped, ['--no-typescript']);
   assert.equal(fs.existsSync(path.join(skipped, 'types.ts')), false);
+  assert.equal(fs.existsSync(path.join(skipped, 'xml-types.ts')), false);
+  const schemas = path.join(dir, 'schemas');
+  execFileSync(process.execPath, [
+    path.join(__dirname, '../index.js'), fixturePath, '--out', schemas,
+    '--no-sql', '--no-ir', '--no-typescript',
+    '--schema-id', 'urn:test:xml', '--ui-schema-id', 'urn:test:ui',
+  ], { stdio: 'pipe' });
+  assert.equal(fs.existsSync(path.join(schemas, 'json-schema.json')), true);
+  assert.equal(fs.existsSync(path.join(schemas, 'ui-json-schema.json')), true);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(schemas, 'json-schema.json'), 'utf8')).$id, 'urn:test:xml');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(schemas, 'ui-json-schema.json'), 'utf8')).$id, 'urn:test:ui');
 });
 
 test('unsupported structural changes fail instead of silently widening generated types', () => {

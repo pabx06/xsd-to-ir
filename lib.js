@@ -5,6 +5,8 @@ const { DBAdapter } = require('./src/db-adapter');
 const { IRBuilder } = require('./src/ir-builder');
 const { parseXSD } = require('./src/xsd-parser');
 const { generateTypeScript } = require('./src/typescript-generator');
+const { generateUIJSONSchema } = require('./src/ui-json-schema');
+const { UIAdapter } = require('./src/ui-adapter');
 const { ASSETS_DIRECTORY, getAssetPath, getS30001SchemaPath } = require('./assets');
 
 module.exports = {
@@ -16,5 +18,7 @@ module.exports = {
   DBAdapter,
   IRBuilder,
   generateTypeScript,
+  generateUIJSONSchema,
+  UIAdapter,
   ASSETS_DIRECTORY, getAssetPath, getS30001SchemaPath, parseXSD,
 };

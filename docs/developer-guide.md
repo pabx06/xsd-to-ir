@@ -236,9 +236,14 @@ The CLI writes these files to the selected `--out` directory:
 
 - `ir.json`: serialized IR for introspection and downstream tooling
 - `schema.sql`: MariaDB DDL
-- `json-schema.json`: JSON Schema draft-07 output
-- `types.ts`: a standalone TypeScript module for this schema / issue; use
-  `--no-typescript` to skip it
+- `json-schema.json`: JSON Schema for the existing XML-shaped logical entities
+- `ui-json-schema.json`: JSON Schema for clean editable UI entities
+- `types.ts`: clean UI TypeScript types for this schema / issue
+- `xml-types.ts`: TypeScript types for the existing XML-shaped logical entities
+
+Use `--no-typescript` to skip both TypeScript modules, or `--no-json` to skip
+both JSON Schema documents. The schemas have distinct IDs so they can share
+a validator registry; customize them with `--schema-id` and `--ui-schema-id`.
 
 `output/` is ignored by git. Regenerate it when the XSD or generator behavior
 changes.
@@ -265,9 +270,11 @@ node index.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --out output/1.1
 node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output/2.0
 ```
 
-Both directories contain `types.ts` alongside that issue's IR, JSON Schema,
-and SQL. A future issue uses the same command with its XSD and a separate
-output directory. The TypeScript generator has no issue-specific shape logic.
+Both directories contain the clean `types.ts` module and its matching
+`ui-json-schema.json`. The XML representation remains available in
+`xml-types.ts` and `json-schema.json`. A future issue uses the same command
+with its XSD and a separate output directory. Generation and conversion use
+the selected issue's IR, without issue-specific shape branches.
 
 The public JavaScript API also accepts a live IR or a parsed `ir.json` snapshot:
 
@@ -276,6 +283,7 @@ const fs = require('node:fs');
 const { generateTypeScript } = require('./lib');
 
 fs.writeFileSync('types.ts', generateTypeScript(ir));
+fs.writeFileSync('xml-types.ts', generateTypeScript(ir, { representation: 'xml' }));
 ```
 
 Generated modules export `Entity<Name>` and `Value<Name>` aliases, plus
@@ -296,38 +304,100 @@ type Breakdowns11 = NonNullable<Product11['bkdns']>;
 const draft: Product11 = {
   uid: 'prod1',
   crud: 'I',
-  prodId: { id: '001234' },
-  bkdns: { bkdn: { '@_uid': 'bkdn1', bkdnType: { code: 'SY' } } },
+  prodId: [{ id: '001234' }],
+  bkdns: { bkdn: [{ uid: 'bkdn1', bkdnType: { code: 'SY' } }] },
 };
 
 // Each issue retains its own names and nested shapes.
-const oldName: Product11['name'] = { descr: 'Legacy project' };
-const newName: Product20['prodName'] = { name: 'New project' };
+const oldName: Product11['name'] = [{ descr: 'Legacy project' }];
+const newName: Product20['prodName'] = [{ name: 'New project' }];
+
+draft.prodId[0].id = '000567'; // string, including its leading zeroes
 ```
 
-These are the logical entity objects described by generated JSON Schema.
-Inline fields describe **decoded JSON cell contents**, including nested
-`@_` attributes and `#text` wrappers. They are not raw database row types:
-`DBAdapter.queryEntity()` returns SQL column names and stored cell values;
-the application must decode JSON columns, map entity property names, and load
-relations as needed. Generating types performs none of that work. A type
-assertion on `JSON.parse()` is also not runtime validation.
+The UI contract uses these representation rules:
+
+| Stored XML/JSON concept | UI representation |
+| --- | --- |
+| Repeatable field | Array, including a single occurrence; omit an optional field instead of providing an empty inline array. |
+| XSD string | String; legacy numeric/boolean values are converted to their available text. |
+| XSD boolean | `true` or `false`. |
+| Exact numeric lexical value | String; existing numeric values remain numbers. |
+| XML business attribute such as `@_uidRef` | `uidRef`. |
+| Plain text or a scalar `#text` wrapper | Scalar value. |
+| Simple content with declared business attributes | Object with `value` plus the clean attribute names, such as `{ value: 'Text', lang: 'en' }`. |
+| Explicit `xsi:nil` | `null`; XML attributes stay in the adapter's edit state. |
+| Missing field or SQL `NULL` column | Omitted property. |
+| Namespace declarations and other XML-only attributes | Adapter edit state, outside the UI object. |
+
+If an attribute name collides with an element name, it receives an
+`attribute_` prefix, repeated until unique. Simple-content text uses `textValue`
+when `value` is occupied, with leading underscores if further disambiguation is
+needed. The generator and adapter share these rules.
+
+Generating declarations does not convert data. Use `UIAdapter` at the boundary
+between stored data and UI values:
+
+```javascript
+const { UIAdapter } = require('./lib');
+const adapter = new UIAdapter(ir); // live IR or parsed ir.json
+
+const edit = adapter.decodeRow('product', databaseRow);
+const product = edit.value;       // send this object to the project UI
+product.prodId[0].id = '000567';
+
+// Validate the edited UI object against ui-json-schema.json before saving.
+const columns = adapter.encodeRow('product', product, edit.state);
+await db.update('product', databaseRow.uid, columns);
+```
+
+`decodeRow` parses inline JSON cells and maps SQL column names to entity fields.
+`encodeRow` returns editable SQL columns, with inline values encoded as JSON
+strings. Removing an existing optional property clears its SQL column; setting
+a nillable property to `null` writes explicit XML nil. For repeating fields,
+nil is an array item, for example `name: [null]`. Internal database keys and
+technical columns are excluded. Relations must be loaded and saved separately;
+`encodeRow` rejects relation properties rather than silently ignoring them.
+
+For a logical entity with decoded cells and already loaded relations, use
+`decodeEntity(name, object)` and `encodeEntity(name, value, state)`. For an
+individual named or anonymous inline value type, use `decodeValue(valueTypeRef,
+value)` and `encodeValue(valueTypeRef, value, state)`. Every decode returns
+`{ value, state }`; the encode methods also accept a new UI value without state
+when there is no existing XML metadata to preserve.
+
+Keep the opaque `state` with the same adapter instance for the edit session.
+It is not serializable and must not be reconstructed from untrusted client data.
+Only `value` belongs in the UI/API payload. Application code owns edit-session
+lifetime, concurrent-change detection, validation, and database transactions.
+Unchanged values retain their original XML representation. Edits preserve
+namespace declarations, nil attributes, and scalar wrappers in that state.
+
+Array items are matched by their decoded object identity, UID, or unchanged
+value. UID-based reordering also works after a JSON API round trip. When several
+uid-less items with XML metadata are changed or reordered together, retain the
+decoded item objects while editing. Ambiguous detached edits and metadata-bearing
+moves between fields are rejected; they need explicit application edit handling.
+This prevents metadata from being attached to the wrong item.
+
+Creating a new nil value whose XSD type requires attributes needs an existing
+value carrying those attributes; otherwise encoding rejects it. Mixed content
+and wildcard XML require a dedicated UI adapter. Legacy imports that already lost
+leading zeroes cannot recover those zeroes automatically.
 
 The generator reuses JSON Schema's interpretation of the IR. It retains
-required/optional fields, enum and fixed literals, nil objects and their
-attributes, inherited and recursive definitions, optional group correlations,
-choice branches, and supported exactly-one/grouped presence assertions. Both
-singleton and nonempty array forms remain available for repeatable inline
-values; a minimum greater than one requires an array. Tuple bounds through
+required/optional fields, enum and fixed literals, inherited and recursive
+definitions, optional group correlations, choice branches, and supported
+exactly-one/grouped presence assertions. Repeatable inline values always use
+arrays. Tuple bounds through
 20 are represented; larger upper bounds and the portion of a minimum beyond
 20 remain runtime checks. Entity relations follow the existing entity JSON
 Schema rules, which are distinct from inline occurrence rules.
 
-Existing stored string fields can still contain legacy numbers/booleans, so
-the corresponding types retain those alternatives, just as JSON Schema does.
-Current imports preserve `001234` as a string. Exact numeric lexical strings
-also remain strings. No data representation or import/export behavior changes
-when generating these modules.
+Code that directly handles stored XML-shaped JSON must use `xml-types.ts`, or
+request `{ representation: 'xml' }` from `generateTypeScript`. Its legacy scalar,
+singleton/array, and XML metadata forms remain available. The storage format,
+IR shape, importer, and serializer are unchanged by this UI contract.
 
 Use TypeScript `strict: true` and
 [`exactOptionalPropertyTypes: true`](https://www.typescriptlang.org/tsconfig/exactOptionalPropertyTypes.html).
@@ -342,8 +412,10 @@ or mixed content still need runtime validation. Unconstrained content uses
 `unknown`; retained inline complex types use their generated definitions.
 Unsupported XSD rules remain documented with `@runtimeValidation` comments.
 TypeScript's structural compatibility also permits extra fields on existing
-variables in cases where JSON Schema rejects them. Keep JSON Schema validation
-at the data boundary and XSD 1.1 validation for complete XML acceptance.
+variables in cases where JSON Schema rejects them. The adapter is a converter,
+not a complete validator. Validate UI values against `ui-json-schema.json`,
+converted logical entities against `json-schema.json`, and complete exports
+against XSD 1.1 when XML acceptance is required.
 
 ## JSON Representation Baseline
 
