@@ -1584,7 +1584,11 @@ Aircraft Product (PROD-1)
    └─ HY breakdown
 ```
 
-The quantity follows `×`. The reference designator is in square brackets.
+The quantity follows `×`. Reference designators appear in square brackets,
+for example `[L, R]`. Usage nodes and unresolved child references expose all
+designator labels in `referenceDesignators`. The existing `referenceDesignator`
+field contains the labels joined with commas, so the text and browser renderers
+display all of them.
 
 ### What the example reads from the IR
 
@@ -1676,9 +1680,17 @@ The loader handles common data conditions explicitly:
 
 - It accepts an object or array at every repeating XML location.
 - It resolves a breakdown element revision by `uidRef` first.
-- It can also resolve a natural `beId` plus `beRevId` reference.
+- It can also resolve a natural `beId` plus `beRevId` reference against any of
+  the element's identifiers, including identifiers stored in a singleton array.
+  Identifier qualifiers and the revision identifier remain part of the match.
 - It labels a missing target as unresolved instead of silently dropping it.
-- It marks a repeated usage path as a cycle and stops recursion.
+- It marks a repeated usage path as a cycle and stops recursion. Disconnected
+  cyclic components remain visible alongside ordinary roots, and shared children
+  appear under each parent.
+- It displays explicitly nil revisions, usages, and child structures as `[nil]`
+  nodes, with `nil: true` and their XML attributes retained in `attributes`.
+  They do not produce missing-reference warnings. `xsi:nil="false"` or `"0"`
+  retains normal content display.
 - It excludes soft-deleted rows because it reads through `DBAdapter`.
 - It sorts product, variant, element, and revision rows for stable output.
 
