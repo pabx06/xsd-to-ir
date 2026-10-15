@@ -967,6 +967,11 @@ type, JSON type, and supported facets such as length, range, and pattern.
 
 ### `valueTypes`
 
+For generated TypeScript entity and nested value types, including anonymous
+definitions, see [TypeScript For Project UIs](developer-guide.md#typescript-for-project-uis).
+Generate each project's issue into its own module; the generator retains that
+issue's decoded JSON shapes and uses the exact IR keys in its `ValueTypes` map.
+
 This map preserves the XSD shape of complex values stored inside JSON-backed
 columns. Named complex types use their type name as the key. Anonymous types
 use a stable structural path, so callers must follow a column or nested

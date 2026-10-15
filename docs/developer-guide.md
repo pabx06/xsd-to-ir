@@ -15,6 +15,7 @@ and uses that IR to generate:
 
 - MariaDB DDL in `schema.sql`
 - JSON Schema in `json-schema.json`
+- TypeScript entity and nested value types in `types.ts`
 - an IR dump in `ir.json`
 - XML import/export behavior for S3000L messages
 
@@ -31,7 +32,7 @@ Install dependencies:
 npm ci
 ```
 
-Generate IR, MariaDB DDL, and JSON Schema from the bundled S3000L schema:
+Generate IR, MariaDB DDL, JSON Schema, and TypeScript from the bundled S3000L schema:
 
 ```bash
 node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose
@@ -236,6 +237,8 @@ The CLI writes these files to the selected `--out` directory:
 - `ir.json`: serialized IR for introspection and downstream tooling
 - `schema.sql`: MariaDB DDL
 - `json-schema.json`: JSON Schema draft-07 output
+- `types.ts`: a standalone TypeScript module for this schema / issue; use
+  `--no-typescript` to skip it
 
 `output/` is ignored by git. Regenerate it when the XSD or generator behavior
 changes.
@@ -249,6 +252,98 @@ String facets whose original spelling cannot be recovered are annotated with
 `x-xsd-unsupported`. Attribute text stays a string. Particle nesting in
 `ir.valueTypes` preserves choice-dependent requiredness: a required member of
 one choice branch is required only when that branch is selected.
+
+## TypeScript For Project UIs
+
+The S3000L issue belongs to the project. Generate one module per issue and
+select that module in the UI code for that project. Entity objects keep the
+issue's own field names; there is no common normalized model or per-entity
+version discriminator.
+
+```bash
+node index.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --out output/1.1
+node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output/2.0
+```
+
+Both directories contain `types.ts` alongside that issue's IR, JSON Schema,
+and SQL. A future issue uses the same command with its XSD and a separate
+output directory. The TypeScript generator has no issue-specific shape logic.
+
+The public JavaScript API also accepts a live IR or a parsed `ir.json` snapshot:
+
+```javascript
+const fs = require('node:fs');
+const { generateTypeScript } = require('./lib');
+
+fs.writeFileSync('types.ts', generateTypeScript(ir));
+```
+
+Generated modules export `Entity<Name>` and `Value<Name>` aliases, plus
+`Enum<Name>` and `Simple<Name>` scalar aliases. `Entities`, `ValueTypes`,
+`Enums`, and `SimpleTypes` provide lookup by the exact IR registry key. These
+lookup maps are useful for anonymous `valueTypeRef` paths and names which need
+escaping. Colliding alias names receive deterministic suffixes.
+
+```typescript
+import type { Entities as Issue11, ValueTypes as Values11 } from './output/1.1/types';
+import type { Entities as Issue20 } from './output/2.0/types';
+
+type Product11 = Issue11['product'];
+type Product20 = Issue20['product'];
+type ProductIdentifier11 = Values11['productIdentifier'];
+type Breakdowns11 = NonNullable<Product11['bkdns']>;
+
+const draft: Product11 = {
+  uid: 'prod1',
+  crud: 'I',
+  prodId: { id: '001234' },
+  bkdns: { bkdn: { '@_uid': 'bkdn1', bkdnType: { code: 'SY' } } },
+};
+
+// Each issue retains its own names and nested shapes.
+const oldName: Product11['name'] = { descr: 'Legacy project' };
+const newName: Product20['prodName'] = { name: 'New project' };
+```
+
+These are the logical entity objects described by generated JSON Schema.
+Inline fields describe **decoded JSON cell contents**, including nested
+`@_` attributes and `#text` wrappers. They are not raw database row types:
+`DBAdapter.queryEntity()` returns SQL column names and stored cell values;
+the application must decode JSON columns, map entity property names, and load
+relations as needed. Generating types performs none of that work. A type
+assertion on `JSON.parse()` is also not runtime validation.
+
+The generator reuses JSON Schema's interpretation of the IR. It retains
+required/optional fields, enum and fixed literals, nil objects and their
+attributes, inherited and recursive definitions, optional group correlations,
+choice branches, and supported exactly-one/grouped presence assertions. Both
+singleton and nonempty array forms remain available for repeatable inline
+values; a minimum greater than one requires an array. Tuple bounds through
+20 are represented; larger upper bounds and the portion of a minimum beyond
+20 remain runtime checks. Entity relations follow the existing entity JSON
+Schema rules, which are distinct from inline occurrence rules.
+
+Existing stored string fields can still contain legacy numbers/booleans, so
+the corresponding types retain those alternatives, just as JSON Schema does.
+Current imports preserve `001234` as a string. Exact numeric lexical strings
+also remain strings. No data representation or import/export behavior changes
+when generating these modules.
+
+Use TypeScript `strict: true` and
+[`exactOptionalPropertyTypes: true`](https://www.typescriptlang.org/tsconfig/exactOptionalPropertyTypes.html).
+The latter keeps absent choice fields (`?: never`) distinct from fields
+explicitly set to `undefined`. Compiler tests use TypeScript 5.9.3 and include
+both bundled issues together, real assertion examples, and synthetic choices,
+inheritance, recursion, cardinalities, and naming collisions.
+
+TypeScript supplies coding assistance, not full XSD validation. String
+patterns, numeric ranges/precision, XML order, arbitrary XPath, and wildcard
+or mixed content still need runtime validation. Unconstrained content uses
+`unknown`; retained inline complex types use their generated definitions.
+Unsupported XSD rules remain documented with `@runtimeValidation` comments.
+TypeScript's structural compatibility also permits extra fields on existing
+variables in cases where JSON Schema rejects them. Keep JSON Schema validation
+at the data boundary and XSD 1.1 validation for complete XML acceptance.
 
 ## JSON Representation Baseline
 
@@ -575,8 +670,10 @@ import/export with in-memory rows. The oracle checks the independently authored
 input fragments; it does not certify complete S3000L messages, every assertion
 path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
 
-Next, confirm which unsupported rules remain explicitly XSD-only, then define
-the versioned public JSON contract before implementing the TypeScript generator.
+The TypeScript generator consumes the same assertion-aware value schemas.
+Supported presence rules become unions with excluded fields; arbitrary XPath
+remains explicitly a runtime/XSD concern. Issue-specific UI modules are
+described in [TypeScript For Project UIs](#typescript-for-project-uis).
 
 ## MariaDB Notes
 

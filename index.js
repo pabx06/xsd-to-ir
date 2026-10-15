@@ -13,12 +13,14 @@
  *   --no-sql               Skip SQL DDL generation
  *   --no-json              Skip JSON Schema generation
  *   --no-ir                Skip IR JSON dump
+ *   --no-typescript        Skip TypeScript declarations
  *   --pretty               Pretty-print all JSON output (default: true)
  *
  * Outputs (in <out>/):
  *   ir.json                The Intermediate Representation
  *   schema.sql             MariaDB CREATE TABLE DDL
  *   json-schema.json       JSON Schema draft-07 validator
+ *   types.ts               TypeScript types for this schema / issue
  */
 
 const fs = require('fs');
@@ -28,6 +30,7 @@ const { parseXSD } = require('./src/xsd-parser');
 const { IRBuilder } = require('./src/ir-builder');
 const { generateSQL } = require('./src/sql-generator');
 const { generateJSONSchema } = require('./src/json-schema-generator');
+const { generateTypeScript } = require('./src/typescript-generator');
 
 // ─── arg parsing (no external dep) ───────────────────────────────────────────
 
@@ -41,13 +44,14 @@ function parseArgs(argv) {
     sql: true,
     json: true,
     ir: true,
+    typescript: true,
     pretty: true,
     verbose: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === '--out') { opts.out = args[++i]; } else if (a === '--root') { opts.root = args[++i]; } else if (a === '--schema-id') { opts.schemaId = args[++i]; } else if (a === '--no-sql') { opts.sql = false; } else if (a === '--no-json') { opts.json = false; } else if (a === '--no-ir') { opts.ir = false; } else if (a === '--no-pretty') { opts.pretty = false; } else if (a === '--verbose') { opts.verbose = true; } else if (!a.startsWith('--')) { opts.xsdFile = a; }
+    if (a === '--out') { opts.out = args[++i]; } else if (a === '--root') { opts.root = args[++i]; } else if (a === '--schema-id') { opts.schemaId = args[++i]; } else if (a === '--no-sql') { opts.sql = false; } else if (a === '--no-json') { opts.json = false; } else if (a === '--no-ir') { opts.ir = false; } else if (a === '--no-typescript') { opts.typescript = false; } else if (a === '--no-pretty') { opts.pretty = false; } else if (a === '--verbose') { opts.verbose = true; } else if (!a.startsWith('--')) { opts.xsdFile = a; }
   }
   return opts;
 }
@@ -148,6 +152,12 @@ function main() {
     const jsonSchemaPath = path.join(outDir, 'json-schema.json');
     fs.writeFileSync(jsonSchemaPath, JSON.stringify(jsonSchema, null, indent), 'utf8');
     console.log(`✅  JSON Schema written → ${jsonSchemaPath}`);
+  }
+
+  if (opts.typescript) {
+    const typesPath = path.join(outDir, 'types.ts');
+    fs.writeFileSync(typesPath, generateTypeScript(ir), 'utf8');
+    console.log(`✅  TypeScript written  → ${typesPath}`);
   }
 
   console.log('\n🎉  Done.\n');

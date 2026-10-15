@@ -4,6 +4,7 @@ const { validateXML, validateXMLSync } = require('./src/xml-validator');
 const { DBAdapter } = require('./src/db-adapter');
 const { IRBuilder } = require('./src/ir-builder');
 const { parseXSD } = require('./src/xsd-parser');
+const { generateTypeScript } = require('./src/typescript-generator');
 const { ASSETS_DIRECTORY, getAssetPath, getS30001SchemaPath } = require('./assets');
 
 module.exports = {
@@ -14,5 +15,6 @@ module.exports = {
   validateXMLSync,
   DBAdapter,
   IRBuilder,
+  generateTypeScript,
   ASSETS_DIRECTORY, getAssetPath, getS30001SchemaPath, parseXSD,
 };
