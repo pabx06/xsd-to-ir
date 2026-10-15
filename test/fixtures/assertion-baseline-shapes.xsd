@@ -30,7 +30,22 @@
           <xs:assert test="(@uidRef and not(id)) or (not(@uidRef) and id)"/>
         </xs:complexType>
       </xs:element>
-      <xs:element name="derived" type="DerivedReference" minOccurs="0"/>
+      <xs:element name="derived" type="DerivedReference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="derivedLocal" type="LocalReference" minOccurs="0"/>
+      <xs:element name="restricted" type="RestrictedReference" minOccurs="0"/>
+      <xs:element name="derivedNested" type="DerivedNested" minOccurs="0"/>
+      <xs:element name="nestedDerived" type="NestedDerived" minOccurs="0"/>
+      <xs:element name="restrictedNested" type="RestrictedNested" minOccurs="0"/>
+      <xs:element name="anonymousDerived" minOccurs="0">
+        <xs:complexType><xs:complexContent><xs:extension base="Reference">
+          <xs:attribute name="left" type="xs:string"/>
+          <xs:attribute name="right" type="xs:string"/>
+          <xs:assert test="(@left and not(@right)) or (not(@left) and @right)"/>
+        </xs:extension></xs:complexContent></xs:complexType>
+      </xs:element>
+      <xs:element name="textDerived" type="DerivedTextReference" minOccurs="0"/>
+      <xs:element name="textRestricted" type="RestrictedTextReference" minOccurs="0"/>
+      <xs:element name="derivedComparison" type="DerivedWindow" minOccurs="0"/>
       <xs:element name="nested" type="Nested" minOccurs="0"/>
       <xs:element name="depthTwo" type="DepthTwo" minOccurs="0"/>
       <xs:element name="deep" type="Deep" minOccurs="0"/>
@@ -67,6 +82,62 @@
     <xs:complexContent><xs:extension base="Reference">
       <xs:sequence><xs:element name="label" type="xs:string" minOccurs="0"/></xs:sequence>
     </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LocalReference">
+    <xs:complexContent><xs:extension base="DerivedReference">
+      <xs:attribute name="left" type="xs:string"/>
+      <xs:attribute name="right" type="xs:string"/>
+      <xs:assert test="(@left and not(@right)) or (not(@left) and @right)"/>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedReference">
+    <xs:complexContent><xs:restriction base="LocalReference">
+      <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0" nillable="true"/></xs:sequence>
+      <xs:assert test="(@left and not(@uidRef)) or (not(@left) and @uidRef)"/>
+    </xs:restriction></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="DerivedNested">
+    <xs:complexContent><xs:extension base="Nested">
+      <xs:sequence><xs:element name="label" type="xs:string" minOccurs="0"/></xs:sequence>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NestedDerived">
+    <xs:sequence>
+      <xs:element name="ref" type="DerivedReference" maxOccurs="unbounded"/>
+      <xs:element name="localRef" type="LocalReference" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OptionalNested">
+    <xs:complexContent><xs:extension base="Reference">
+      <xs:sequence><xs:element name="ref" type="Reference" minOccurs="0"/></xs:sequence>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedNested">
+    <xs:complexContent><xs:restriction base="OptionalNested">
+      <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0" nillable="true"/></xs:sequence>
+    </xs:restriction></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="TextReference">
+    <xs:simpleContent><xs:extension base="xs:string">
+      <xs:attribute name="uidRef" type="xs:string"/>
+      <xs:attribute name="code" type="xs:string"/>
+      <xs:assert test="(@uidRef and not(@code)) or (not(@uidRef) and @code)"/>
+    </xs:extension></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="DerivedTextReference">
+    <xs:simpleContent><xs:extension base="TextReference">
+      <xs:attribute name="left" type="xs:string"/>
+      <xs:attribute name="right" type="xs:string"/>
+      <xs:assert test="(@left and not(@right)) or (not(@left) and @right)"/>
+    </xs:extension></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedTextReference">
+    <xs:simpleContent><xs:restriction base="DerivedTextReference">
+      <xs:assert test="(@left and not(@uidRef)) or (not(@left) and @uidRef)"/>
+    </xs:restriction></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="DerivedWindow">
+    <xs:complexContent><xs:extension base="Window"/></xs:complexContent>
   </xs:complexType>
   <xs:complexType name="Nested">
     <xs:sequence><xs:element name="ref" type="Reference" maxOccurs="unbounded"/></xs:sequence>

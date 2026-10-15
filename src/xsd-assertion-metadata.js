@@ -1,3 +1,5 @@
+const { effectiveAssertionRules, effectiveValueContent } = require('./value-type-inheritance');
+
 const MAX_ASSERTION_PATH_DEPTH = 2;
 
 function extractAssertionSets(schema) {
@@ -5,9 +7,11 @@ function extractAssertionSets(schema) {
 
   for (const ct of (schema.complexType || [])) {
     const typeName = ct['@_name'];
-    if (!typeName || !ct.assert) continue;
+    const container = (ct.complexContent || ct.simpleContent || [])[0];
+    const body = (container?.extension || container?.restriction || [])[0] || ct;
+    if (!typeName || !body.assert) continue;
 
-    const asserts = Array.isArray(ct.assert) ? ct.assert : [ct.assert];
+    const asserts = Array.isArray(body.assert) ? body.assert : [body.assert];
     const rules = asserts
       .map((assertNode, index) => {
         const test = assertNode['@_test'];
@@ -67,7 +71,7 @@ function assertionChildPaths({
 }) {
   const paths = [];
 
-  for (const child of childElements(valueTypes.get(typeName)?.content)) {
+  for (const child of childElements(effectiveValueContent(valueTypes, typeName))) {
     const childType = child.type.valueTypeRef;
     if (!childType) continue;
 
@@ -80,12 +84,13 @@ function assertionChildPaths({
     };
     const childPath = [...prefix, step];
 
-    if (assertions.has(childType)) {
+    const rules = effectiveAssertionRules({ valueTypes, assertions }, childType);
+    if (rules.length) {
       paths.push({
         path: childPath,
         typeName: childType,
         direct: childPath.length === 1,
-        ruleIds: assertions.get(childType).rules.map((rule) => rule.id),
+        ruleIds: rules.map((rule) => rule.id),
       });
     }
 

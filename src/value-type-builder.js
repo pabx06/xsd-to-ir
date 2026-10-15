@@ -60,7 +60,7 @@ class ValueTypeBuilder {
     if (!node) return null;
     const id = node['@_name'] || this.anonymousNames.get(node) || name;
     if (this.types.has(id)) return id;
-    if (node.assert && !this.assertions.has(id)) {
+    if (!this.assertions.has(id)) {
       const sets = extractAssertionSets({ complexType: [{ ...node, '@_name': id }] });
       if (sets.has(id)) this.assertions.set(id, sets.get(id));
     }

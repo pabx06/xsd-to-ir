@@ -55,6 +55,9 @@ for (const item of shapeCases) {
 for (const id of [
   'empty-element', 'empty-attribute', 'nil-element', 'repeat-empty-values',
   'anonymous-repeated-valid', 'anonymous-nested-repeated-valid', 'anonymous-wrapper-valid',
+  'derived-repeated-valid', 'derived-local-valid', 'restricted-valid',
+  'derived-nested-valid', 'nested-derived-valid', 'anonymous-derived-valid',
+  'text-derived-valid', 'text-restricted-valid',
 ]) {
   test(`${id}: XML import, stored JSON, export and reimport retain node presence`, async () => {
     const item = shapeCases.find((candidate) => candidate.id === id);

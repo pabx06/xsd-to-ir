@@ -984,8 +984,13 @@ references.
 
 ### `assertions` and `assertionPaths`
 
-`assertions` inventories named complex types and retained anonymous value types
-that contain `xs:assert`.
+`assertions` inventories local `xs:assert` declarations on named complex types
+and retained anonymous value types, including declarations inside
+`complexContent` and `simpleContent` extension/restriction bodies. Each value
+type's `assertionRefs` identifies its local declarations. Runtime validation and
+JSON Schema follow `baseTypeRef` to apply inherited rules before local rules,
+for both extension and restriction. Original rule IDs are retained without
+duplicating inherited rules in the inventory.
 Recognized exactly-one reference rules are marked as enforceable. Issue 1.1's
 grouped UID-or-identifier pattern uses `kind: "exactlyOneGroup"`: `groups` holds
 arrays of field descriptors, and `fields` retains the flattened descriptors.
@@ -1004,8 +1009,11 @@ presence rules. Runtime assertion checks do not replace full XSD validation.
 columns. Import/export resolve assertions through `valueTypeRef`, falling back
 to `xsdType` for older IRs. Paths follow retained value definitions, including
 anonymous wrappers and anonymous asserted children; their roots and targets may
-use stable anonymous type IDs. Regenerate older IR artifacts to obtain these
-additional paths; the metadata structure is unchanged.
+use stable anonymous type IDs. Paths include children inherited by extension and
+children with inherited assertions. Restriction uses its replacement content
+particle, so removed children are excluded. Regenerate older IR and JSON Schema
+artifacts to obtain derivation-body rules and these additional paths; the
+metadata structure is unchanged.
 
 The runtime assertion validator checks each root-array occurrence and
 follows direct paths and paths up to two elements deep. Array diagnostics prefix

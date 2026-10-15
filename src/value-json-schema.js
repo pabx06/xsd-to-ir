@@ -1,5 +1,6 @@
 const { XMLParser } = require('fast-xml-parser');
 const { numericSchema, numericChoices, numericValue } = require('./numeric-value-schema');
+const { effectiveAssertionRules, effectiveValueContent } = require('./value-type-inheritance');
 
 // Match legacy XMLDeserializer coercion for compatibility with stored string fields.
 const textParser = new XMLParser({ trimValues: true });
@@ -77,11 +78,7 @@ class ValueJSONSchema {
       ...type,
       attributes: [...attributes.values()],
       text: type.text || base?.text || null,
-      content: type.derivation === 'extension' && base?.content
-        ? {
-          kind: 'sequence', minOccurs: 1, maxOccurs: 1, children: [base.content, type.content].filter(Boolean),
-        }
-        : type.content,
+      content: effectiveValueContent(this.types, name),
       assertionRefs: [...new Set([...(base?.assertionRefs || []), ...type.assertionRefs])],
       unsupported: [...new Set([...(base?.unsupported || []), ...type.unsupported])],
     };
@@ -110,8 +107,7 @@ class ValueJSONSchema {
       object.properties['#text'] = this.scalar(type.text, false, warnings);
       object.required = [...(object.required || []), '#text'];
     } else if (type.mixed) object.properties['#text'] = {};
-    const rules = [...this.ir.assertions?.values() || []].flatMap((set) => set.rules)
-      .filter((rule) => type.assertionRefs.includes(rule.id));
+    const rules = effectiveAssertionRules(this.ir, name);
     for (const rule of rules) {
       if (rule.kind === 'exactlyOneGroup') {
         object.allOf ||= [];

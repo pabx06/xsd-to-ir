@@ -6,6 +6,7 @@
  *   exactly one of @uidRef, natural-key element, @uriRef must be present,
  *   or exactly one group of alternative fields must have a present member.
  */
+const { effectiveAssertionRules } = require('./value-type-inheritance');
 
 class AssertionValidationError extends Error {
   constructor(message, errors = []) {
@@ -17,8 +18,7 @@ class AssertionValidationError extends Error {
 
 function validateNodeAssertions(ir, typeName, node, opts = {}) {
   const shouldThrow = opts.throw === true;
-  const assertionSet = _assertionSet(ir, typeName);
-  const rules = assertionSet?.rules || [];
+  const rules = effectiveAssertionRules(ir, typeName);
   const errors = [];
   const skipped = [];
 
@@ -112,12 +112,6 @@ function validateValueAssertions(ir, typeName, node, opts = {}) {
     );
   }
   return result;
-}
-
-function _assertionSet(ir, typeName) {
-  if (!ir || !ir.assertions) return null;
-  if (ir.assertions instanceof Map) return ir.assertions.get(typeName) || null;
-  return ir.assertions[typeName] || null;
 }
 
 function _assertionPathSet(ir, typeName) {
