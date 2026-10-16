@@ -276,6 +276,30 @@ Both directories contain the clean `types.ts` module and its matching
 with its XSD and a separate output directory. Generation and conversion use
 the selected issue's IR, without issue-specific shape branches.
 
+Run the [Issue 1.1 UI showcase](../examples/issue-1.1-ui-showcase/showcase.ts)
+after installing the repository dependencies, including development dependencies:
+
+```bash
+npm run example:ui:1_1
+```
+
+The runner generates `types.ts` and `ui-json-schema.json` beside the example,
+compiles it with strict TypeScript settings, and validates the example values.
+It demonstrates nested breakdown types, reference choices, explicit nil, and
+database-row conversion with preserved XML metadata. The included
+`api-response.json` also demonstrates a response with both parsed JSON objects
+and JSON strings, plus a PATCH containing only the changed column.
+
+Open the example and generated `types.ts` in your IDE to explore the types.
+The generated files, `product.json`, and compiled `dist/` directory are ignored
+by Git and recreated by the runner. No database or HTTP server is required.
+
+These examples demonstrate types and value conversion. The rename helper uses
+`crud: 'U'` under the explicit assumption that the recipient already knows the
+product. A real backend must determine CRUD transitions from record history and
+apply validation, concurrency checks, timestamps, and export tracking. The demo
+does not implement that save workflow or assign message sequence numbers.
+
 The public JavaScript API also accepts a live IR or a parsed `ir.json` snapshot:
 
 ```javascript

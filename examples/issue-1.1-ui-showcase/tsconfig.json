@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "types": [],
+    "noEmitOnError": true,
+    "outDir": "./dist"
+  },
+  "files": [
+    "./showcase.ts"
+  ]
+}

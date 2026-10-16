@@ -36,6 +36,7 @@
     "example": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --root product",
     "example:s3000l": "node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose",
     "example:product-breakdown:1_1": "node examples/issue-1.1-product-breakdown.js",
+    "example:ui:1_1": "node examples/issue-1.1-ui-showcase/run-demo.cjs",
     "visualize:1_1": "node scripts/visualize.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --open"
   },
   "keywords": [

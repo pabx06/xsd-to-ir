@@ -1,0 +1,25 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "_created_at": "2026-10-14T08:02:47.081Z",
+      "_updated_at": "2026-10-14T08:02:47.081Z",
+      "_deleted_at": null,
+      "_msg_seq": 0,
+      "prod_id": { "id": "YB" },
+      "name": "{\"descr\":\"Yeti Beti\"}",
+      "bkdns": "{\"bkdn\":{\"bkdnType\":{\"code\":\"SY\"},\"@_uid\":\"bkdn15194484750679569719022409353614305149\"}}",
+      "org_infos": null,
+      "docs": null,
+      "rmks": null,
+      "uid": "prod218040079431019224539821444141973604487",
+      "crud": "I"
+    }
+  ],
+  "metadata": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1,
+    "pageCount": 1
+  }
+}
