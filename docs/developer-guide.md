@@ -15,6 +15,7 @@ and uses that IR to generate:
 
 - MariaDB DDL in `schema.sql`
 - JSON Schema in `json-schema.json`
+- TypeScript entity and nested value types in `types.ts`
 - an IR dump in `ir.json`
 - XML import/export behavior for S3000L messages
 
@@ -31,7 +32,7 @@ Install dependencies:
 npm ci
 ```
 
-Generate IR, MariaDB DDL, and JSON Schema from the bundled S3000L schema:
+Generate IR, MariaDB DDL, JSON Schema, and TypeScript from the bundled S3000L schema:
 
 ```bash
 node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output --verbose
@@ -73,8 +74,11 @@ node scripts/visualize.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --open
 The viewer defaults to `127.0.0.1:4173` (use `--port 0` for an available
 ephemeral port). It provides the S3000L primary/supporting-data hierarchy, a
 searchable entity list, a focused one- or two-hop relationship graph, and
-field-level XML/SQL/JSON metadata. It displays schema metadata, not persisted
-project rows. The `visualize:1_1` npm script launches the same bundled viewer.
+field-level XML/SQL/JSON metadata. JSON-backed columns expose their retained
+complex-type structure through lazy expanders, including choices, occurrence,
+nillability, constraints, documentation, and nested type references. It
+displays schema metadata, not persisted project rows. The `visualize:1_1` npm
+script launches the same bundled viewer.
 
 Validate a custom XML instance against the S3000L XSD:
 
@@ -104,7 +108,7 @@ well designed.
 |---|---|---|---|
 | XML well-formedness | `fast-xml-parser` through `src/xml-validator.js` | XML syntax, one root element, closed tags | XSD types, order, occurrence rules, enums, `xs:assert` |
 | Runtime lightweight validation | `validateXML()` / `validateXMLSync()` in `src/xml-validator.js` | Well-formedness, root `<lsaDataset>`, required envelope elements, optional `libxmljs2` XSD 1.0-style validation when available | Full S3000L XSD 1.1; `xs:assert` is not guaranteed here |
-| App-level assertion subset | `src/assertion-validator.js` during import/export | Extracted S3000L exactly-one reference assertions for persisted inline values, direct nested asserted paths, and bounded two-step recursive asserted paths | Arbitrary XPath, unbounded recursion, full XSD 1.1 schema semantics |
+| App-level assertion subset | `src/assertion-validator.js` during import/export | Extracted exactly-one and grouped reference assertions throughout persisted inline values, following retained type links through arrays, anonymous/inherited types, and recursion | Arbitrary XPath, full XSD 1.1 schema semantics; older IRs without `valueTypes` retain finite path coverage |
 | Real XSD 1.1 acceptance validation | `npm run test:xsd11`, `npm run test:xsd11:invalid`, `npm run test:xsd11:assert-invalid`, or `node scripts/validate-xsd11.js --xsd ... --xml ...` | XML against the real S3000L XSD using Java Xerces XSD 1.1, including order, occurrence, datatypes, enums, and `xs:assert` | It is an acceptance/CI gate by default, not automatically called by every runtime import |
 
 Current policy: Java-backed XSD 1.1 validation is the source of truth for
@@ -138,6 +142,12 @@ const schema = parseXSD('s3000l/2_0/s3000l_2-0_lsaDataset.xsd');
 const ir = new IRBuilder(schema).build();
 ```
 
+Complex values stored in JSON columns retain their XSD shape in
+`ir.valueTypes`. Resolve a column through its exact `valueTypeRef`; anonymous
+definitions use stable path keys, so `column.xsdType` is not a reliable lookup
+key. Nested `TypeUse.valueTypeRef` values use the same registry. This metadata
+does not add tables or change the generated MariaDB layout.
+
 Generate MariaDB DDL and JSON Schema:
 
 ```javascript
@@ -150,6 +160,13 @@ const jsonSchema = generateJSONSchema(ir, {
   schemaId: 'https://example.com/s3000l-generated-schema.json',
 });
 ```
+
+The draft-07 output keeps entity schemas in the existing `$defs` namespace and
+adds JSON-backed complex values under `definitions`. Value-type `$ref` values
+use `#/definitions/<key>` with JSON Pointer escaping (`~` becomes `~0`, `/`
+becomes `~1`). The generated shapes preserve representable choices and
+assertions and annotate unsupported XSD semantics; use real XSD 1.1 validation
+for complete instance acceptance.
 
 Run lightweight runtime XML validation:
 
@@ -219,10 +236,540 @@ The CLI writes these files to the selected `--out` directory:
 
 - `ir.json`: serialized IR for introspection and downstream tooling
 - `schema.sql`: MariaDB DDL
-- `json-schema.json`: JSON Schema draft-07 output
+- `json-schema.json`: JSON Schema for the existing XML-shaped logical entities
+- `ui-json-schema.json`: JSON Schema for clean editable UI entities
+- `types.ts`: clean UI TypeScript types for this schema / issue
+- `xml-types.ts`: TypeScript types for the existing XML-shaped logical entities
+
+Use `--no-typescript` to skip both TypeScript modules, or `--no-json` to skip
+both JSON Schema documents. The schemas have distinct IDs so they can share
+a validator registry; customize them with `--schema-id` and `--ui-schema-id`.
 
 `output/` is ignored by git. Regenerate it when the XSD or generator behavior
 changes.
+
+JSON stored in an object-valued `LONGTEXT` column follows the XML parser form:
+attributes are `@_<name>`, element text is `#text`, and repeatable elements
+accept either a singleton value or an array. Older imports can contain coerced
+numeric and boolean element text even for XSD string types. Value schemas accept
+those stored scalars as well as strings; string enums retain their parsed equivalents.
+String facets whose original spelling cannot be recovered are annotated with
+`x-xsd-unsupported`. Attribute text stays a string. Particle nesting in
+`ir.valueTypes` preserves choice-dependent requiredness: a required member of
+one choice branch is required only when that branch is selected.
+
+## TypeScript For Project UIs
+
+The S3000L issue belongs to the project. Generate one module per issue and
+select that module in the UI code for that project. Entity objects keep the
+issue's own field names; there is no common normalized model or per-entity
+version discriminator.
+
+```bash
+node index.js s3000l/1_1/s3000l_1-1_lsa_dataset.xsd --out output/1.1
+node index.js s3000l/2_0/s3000l_2-0_lsaDataset.xsd --out output/2.0
+```
+
+Both directories contain the clean `types.ts` module and its matching
+`ui-json-schema.json`. The XML representation remains available in
+`xml-types.ts` and `json-schema.json`. A future issue uses the same command
+with its XSD and a separate output directory. Generation and conversion use
+the selected issue's IR, without issue-specific shape branches.
+
+Run the [Issue 1.1 UI showcase](../examples/issue-1.1-ui-showcase/showcase.ts)
+after installing the repository dependencies, including development dependencies:
+
+```bash
+npm run example:ui:1_1
+```
+
+The runner generates `types.ts` and `ui-json-schema.json` beside the example,
+compiles it with strict TypeScript settings, and validates the example values.
+It demonstrates nested breakdown types, reference choices, explicit nil, and
+database-row conversion with preserved XML metadata. The included
+`api-response.json` also demonstrates a response with both parsed JSON objects
+and JSON strings, plus a PATCH containing only the changed column.
+
+Open the example and generated `types.ts` in your IDE to explore the types.
+The generated files, `product.json`, and compiled `dist/` directory are ignored
+by Git and recreated by the runner. No database or HTTP server is required.
+
+These examples demonstrate types and value conversion. The rename helper uses
+`crud: 'U'` under the explicit assumption that the recipient already knows the
+product. A real backend must determine CRUD transitions from record history and
+apply validation, concurrency checks, timestamps, and export tracking. The demo
+does not implement that save workflow or assign message sequence numbers.
+
+The public JavaScript API also accepts a live IR or a parsed `ir.json` snapshot:
+
+```javascript
+const fs = require('node:fs');
+const { generateTypeScript } = require('./lib');
+
+fs.writeFileSync('types.ts', generateTypeScript(ir));
+fs.writeFileSync('xml-types.ts', generateTypeScript(ir, { representation: 'xml' }));
+```
+
+Generated modules export `Entity<Name>` and `Value<Name>` aliases, plus
+`Enum<Name>` and `Simple<Name>` scalar aliases. `Entities`, `ValueTypes`,
+`Enums`, and `SimpleTypes` provide lookup by the exact IR registry key. These
+lookup maps are useful for anonymous `valueTypeRef` paths and names which need
+escaping. Colliding alias names receive deterministic suffixes.
+
+```typescript
+import type { Entities as Issue11, ValueTypes as Values11 } from './output/1.1/types';
+import type { Entities as Issue20 } from './output/2.0/types';
+
+type Product11 = Issue11['product'];
+type Product20 = Issue20['product'];
+type ProductIdentifier11 = Values11['productIdentifier'];
+type Breakdowns11 = NonNullable<Product11['bkdns']>;
+
+const draft: Product11 = {
+  uid: 'prod1',
+  crud: 'I',
+  prodId: [{ id: '001234' }],
+  bkdns: { bkdn: [{ uid: 'bkdn1', bkdnType: { code: 'SY' } }] },
+};
+
+// Each issue retains its own names and nested shapes.
+const oldName: Product11['name'] = [{ descr: 'Legacy project' }];
+const newName: Product20['prodName'] = [{ name: 'New project' }];
+
+draft.prodId[0].id = '000567'; // string, including its leading zeroes
+```
+
+The UI contract uses these representation rules:
+
+| Stored XML/JSON concept | UI representation |
+| --- | --- |
+| Repeatable field | Array, including a single occurrence; omit an optional field instead of providing an empty inline array. |
+| XSD string | String; legacy numeric/boolean values are converted to their available text. |
+| XSD boolean | `true` or `false`. |
+| Exact numeric lexical value | String; existing numeric values remain numbers. |
+| XML business attribute such as `@_uidRef` | `uidRef`. |
+| Plain text or a scalar `#text` wrapper | Scalar value. |
+| Simple content with declared business attributes | Object with `value` plus the clean attribute names, such as `{ value: 'Text', lang: 'en' }`. |
+| Explicit `xsi:nil` | `null`; XML attributes stay in the adapter's edit state. |
+| Missing field or SQL `NULL` column | Omitted property. |
+| Namespace declarations and other XML-only attributes | Adapter edit state, outside the UI object. |
+
+If an attribute name collides with an element name, it receives an
+`attribute_` prefix, repeated until unique. Simple-content text uses `textValue`
+when `value` is occupied, with leading underscores if further disambiguation is
+needed. The generator and adapter share these rules.
+
+Generating declarations does not convert data. Use `UIAdapter` at the boundary
+between stored data and UI values:
+
+```javascript
+const { UIAdapter } = require('./lib');
+const adapter = new UIAdapter(ir); // live IR or parsed ir.json
+
+const edit = adapter.decodeRow('product', databaseRow);
+const product = edit.value;       // send this object to the project UI
+product.prodId[0].id = '000567';
+
+// Validate the edited UI object against ui-json-schema.json before saving.
+const columns = adapter.encodeRow('product', product, edit.state);
+await db.update('product', databaseRow.uid, columns);
+```
+
+`decodeRow` parses inline JSON cells and maps SQL column names to entity fields.
+`encodeRow` returns editable SQL columns, with inline values encoded as JSON
+strings. Removing an existing optional property clears its SQL column; setting
+a nillable property to `null` writes explicit XML nil. For repeating fields,
+nil is an array item, for example `name: [null]`. Internal database keys and
+technical columns are excluded. Relations must be loaded and saved separately;
+`encodeRow` rejects relation properties rather than silently ignoring them.
+
+For a logical entity with decoded cells and already loaded relations, use
+`decodeEntity(name, object)` and `encodeEntity(name, value, state)`. For an
+individual named or anonymous inline value type, use `decodeValue(valueTypeRef,
+value)` and `encodeValue(valueTypeRef, value, state)`. Every decode returns
+`{ value, state }`; the encode methods also accept a new UI value without state
+when there is no existing XML metadata to preserve.
+
+Keep the opaque `state` with the same adapter instance for the edit session.
+It is not serializable and must not be reconstructed from untrusted client data.
+Only `value` belongs in the UI/API payload. Application code owns edit-session
+lifetime, concurrent-change detection, validation, and database transactions.
+Unchanged values retain their original XML representation. Edits preserve
+namespace declarations, nil attributes, and scalar wrappers in that state.
+
+Array items are matched by their decoded object identity, UID, or unchanged
+value. UID-based reordering also works after a JSON API round trip. When several
+uid-less items with XML metadata are changed or reordered together, retain the
+decoded item objects while editing. Ambiguous detached edits and metadata-bearing
+moves between fields are rejected; they need explicit application edit handling.
+This prevents metadata from being attached to the wrong item.
+
+Creating a new nil value whose XSD type requires attributes needs an existing
+value carrying those attributes; otherwise encoding rejects it. Mixed content
+and wildcard XML require a dedicated UI adapter. Legacy imports that already lost
+leading zeroes cannot recover those zeroes automatically.
+
+The generator reuses JSON Schema's interpretation of the IR. It retains
+required/optional fields, enum and fixed literals, inherited and recursive
+definitions, optional group correlations, choice branches, and supported
+exactly-one/grouped presence assertions. Repeatable inline values always use
+arrays. Tuple bounds through
+20 are represented; larger upper bounds and the portion of a minimum beyond
+20 remain runtime checks. Entity relations follow the existing entity JSON
+Schema rules, which are distinct from inline occurrence rules.
+
+Code that directly handles stored XML-shaped JSON must use `xml-types.ts`, or
+request `{ representation: 'xml' }` from `generateTypeScript`. Its legacy scalar,
+singleton/array, and XML metadata forms remain available. The storage format,
+IR shape, importer, and serializer are unchanged by this UI contract.
+
+Use TypeScript `strict: true` and
+[`exactOptionalPropertyTypes: true`](https://www.typescriptlang.org/tsconfig/exactOptionalPropertyTypes.html).
+The latter keeps absent choice fields (`?: never`) distinct from fields
+explicitly set to `undefined`. Compiler tests use TypeScript 5.9.3 and include
+both bundled issues together, real assertion examples, and synthetic choices,
+inheritance, recursion, cardinalities, and naming collisions.
+
+TypeScript supplies coding assistance, not full XSD validation. String
+patterns, numeric ranges/precision, XML order, arbitrary XPath, and wildcard
+or mixed content still need runtime validation. Unconstrained content uses
+`unknown`; retained inline complex types use their generated definitions.
+Unsupported XSD rules remain documented with `@runtimeValidation` comments.
+TypeScript's structural compatibility also permits extra fields on existing
+variables in cases where JSON Schema rejects them. The adapter is a converter,
+not a complete validator. Validate UI values against `ui-json-schema.json`,
+converted logical entities against `json-schema.json`, and complete exports
+against XSD 1.1 when XML acceptance is required.
+
+## JSON Representation Baseline
+
+[`test/json-representation-baseline.test.js`](../test/json-representation-baseline.test.js)
+tracks the importer, generated JSON Schema, and XML serializer against the
+original assessment in commit `7df4826`. String preservation, schema support
+for exact numeric strings, and typed XML child ordering are implemented.
+Array/numeric normalization and TypeScript generation remain separate steps.
+
+Run the baseline:
+
+```bash
+npm run test:json-baseline
+```
+
+The original strict command remains available and now runs the same passing assertions:
+
+```bash
+npm run test:json-baseline:strict
+```
+
+The original assessment had 51 tests: 29 passing checks and 22 failing
+desired-behavior assertions across seven defect groups. **All 51 now pass with
+no TODOs**: `JSON-001` through `JSON-007` are ordinary passing tests, included
+in `npm test`. The original failures can still be reproduced at commit `7df4826`.
+
+| Defect | Desired behavior tested | Current result |
+| --- | --- | --- |
+| `JSON-001` | Keep `prodId.id` strings `001234`, `1234.00`, `1234`, `true`, and `false` in both issues. | Fixed: new imports retain strings. |
+| `JSON-002` | Preserve identifier spelling through XML import and record export in both issues. | Fixed: the original spelling survives. |
+| `JSON-003` | Preserve boundary whitespace for `xs:string`. | Fixed: whitespace follows the XSD type and inherited `whiteSpace` facet. |
+| `JSON-004` | Keep the string enum member `01` in JSON and exported XML. | Fixed: `01` remains a string and exports unchanged. |
+| `JSON-005` | Preserve string simple content, including `#text`, alongside attributes. | Fixed: text remains a string with or without attributes. |
+| `JSON-006` | Accept exact numeric values actually produced by import in generated JSON Schema. | Fixed: large integer and precise decimal strings pass the generated value schemas without conversion. |
+| `JSON-007` | Export children in XSD sequence order independently of JSON property insertion order. | Fixed: typed JSON children follow the IR's particle order recursively, including `<id>` before `<class>` in both issues. |
+
+The serializer follows `column.valueTypeRef` and nested type references to order
+known children. XSD parsing preserves declaration order across interleaved
+elements, choices, and groups in the value-type particles. Extension content
+follows its base; restrictions use their own content. Choice branches are
+selected from the present children and required members. This changes exported
+child order without changing stored JSON, scalar
+values, array item order, attributes, or explicit nil values. It works with both
+JSON text columns and already decoded objects.
+
+[`test/xml-value-order.test.js`](../test/xml-value-order.test.js) additionally
+covers inheritance, named groups, overlapping choice branches, optional fields,
+recursive types, and immutable inputs. Unknown keys retain their input slots.
+Values without type metadata retain their property order. Mixed content retains
+its direct child order; typed nested values can still be ordered. Repeated
+compositors with multiple child names present also retain their direct order:
+grouped object properties cannot recover interleaving such as `a, b, a, b` from
+separate `a` and `b` arrays. Absent groups or groups with one present child name
+still allow surrounding siblings to be ordered. Types that reuse the same
+element name at distinct sequence positions retain their direct order for the
+same reason. Full XSD
+validation remains necessary; ordering does not validate scalar facets, wildcard
+placement, or occurrence counts. Regenerate older IR artifacts to obtain the
+corrected particle order.
+
+The representation comparisons establish which choices need coordinated importer,
+JSON Schema, and serializer changes:
+
+| Comparison | XML effect | Reimport / validation effect |
+| --- | --- | --- |
+| Repeatable singleton object vs one-item array | Same XML for `prodId`, nested `bkdn`, and fixture primitive/complex repeats. | Single occurrences reimport as singletons; JSON array shape is not retained. |
+| Multiple repeated values | Same values in the supplied order. | Reimport retains an array and its order. |
+| Empty required array | No XML occurrence. | JSON Schema rejects it; serialization alone does not enforce minimum occurrences. |
+| Empty optional array vs omission | Same XML absence. | The tested nested field's schema currently requires omission instead of `[]`; reimport omits the field. |
+| Array on a non-repeatable field | Serializer still emits one or multiple occurrences. | JSON Schema rejects the array. Array normalization must respect multiplicity. |
+| SQL `NULL` / missing column vs JSON text `"null"` / `{}` | SQL absence omits the element; parsed JSON null and empty object emit an empty element. | Neither spelling is a substitute for explicit `xsi:nil`. |
+| Nested JSON null vs explicit nil object | Null emits an empty element; the nil object emits `xsi:nil` and preserves attributes. | The tested nested null fails JSON Schema; the explicit nil object passes and survives reimport. |
+| Missing vs empty string | An absent child differs from a present empty child. | Empty string remains present when the type allows it. |
+| Boolean `true`/`false` vs numeric `1`/`0` | Different XML spelling with equivalent XSD boolean meaning. | Both forms pass the current schema; canonical booleans would be a deliberate representation change. |
+| Simple-content scalar vs `#text` object | Same XML text without attributes. | Attributes require the object form; tested text and attributes survive reimport. |
+| Plain property vs `@_` property | Child element vs XML attribute. | Removing the prefix changes the XML meaning. Numeric/boolean-looking attribute text is already preserved as strings. |
+| Encoded JSON column vs already decoded object | Same XML. | This is an existing serializer capability, not an automatic API decoding contract. |
+
+Both bundled issue IRs are used for product identifiers, nested breakdowns,
+multiplicity, nil, and element-order tests. A small
+[`json-representation-baseline.xsd`](../test/fixtures/json-representation-baseline.xsd)
+isolates whitespace, enums, simple content, numeric precision, booleans, and
+empty values. Safe numbers and escaped/Unicode text provide positive controls.
+
+The output oracle disables numeric/boolean parsing and whitespace trimming, so it
+cannot hide a string loss by coercing both sides of a comparison. It ignores only
+pretty-print indentation in containers with child elements. Leaf text and simple
+content remain exact. Array checks distinguish XML equivalence from JSON shape
+equality; they do not promise byte-identical original XML.
+
+These tests use the public importer and serializer with in-memory database rows;
+they do not assess MariaDB driver conversions. Issue 1.1 tests inspect exported
+record fragments and explicitly put them back into the matching input fixture
+envelope for reimport. **They do not certify Issue 1.1 whole-document export**:
+the serializer still emits the Issue 2.0 envelope (`REV-005`). The Issue 2.0
+whole-envelope test proves current importer/serializer compatibility, not full
+XSD acceptance. Existing Java/Xerces acceptance checks remain necessary.
+
+The importer reads XML text without automatic number/boolean conversion or
+trimming. It then uses `ir.valueTypes` and scalar column constraints to normalize
+known types: `xs:string` preserves whitespace, `xs:normalizedString` replaces XML
+tabs/newlines with spaces, and `xs:token` collapses XML whitespace. Named
+restrictions inherit or override these rules. NBSP is not XML whitespace. These
+rules follow the [XSD whitespace definitions](https://www.w3.org/TR/xmlschema11-2/#rf-whiteSpace).
+
+[`test/xml-string-preservation.test.js`](../test/xml-string-preservation.test.js)
+also covers direct columns, recursive and inherited inline fields, simple-content
+restrictions, attributes, and scalar simple-content export. Unknown types and
+union values remain lexical because the importer cannot safely select a union
+member without validating its facets. Numeric and boolean inline elements keep
+the existing number/exact-string and boolean/numeric-spelling behavior; attributes
+remain strings. Element-only indentation is discarded, while mixed text remains
+present; preserving mixed-content order is not part of this fix.
+
+Real-schema regressions also cover anonymous `xs:ID` restrictions on record UIDs:
+stored IDs, update/delete keys, and relation references use the same normalized
+value. Envelope dates, times, message IDs, and related-message references retain
+their required whitespace normalization.
+
+Generated JSON Schema still accepts legacy numeric/boolean values in string
+locations, and singleton/array and nil representations are unchanged. This fix
+applies to new imports and does not migrate existing rows. Already-lost identifier
+spelling cannot be reconstructed from a number; repair requires original source
+data. Decide the public JSON contract and migration strategy before tightening
+schemas or normalizing arrays and numbers.
+
+Numeric fields inside JSON columns accept JSON numbers and XML numeric strings.
+`TypeUse.numericKind` distinguishes integer, decimal, float, and double, including
+named restrictions. Integer strings reject decimal points and exponents; decimal
+strings reject exponent notation and floating-point specials; float/double
+strings allow scientific notation and XSD `INF`/`NaN` forms. Boundary XML
+whitespace is accepted for lexical values retained by union types; malformed
+values such as `1 2`, `0x10`, or an empty string are rejected.
+
+Integer/decimal enums and fixed values compare exact values: leading `+`/zeros or
+trailing decimal zeros can spell the same value, while rounded neighbors fail.
+Unrepresentable constants and defaults remain strings. Raw declarations are
+available as `x-xsd-enumeration` and `x-xsd-fixed`.
+
+The number branch retains representable numeric bounds. Numeric keywords such as
+`minimum` do not validate strings in [JSON Schema draft-07](https://json-schema.org/draft-07/draft-handrews-json-schema-validation-01#rfc.section.6.2).
+String branches retain exact bounds and digit facets in `x-xsd-facets`, with an
+`x-xsd-unsupported` warning on the owning definition; **these facets still require
+XSD validation**, so lexical acceptance alone does not prove a value is in range.
+Bounds that would round when serialized by this JavaScript generator are also
+annotated and left to XSD validation. Alternate floating-point enum/fixed
+spellings beyond those represented by the schema carry the same warning.
+[`test/numeric-value-schema.test.js`](../test/numeric-value-schema.test.js) tests
+these rules using standard Ajv without coercion after serializing the schema.
+Import, database storage, and XML serialization are unchanged by this schema fix.
+
+## Assertion Baseline
+
+[`test/assertion-baseline.test.js`](../test/assertion-baseline.test.js) compares
+generated JSON Schema and runtime assertion checks with independently specified
+XSD 1.1 expectations. The initial assessment in `6e29c07` added tests and
+documentation after the JSON-007 fix, without changing production behavior.
+`ASSERT-001` through `ASSERT-006` are now fixed.
+
+```bash
+npm run test:assertion-baseline
+npm run test:assertion-baseline:xsd11
+npm run test:assertion-baseline:strict
+```
+
+The normal baseline now has **495 passing tests and no TODOs**. Strict mode also
+passes. The original assessment had 191 tests, with 145 passing and 46 executable
+TODOs; its failures remain reproducible at `6e29c07`. The normal tests run in
+`npm test`; `npm run ci` also runs the required Java/Xerces oracle.
+
+The oracle validates **140 cases: 46 against actual Issue 1.1/2.0 types and 94
+against a small synthetic schema**. It uses the existing pinned, checksum-verified
+Xerces runner, with its assertion self-test enabled on the first call. Missing
+Java, schema compilation failures, wrong rejection reasons, and unrelated errors
+in assertion-only negative cases fail the oracle command. Acceptance expectations
+are written in the fixtures, not inferred from the current JSON Schema or runtime.
+
+| Inventory | Issue 1.1 | Issue 2.0 |
+| --- | ---: | ---: |
+| Extracted assertion rules | 36 | 200 |
+| Classified `exactlyOne` | 33 | 200 |
+| Classified `exactlyOneGroup` | 3 | 0 |
+| Retained as `rawXPath` | 0 | 0 |
+| Rule IDs referenced by emitted value definitions | 36 | 79 |
+| Rule IDs outside those value definitions | 0 | 121 |
+
+Classification counts are not enforcement coverage. The 121 Issue 2.0 rules
+outside the emitted value definitions remain in `ir.assertions`; this inventory
+does not establish that they should all be emitted, or that they are all missing
+from runtime paths. The tests check that retained value-type assertion references
+resolve and appear in JSON Schema annotations.
+
+| Gap | Desired behavior | Observed result |
+| --- | --- | --- |
+| `ASSERT-001` | Enforce Issue 1.1 grouped presence alternatives in `conditionTypeValueReference`, `documentIssueReference`, and `documentReference`. | Fixed: runtime and JSON Schema enforce exactly one group with any present member. All 12 former TODOs pass, with 40 additional cross-layer grouped checks. |
+| `ASSERT-002` | Test XML node presence independently of its text value. | Fixed: simple and grouped rules use node existence. All 14 former TODOs pass. Empty elements/attributes count as present, and combining an empty alternative with another alternative fails. The real Issue 2.0 empty `organizationRef.uriRef` also passes JSON Schema and an in-memory XML round trip. |
+| `ASSERT-003` | Validate each occurrence of a repeatable asserted value. | Fixed: runtime checks every root-array member and its nested paths. All five former TODOs pass. Diagnostics include the root occurrence index. |
+| `ASSERT-004` | Enforce anonymous assertions using retained value-type metadata, including nested anonymous types. | Fixed: runtime import/export use `valueTypeRef`, and assertion paths follow retained value definitions through anonymous wrappers. All six former TODOs pass. Added controls cover repeated values, empty values, anonymous nesting, serialized metadata, and real Issue 1.1 applicability references. |
+| `ASSERT-005` | Apply inherited base assertions to derived values. | Fixed: runtime and JSON Schema resolve base and local assertions through `baseTypeRef`, including extension, restriction, and inherited child content. All three former TODOs pass. Added controls cover multi-level derivation, anonymous and simple-content derivation, nested values, repeated values, serialized metadata, and inherited raw XPath. |
+| `ASSERT-006` | Reach asserted values beyond two child steps and through recursive values. | Fixed: runtime walks present values through `valueTypes` without a fixed depth or repeated-type cutoff. All six former TODOs pass. Added controls cover mutual recursion, deep anonymous/inherited values, nested arrays, skipped XPath, and real deep references in both issues. Diagnostics identify every array position. |
+
+The real-schema catalog distinguishes assertion validity from complete XSD
+validity. For example, `(docId or dmc or pmc)` tests whether the group has a
+member; the surrounding XSD choice enforces mutual exclusion. Likewise, an empty
+code element exists for XPath but may violate its datatype. These cases must not
+be mistaken for assertion failures. Positive controls include UID and identifier
+alternatives, nil values, empty URI attributes, zero, false, singleton/array
+forms, and valid inherited/recursive values.
+
+The grouped fix introduces assertion kind `exactlyOneGroup`, with `groups` as
+arrays of existing field descriptors. `fields` still contains all descriptors;
+rule IDs and original XPath text stay intact. Runtime and JSON Schema count a
+group as present when any member exists, including empty element text. A fixture
+without an XSD choice proves that two members in the same group remain valid.
+Only the matched binary presence pattern is translated; mismatched complements,
+paths, prefixed names, comparisons, and other XPath expressions stay raw.
+Regenerate existing IR and JSON Schema artifacts to classify the three formerly
+raw Issue 1.1 rules. Older IR artifacts retain their original classifications.
+
+The presence fix uses the same runtime node check for simple and grouped rules.
+Both address the exact `xmlName` from the IR: attributes use `@_`, so `uidRef`
+without that prefix does not stand in for an attribute. Empty text, zero, false,
+and explicit `xsi:nil` elements still supply nodes. Absent properties and empty
+occurrence arrays do not. JSON Schema counts present properties independently of
+text content; field schemas retain their datatype, facet, and occurrence checks.
+Runtime assertion checks alone do not establish full datatype validity.
+
+The real empty-URI case also exposed an incorrect `format: "uri"` mapping.
+[`xs:anyURI` in XSD 1.1](https://www.w3.org/TR/xmlschema11-2/#anyURI)
+permits empty, relative, Unicode, and unescaped text, so the primitive mapping no
+longer imposes a JSON Schema URI format. Explicit restrictions such as `minLength`,
+`pattern`, and enumeration still apply. The oracle covers relative and unescaped
+URI references as well as conflicts involving an empty URI. Regenerate IR and
+JSON Schema artifacts to remove the old URI format constraint. This changes
+constraint metadata, not the IR structure or stored JSON representation.
+
+The anonymous-type fix makes import/export resolve assertions through the column's
+exact `valueTypeRef`, with `xsdType` retained as a fallback for older IRs. Nested
+assertion paths also follow retained value definitions, so both asserted anonymous
+children and named references inside anonymous wrappers are reached. Path sets and
+their targets can now use the existing stable anonymous type IDs. Empty complex
+values stored as `""` no longer bypass assertion checks on export.
+
+This adds 238 assertion paths for Issue 1.1 without losing existing paths; Issue
+2.0's 771 paths are unchanged. For example, an invalid reference inside
+`productName.applic.applicRef` is now rejected. Regenerate existing IR artifacts
+to obtain these paths. The IR structure and stored JSON representation are
+unchanged, and JSON Schema already enforced these retained anonymous assertions.
+Anonymous raw XPath still appears as unsupported metadata and skipped runtime
+rules.
+
+The inheritance fix resolves assertions from the base type first, then local
+rules, for both extension and restriction, following the
+[XSD 1.1 assertion mapping](https://www.w3.org/TR/xmlschema11-1/#Complex_Type_Definition_details).
+The extractor now also retains local `xs:assert` declarations inside
+`complexContent` and `simpleContent` extension/restriction bodies, including
+anonymous types. `ir.assertions` and each value type's `assertionRefs` continue
+to describe local declarations; `baseTypeRef` supplies inherited rules without
+duplicating the inventory. Diagnostics retain the original rule ID and report
+the derived value's type.
+
+Nested assertion paths include children inherited by extension and children
+whose own rules are inherited. Restriction replaces the base content particle,
+so removed children do not leave stale assertion paths. Runtime validation and
+JSON Schema share this inheritance interpretation. Inherited raw XPath remains
+annotated and skipped. The focused
+[`test/assertion-inheritance.test.js`](../test/assertion-inheritance.test.js)
+also checks rule origins, serialized IR, legacy direct-rule evaluation, and
+cycle rejection.
+
+The bundled Issue 1.1/2.0 value definitions currently contain no `baseTypeRef`
+links; their assertion inventories and paths are unchanged by this fix.
+Inheritance regressions use synthetic schemas checked by the XSD oracle.
+Regenerate IR and JSON Schema for schemas using derivation to obtain newly
+captured local rules and inherited nested paths. The IR structure and JSON
+storage representation are unchanged.
+
+Per-occurrence validation also protects Issue 1.1's repeatable
+`subtaskByExternalReference.docRef` from being rejected when its formerly raw
+grouped rule becomes enforceable. It applies to simple and grouped assertions,
+including nested paths and skipped rules within each root occurrence. An empty
+array has no assertions to evaluate; occurrence limits remain a JSON Schema/XSD
+responsibility. Singleton/array storage is unchanged.
+
+The traversal fix walks actual values through retained `valueTypes` and their
+effective inherited content. `validateValueAssertions` follows every present
+complex child, including repeated occurrences of recursive types, while
+`validateNodeAssertions` continues to check only the requested node's rules.
+Missing children and empty arrays supply no occurrences; empty complex elements
+still undergo assertion validation. Unknown properties are outside this assertion
+subset. Errors and skipped rules include every property and array index, for
+example `[1, "child", 1, "ref", 1]`.
+
+An explicit stack avoids call-stack recursion in the assertion validator.
+Regression tests validate a 12,000-level finite value. Input object cycles
+encountered during traversal throw `TypeError`; shared objects used at separate
+occurrences are checked independently. This does not promise the same depth
+capacity for XML parsing, normalization, serialization, or third-party validators.
+[`test/assertion-traversal.test.js`](../test/assertion-traversal.test.js) covers
+these boundaries, diagnostic paths, legacy IR, and real import/export checks.
+Real cases include Issue 1.1's
+`productName.applic.applicRef.applicId.setBy` and Issue 2.0's recursive
+`productIdentifier.setBy.orgId.setBy.orgId.setBy`.
+
+The finite `assertionPaths` catalog remains unchanged for compatibility: it
+contains paths up to two child steps and stops expanding repeated types. It is
+no longer the runtime traversal plan when a retained value definition exists.
+Older IRs without those definitions still use their catalog's limited coverage.
+Regenerate those older artifacts for full traversal; existing complete
+`valueTypes` graphs work immediately. The IR structure and stored JSON shapes
+are unchanged, and generated JSON Schema already follows recursive type references.
+
+A synthetic `lower le upper` comparison records the general XPath boundary:
+Xerces rejects reversed bounds, while runtime reports the rule in `skipped` and
+JSON Schema carries a `requires XSD validation` annotation. Runtime `valid: true`
+with skipped rules proves only that the checked subset passed. Import/export do
+not currently surface those skipped-rule notices. Arbitrary XPath translation is
+not promised by the six reference-assertion fixes.
+
+Real cases use wrapper schemas importing the bundled issue schema and apply
+`xsi:type` to a probe. An ID anchor resolves UIDREFs so unrelated identity errors
+cannot disguise an assertion failure. Synthetic cases exercise public
+import/export with in-memory rows. The oracle checks the independently authored
+input fragments; it does not certify complete S3000L messages, every assertion
+path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
+
+The TypeScript generator consumes the same assertion-aware value schemas.
+Supported presence rules become unions with excluded fields; arbitrary XPath
+remains explicitly a runtime/XSD concern. Issue-specific UI modules are
+described in [TypeScript For Project UIs](#typescript-for-project-uis).
 
 ## MariaDB Notes
 

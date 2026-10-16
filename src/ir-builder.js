@@ -14,6 +14,7 @@ const crypto = require('crypto');
  *   joinTables : Map<string, IRJoinTable>
  *   enums      : Map<string, IREnum>
  *   simpleTypes: Map<string, IRSimpleType>
+ *   valueTypes : Map<string, IRValueType> // XML-shaped contents of JSON columns
  *   assertions : Map<string, IRAssertionSet>
  *   assertionPaths: Map<string, IRAssertionPathSet>
  *   s3000lDialect: '1.1' | '2.0' | null
@@ -73,6 +74,7 @@ const crypto = require('crypto');
  */
 
 const { TypeResolver } = require('./type-resolver');
+const { ValueTypeBuilder } = require('./value-type-builder');
 const {
   extractAssertionPaths,
   extractAssertionSets,
@@ -148,6 +150,7 @@ class IRBuilder {
     // 1b. Collect XSD 1.1 assertions for all complexTypes. In S3000L these
     // are mostly reference value types, not persistable uid+crud entities.
     this.assertions = extractAssertionSets(this.schema);
+    this._valueTypeBuilder = new ValueTypeBuilder(this.schema, this.resolver, this.assertions);
 
     // 2. Identify S3000L "real entities" — complexTypes that carry both
     //    uid AND crud attributes.  When such a set exists we restrict
@@ -187,12 +190,22 @@ class IRBuilder {
       }
     }
 
-    // 5. Collect nested assertion paths only for opaque inline value types
-    //    that are actually persisted as LONGTEXT JSON columns. This keeps the
-    //    path graph bounded to what import/export can validate.
+    // Preserve inherited XSD whitespace rules for scalar database columns too.
+    // Inline fields carry the same rules on their TypeUse constraints.
+    for (const entity of this.entities.values()) {
+      for (const column of entity.columns) {
+        if (!column.xsdType || column.valueTypeRef
+            || !['element', 'attribute'].includes(column.xmlKind)) continue;
+        const use = this._valueTypeBuilder.typeUse(column.xsdType);
+        if (use.constraints.whiteSpace) column.constraints.whiteSpace = use.constraints.whiteSpace;
+      }
+    }
+
+    // 5. Follow retained value definitions, including anonymous types, for
+    //    nested assertions in persisted LONGTEXT JSON columns.
     this.assertionPaths = extractAssertionPaths({
       entities: this.entities,
-      resolver: this.resolver,
+      valueTypes: this._valueTypeBuilder.types,
       assertions: this.assertions,
     });
 
@@ -201,6 +214,7 @@ class IRBuilder {
       joinTables: this.joinTables,
       enums: this.enums,
       simpleTypes: this.simpleTypes,
+      valueTypes: this._valueTypeBuilder.types,
       assertions: this.assertions,
       assertionPaths: this.assertionPaths,
       s3000lMode: this._s3000lMode,
@@ -538,6 +552,8 @@ class IRBuilder {
           nullable: isOptional,
           minOccurs,
           maxOccurs,
+          valueTypeRef: this._valueTypeBuilder.reference(anonName, anonCTs[0]),
+          nillable: el['@_nillable'] === 'true',
           helpers: _irBuilderHelperOptions(),
         }));
         return;
@@ -633,6 +649,8 @@ class IRBuilder {
             nullable: isOptional,
             minOccurs,
             maxOccurs,
+            valueTypeRef: this._valueTypeBuilder.reference(typeName, resolved.node),
+            nillable: el['@_nillable'] === 'true',
             helpers: _irBuilderHelperOptions(),
           }));
           return;
@@ -674,7 +692,7 @@ class IRBuilder {
     const nullable = isS3000LUid || isS3000LCrud ? false : use !== 'required';
 
     const resolved = typeName ? this.resolver.resolve(typeName) : { kind: 'primitive', sqlType: 'TEXT', jsonType: 'string' };
-    entity.columns.push(attributeColumn({
+    const column = attributeColumn({
       fieldName: effectiveName,
       typeName,
       resolved,
@@ -684,7 +702,12 @@ class IRBuilder {
       documentation: _docs(attr),
       isS3000LUid,
       helpers: _irBuilderHelperOptions(),
-    }));
+    });
+    // S3000L uid uses an anonymous restriction of xs:ID in both bundled issues.
+    // Its whitespace rule must survive even though the column has no xsdType name.
+    const type = this._valueTypeBuilder.typeUse(typeName, attr);
+    if (type.constraints.whiteSpace) column.constraints.whiteSpace = type.constraints.whiteSpace;
+    entity.columns.push(column);
   }
 
   // ── relation helper ────────────────────────────────────────────────────────

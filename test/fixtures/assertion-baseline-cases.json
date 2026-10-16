@@ -1,0 +1,460 @@
+[
+  {
+    "id": "issue-1-1-deep-applicability-valid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A reference four child steps inside an anonymous applicability wrapper is valid.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef><applicId><id>APPLIC-1</id><setBy uidRef=\"org1\"/></applicId></applicRef></applic></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-deep-applicability-invalid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A deep organization reference must choose either a UID or an identifier.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef><applicId><id>APPLIC-1</id><setBy uidRef=\"org1\"><orgId><id>ORG-1</id></orgId></setBy></applicId></applicRef></applic></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-recursive-set-by-valid",
+    "issue": "2.0",
+    "typeName": "productIdentifier",
+    "description": "Repeated organization reference types are valid at every occurrence of the setBy chain.",
+    "xml": "<probe><id>PROD-1</id><setBy><orgId><id>ORG-1</id><setBy><orgId><id>ORG-2</id><setBy uidRef=\"org1\"/></orgId></setBy></orgId></setBy></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-recursive-set-by-invalid",
+    "issue": "2.0",
+    "typeName": "productIdentifier",
+    "description": "A conflicting reference five child steps deep must not be hidden by a repeated type.",
+    "xml": "<probe><id>PROD-1</id><setBy><orgId><id>ORG-1</id><setBy><orgId><id>ORG-2</id><setBy uidRef=\"org1\" uriRef=\"\"/></orgId></setBy></orgId></setBy></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-product-name-anonymous-wrapper-valid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A named reference inside an anonymous applicability wrapper is valid with a UID.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef uidRef=\"applst1\"/></applic></probe>",
+    "anchorUid": "applst1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-product-name-anonymous-wrapper-invalid",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "An anonymous applicability wrapper must not hide a reference with no selected alternative.",
+    "xml": "<probe><descr>Product</descr><applic><applicRef/></applic></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-product-name-anonymous-wrapper-nil",
+    "issue": "1.1",
+    "typeName": "productName",
+    "description": "A nil applicability wrapper has no reference child to validate.",
+    "xml": "<probe><descr>Product</descr><applic xsi:nil=\"true\"/></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-condition-value-code",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "A condition value can be identified by one coded value.",
+    "xml": "<probe><code>ASH</code></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-condition-value-property-text",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "A condition value can be identified by one textual property value.",
+    "xml": "<probe><propValue><txt>shore based</txt></propValue></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-condition-value-property-zero",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "A numeric property value of zero is present and valid.",
+    "xml": "<probe><propValue><unit>DGR</unit><value>0</value></propValue></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true,
+    "note": "Exercises element presence independently of the decimal's numeric truth value."
+  },
+  {
+    "id": "issue-1-1-condition-value-uid",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "A condition value can be referenced by UID alone.",
+    "xml": "<probe uidRef=\"condv1\"/>",
+    "anchorUid": "condv1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-condition-value-neither",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "A condition value reference cannot omit both UID and value alternatives.",
+    "xml": "<probe/>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-condition-value-uid-and-code",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "A condition value reference cannot combine a UID with a coded value.",
+    "xml": "<probe uidRef=\"condv1\"><code>ASH</code></probe>",
+    "anchorUid": "condv1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-condition-value-empty-code",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "An empty code is present to XPath but is not a valid coded value.",
+    "xml": "<probe><code/></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": true,
+    "xsdErrorMatch": "cvc-datatype-valid",
+    "note": "Separates the assertion's node-presence semantics from the code datatype constraint."
+  },
+  {
+    "id": "issue-1-1-condition-value-two-value-alternatives",
+    "issue": "1.1",
+    "typeName": "conditionTypeValueReference",
+    "description": "Both value alternatives satisfy the raw grouped OR but violate the XSD choice.",
+    "xml": "<probe><code>ASH</code><propValue><txt>shore based</txt></propValue></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": true,
+    "xsdErrorMatch": "cvc-complex-type",
+    "note": "The assertion alone does not make the members of its grouped OR mutually exclusive."
+  },
+  {
+    "id": "issue-1-1-document-issue-document-identifiers",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document issue can use the document ID and issue ID group.",
+    "xml": "<probe><docId><id>DOC-1</id></docId><docIssId><id>ISS-1</id></docIssId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-issue-data-module-identifiers",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document issue can use the data module code and issue number group.",
+    "xml": "<probe><dmc><id>DMC-1</id></dmc><dmIssId><id>001</id></dmIssId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-issue-publication-module-identifiers",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document issue can use the publication module code and issue number group.",
+    "xml": "<probe><pmc><id>PMC-1</id></pmc><pmIssId><id>001</id></pmIssId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-issue-uid",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document issue can be referenced by UID alone.",
+    "xml": "<probe uidRef=\"dociss1\"/>",
+    "anchorUid": "dociss1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-issue-neither",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document issue reference cannot omit UID and all identifier groups.",
+    "xml": "<probe/>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-document-issue-uid-and-document-identifiers",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document issue reference cannot combine UID and a document identifier group.",
+    "xml": "<probe uidRef=\"dociss1\"><docId><id>DOC-1</id></docId><docIssId><id>ISS-1</id></docIssId></probe>",
+    "anchorUid": "dociss1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-document-issue-incomplete-document-group",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "A document ID alone satisfies the raw grouped OR but lacks its required issue ID partner.",
+    "xml": "<probe><docId><id>DOC-1</id></docId></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": true,
+    "xsdErrorMatch": "cvc-complex-type"
+  },
+  {
+    "id": "issue-1-1-document-issue-two-identifier-groups",
+    "issue": "1.1",
+    "typeName": "documentIssueReference",
+    "description": "Two complete identifier groups satisfy the raw grouped OR but violate the XSD choice.",
+    "xml": "<probe><docId><id>DOC-1</id></docId><docIssId><id>ISS-1</id></docIssId><dmc><id>DMC-1</id></dmc><dmIssId><id>001</id></dmIssId></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": true,
+    "xsdErrorMatch": "cvc-complex-type",
+    "note": "The content model, rather than the assertion, makes the identifier groups mutually exclusive."
+  },
+  {
+    "id": "issue-1-1-document-document-id",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "A document can be referenced by document ID.",
+    "xml": "<probe><docId><id>DOC-1</id></docId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-data-module-code",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "A document can be referenced by data module code.",
+    "xml": "<probe><dmc><id>DMC-1</id></dmc></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-publication-module-code",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "A document can be referenced by publication module code.",
+    "xml": "<probe><pmc><id>PMC-1</id></pmc></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-uid",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "A document can be referenced by UID alone.",
+    "xml": "<probe uidRef=\"doc1\"/>",
+    "anchorUid": "doc1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-document-neither",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "A document reference cannot omit UID and every document identifier.",
+    "xml": "<probe/>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-document-uid-and-document-id",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "A document reference cannot combine UID and document ID.",
+    "xml": "<probe uidRef=\"doc1\"><docId><id>DOC-1</id></docId></probe>",
+    "anchorUid": "doc1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-document-two-identifiers",
+    "issue": "1.1",
+    "typeName": "documentReference",
+    "description": "Two document identifiers satisfy the raw grouped OR but violate the XSD choice.",
+    "xml": "<probe><docId><id>DOC-1</id></docId><dmc><id>DMC-1</id></dmc></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": true,
+    "xsdErrorMatch": "cvc-complex-type",
+    "note": "The assertion tests group presence; the surrounding choice enforces one member."
+  },
+  {
+    "id": "issue-1-1-organization-identifier",
+    "issue": "1.1",
+    "typeName": "organizationReference",
+    "description": "An organization reference can contain its identifier.",
+    "xml": "<probe><orgId><id>ORG-1</id></orgId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-organization-uid",
+    "issue": "1.1",
+    "typeName": "organizationReference",
+    "description": "An organization reference can use UID alone.",
+    "xml": "<probe uidRef=\"org1\"/>",
+    "anchorUid": "org1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-1-1-organization-neither",
+    "issue": "1.1",
+    "typeName": "organizationReference",
+    "description": "An organization reference cannot omit both UID and identifier.",
+    "xml": "<probe/>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-1-1-organization-uid-and-identifier",
+    "issue": "1.1",
+    "typeName": "organizationReference",
+    "description": "An organization reference cannot combine UID and identifier.",
+    "xml": "<probe uidRef=\"org1\"><orgId><id>ORG-1</id></orgId></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-organization-identifier",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An organization reference can contain its identifier.",
+    "xml": "<probe><orgId><id>ORG-1</id></orgId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An organization reference can use a URI alone.",
+    "xml": "<probe uriRef=\"https://example.test/organizations/1\"/>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-uid",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An organization reference can use UID alone.",
+    "xml": "<probe uidRef=\"org1\"/>",
+    "anchorUid": "org1",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-empty-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An empty URI attribute is still present to XPath and valid as xs:anyURI.",
+    "xml": "<probe uriRef=\"\"/>",
+    "expectedXsd": true,
+    "expectedAssertion": true,
+    "note": "Demonstrates attribute presence rather than string truthiness."
+  },
+  {
+    "id": "issue-2-0-organization-relative-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An anyURI reference may be relative.",
+    "xml": "<probe uriRef=\"../organizations/1#details\"/>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-unescaped-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "XSD 1.1 anyURI accepts Unicode and spaces without requiring URI escaping.",
+    "xml": "<probe uriRef=\"organisations/équipe technique\"/>",
+    "expectedXsd": true,
+    "expectedAssertion": true
+  },
+  {
+    "id": "issue-2-0-organization-uid-and-empty-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An empty URI is present and conflicts with a UID reference.",
+    "xml": "<probe uidRef=\"org1\" uriRef=\"\"/>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-organization-identifier-and-empty-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An empty URI is present and conflicts with an organization identifier.",
+    "xml": "<probe uriRef=\"\"><orgId><id>ORG-1</id></orgId></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-organization-nil-identifier",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "A nil identifier value still supplies the asserted orgId element.",
+    "xml": "<probe><orgId><id xsi:nil=\"true\"/></orgId></probe>",
+    "expectedXsd": true,
+    "expectedAssertion": true,
+    "note": "The bundled schema permits the identifier's id element to be nil."
+  },
+  {
+    "id": "issue-2-0-organization-neither",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An organization reference cannot omit UID, identifier, and URI.",
+    "xml": "<probe/>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-organization-identifier-and-uri",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An organization reference cannot combine identifier and URI.",
+    "xml": "<probe uriRef=\"https://example.test/organizations/1\"><orgId><id>ORG-1</id></orgId></probe>",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  },
+  {
+    "id": "issue-2-0-organization-uid-and-identifier",
+    "issue": "2.0",
+    "typeName": "organizationRef",
+    "description": "An organization reference cannot combine UID and identifier.",
+    "xml": "<probe uidRef=\"org1\"><orgId><id>ORG-1</id></orgId></probe>",
+    "anchorUid": "org1",
+    "expectedXsd": false,
+    "expectedAssertion": false,
+    "xsdErrorMatch": "cvc-assertion"
+  }
+]

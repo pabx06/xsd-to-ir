@@ -149,6 +149,9 @@ function buildVisualizationModel(ir, options = {}) {
   const assertionPaths = Object.fromEntries(
     entries(ir.assertionPaths).map(([name, assertionPath]) => [name, clone(assertionPath)]),
   );
+  const valueTypes = Object.fromEntries(
+    entries(ir.valueTypes).map(([name, valueType]) => [name, clone(valueType)]),
+  );
 
   const relationCount = edges.length;
   const columnCount = entities.reduce((total, entity) => total + entity.columns.length, 0);
@@ -175,6 +178,7 @@ function buildVisualizationModel(ir, options = {}) {
       joinTables: entries(ir.joinTables).length,
       enums: entries(ir.enums).length,
       simpleTypes: entries(ir.simpleTypes).length,
+      valueTypes: Object.keys(valueTypes).length,
       assertions: Object.keys(assertions).length,
       assertionPaths: Object.keys(assertionPaths).length,
     },
@@ -184,6 +188,7 @@ function buildVisualizationModel(ir, options = {}) {
     collections,
     enums: Object.fromEntries(entries(ir.enums).map(([name, value]) => [name, clone(value)])),
     simpleTypes: Object.fromEntries(entries(ir.simpleTypes).map(([name, value]) => [name, clone(value)])),
+    valueTypes,
     assertions,
     assertionPaths,
     outgoingByEntity: Object.fromEntries(outgoingByEntity),

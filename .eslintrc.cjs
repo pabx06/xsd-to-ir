@@ -12,6 +12,7 @@ module.exports = {
   ignorePatterns: [
     'node_modules/',
     'output/',
+    'examples/issue-1.1-ui-showcase/dist/',
   ],
   rules: {
     camelcase: 'off',
@@ -21,6 +22,7 @@ module.exports = {
       devDependencies: [
         'test/**/*.js',
         'scripts/**/*.js',
+        'examples/**/*.cjs',
       ],
     }],
     'max-len': ['error', {

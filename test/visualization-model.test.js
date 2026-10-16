@@ -3,12 +3,14 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 const { parseXSD } = require('../src/xsd-parser');
 const { IRBuilder } = require('../src/ir-builder');
 const { buildNeighborhood, buildVisualizationModel } = require('../src/visualization-model');
 const { createVisualizationServer, parseArgs } = require('../scripts/visualize');
 
 const xsdPath = path.join(__dirname, '..', 's3000l', '1_1', 's3000l_1-1_lsa_dataset.xsd');
+const visualizerPath = path.join(__dirname, '..', 'visualizer', 'app.js');
 let model;
 
 function issue11Model() {
@@ -34,23 +36,35 @@ function request(server, requestPath) {
   });
 }
 
+function loadVisualizerRenderer(currentModel) {
+  const source = fs.readFileSync(visualizerPath, 'utf8');
+  const sandbox = {
+    URLSearchParams,
+    window: { addEventListener() {} },
+  };
+  vm.runInNewContext(`${source}\n;globalThis.__renderer = { state, renderValueTypeDefinition, renderValueTypeReference, toggleValueType };`, sandbox, {
+    filename: visualizerPath,
+  });
+  sandbox.__renderer.state.model = currentModel;
+  return sandbox.__renderer;
+}
+
 test('Issue 1.1 visualization model preserves IR counts and mappings', () => {
   const current = issue11Model();
   assert.equal(current.dialect, '1.1');
-  assert.deepEqual(current.stats, {
-    entities: 286,
-    recordEntities: 169,
-    syntheticEntities: 117,
-    columns: 2632,
-    relations: 299,
-    islands: 57,
-    crudUis: 169,
-    joinTables: 0,
-    enums: 149,
-    simpleTypes: 24,
-    assertions: 36,
-    assertionPaths: 131,
-  });
+  assert.equal(current.stats.entities, 286);
+  assert.equal(current.stats.recordEntities, 169);
+  assert.equal(current.stats.syntheticEntities, 117);
+  assert.equal(current.stats.columns, 2632);
+  assert.equal(current.stats.relations, 299);
+  assert.equal(current.stats.islands, 57);
+  assert.equal(current.stats.crudUis, 169);
+  assert.equal(current.stats.joinTables, 0);
+  assert.equal(current.stats.enums, 149);
+  assert.equal(current.stats.simpleTypes, 24);
+  assert.equal(current.stats.valueTypes, Object.keys(current.valueTypes).length);
+  assert.equal(current.stats.assertions, 36);
+  assert.equal(current.stats.assertionPaths, 267); // Includes paths through anonymous value definitions.
   assert.equal(current.collections.product.collectionName, 'products');
   assert.equal(current.collections.product.recordName, 'prod');
   assert.equal(current.collections.product.section, 'lsaPrimaryData');
@@ -76,6 +90,143 @@ test('Issue 1.1 visualization model preserves IR counts and mappings', () => {
   });
   assert.equal(JSON.stringify(current).includes('[object Map]'), false);
   assert.equal(JSON.stringify(current).includes('"undefined"'), false);
+});
+
+test('visualization model carries named and anonymous value types and column references', () => {
+  const namedType = {
+    name: 'displayName',
+    documentation: 'A documented structured name.',
+    content: {
+      kind: 'sequence', minOccurs: 1, maxOccurs: 1, children: [],
+    },
+    attributes: [],
+    text: null,
+    baseTypeRef: null,
+    derivation: null,
+    mixed: false,
+    assertionRefs: [],
+    unsupported: [],
+  };
+  const anonymousKey = 'record/value/anonymous-1';
+  const anonymousType = {
+    ...namedType,
+    name: null,
+    content: {
+      kind: 'choice',
+      minOccurs: 1,
+      maxOccurs: 1,
+      children: [{
+        kind: 'element',
+        name: 'label',
+        xmlName: 'label',
+        jsonName: 'label',
+        type: {
+          xsdType: 'displayName',
+          valueTypeRef: 'displayName',
+          jsonType: 'object',
+          constraints: {},
+          unsupported: [],
+        },
+        minOccurs: 1,
+        maxOccurs: 1,
+        nillable: false,
+        defaultValue: null,
+        fixedValue: null,
+        documentation: null,
+      }],
+    },
+  };
+  const ir = {
+    entities: new Map([['record', {
+      name: 'record',
+      tableName: 'record',
+      columns: [{ name: 'value', valueTypeRef: anonymousKey }],
+      relations: [],
+    }]]),
+    valueTypes: new Map([['displayName', namedType], [anonymousKey, anonymousType]]),
+  };
+
+  const current = buildVisualizationModel(ir);
+  assert.equal(current.stats.valueTypes, 2);
+  assert.equal(current.entities[0].columns[0].valueTypeRef, anonymousKey);
+  assert.equal(current.valueTypes.displayName.name, 'displayName');
+  assert.equal(current.valueTypes[anonymousKey].content.kind, 'choice');
+  assert.equal(current.valueTypes[anonymousKey].content.children[0].type.valueTypeRef, 'displayName');
+  assert.equal(JSON.stringify(current).includes('[object Map]'), false);
+});
+
+test('visualizer lazily renders real inline value structures safely', () => {
+  const current = issue11Model();
+  const product = current.entities.find((entity) => entity.name === 'product');
+  const prodId = product.columns.find((column) => column.name === 'prodId');
+  const bkdns = product.columns.find((column) => column.name === 'bkdns');
+  assert.equal(prodId.valueTypeRef, 'productIdentifier');
+  assert.match(bkdns.valueTypeRef, /^@anonymous\//);
+
+  const modelWithUnsafeDocumentation = {
+    ...current,
+    valueTypes: {
+      ...current.valueTypes,
+      productIdentifier: {
+        ...current.valueTypes.productIdentifier,
+        documentation: '<unsafe & "quoted">',
+      },
+    },
+  };
+  const renderer = loadVisualizerRenderer(modelWithUnsafeDocumentation);
+  const productIdentifier = renderer.renderValueTypeDefinition(prodId.valueTypeRef, []);
+  assert.match(productIdentifier, /<strong>id<\/strong>[\s\S]*?1\.\.1 · required/);
+  assert.match(productIdentifier, /<strong>class<\/strong>[\s\S]*?0\.\.1 · optional · nillable/);
+  assert.match(productIdentifier, /<strong>setBy<\/strong>[\s\S]*?0\.\.1 · optional · nillable/);
+  assert.match(productIdentifier, /enum: EIAC, MOI, PID/);
+  assert.match(productIdentifier, /&lt;unsafe &amp; &quot;quoted&quot;&gt;/);
+  assert.doesNotMatch(productIdentifier, /<unsafe/);
+  assert.match(productIdentifier, /Structure: organizationReference/);
+
+  const choice = renderer.renderValueTypeDefinition('subtaskWarningCautionNote', []);
+  assert.match(choice, /choice · 1\.\.1/);
+  assert.match(choice, /required when branch selected/);
+
+  const anonymousReference = renderer.renderValueTypeReference(bkdns.valueTypeRef, []);
+  assert.match(anonymousReference, /data-value-type-ref="@anonymous\//);
+  const anonymousNested = renderer.renderValueTypeDefinition('itemInAllowedProductConfiguration', []);
+  assert.match(anonymousNested, /structured value/);
+  assert.match(anonymousNested, /Structure: @anonymous\//);
+
+  const organizationReference = renderer.renderValueTypeDefinition('organizationReference', ['productIdentifier']);
+  assert.match(organizationReference, /<strong>@_uidRef<\/strong>/);
+  assert.match(organizationReference, /JSON string/);
+  const organizationIdentifier = renderer.renderValueTypeDefinition(
+    'organizationIdentifier',
+    ['productIdentifier', 'organizationReference'],
+  );
+  assert.match(organizationIdentifier, /recursive organizationReference/);
+  assert.doesNotMatch(organizationIdentifier, /data-value-type-ref="organizationReference"/);
+
+  let writes = 0;
+  let renderedHtml = '';
+  const slot = { dataset: {}, hidden: false };
+  Object.defineProperty(slot, 'innerHTML', {
+    get: () => renderedHtml,
+    set: (value) => { renderedHtml = value; writes += 1; },
+  });
+  const wrapper = { querySelector: () => slot };
+  const attributes = { 'aria-expanded': 'false' };
+  const control = {
+    dataset: { valueTypeRef: prodId.valueTypeRef, valueTypePath: encodeURIComponent('[]') },
+    closest: () => wrapper,
+    getAttribute: (name) => attributes[name],
+    setAttribute: (name, value) => { attributes[name] = value; },
+  };
+  assert.equal(renderer.toggleValueType(control), true);
+  assert.equal(writes, 1);
+  assert.equal(attributes['aria-expanded'], 'true');
+  assert.equal(slot.hidden, false);
+  assert.match(renderedHtml, /<strong>id<\/strong>/);
+  assert.equal(renderer.toggleValueType(control), true);
+  assert.equal(writes, 1);
+  assert.equal(attributes['aria-expanded'], 'false');
+  assert.equal(slot.hidden, true);
 });
 
 test('focused neighborhoods include incoming, outgoing, and two-hop relations', () => {
@@ -136,6 +287,7 @@ test('visualization server serves the UI and JSON model safely', async (t) => {
   const missing = await request(server, '/not-found');
   assert.equal(missing.status, 404);
   assert.equal((await request(server, '/app.js')).status, 200);
+  assert.match((await request(server, '/app.js')).body, /renderValueTypeDefinition/);
 });
 
 test('visualizer argument parsing defaults to bundled Issue 1.1 schema', () => {

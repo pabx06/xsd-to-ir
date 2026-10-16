@@ -935,6 +935,7 @@ entries. The CLI explicitly converts each `Map` to an object before writing
   joinTables: Map<string, IRJoinTable>,
   enums: Map<string, IREnum>,
   simpleTypes: Map<string, IRSimpleType>,
+  valueTypes: Map<string, IRValueType>,
   assertions: Map<string, IRAssertionSet>,
   assertionPaths: Map<string, IRAssertionPathSet>,
   s3000lMode: true,
@@ -964,15 +965,75 @@ values in `constraints.enum`.
 This map contains named, non-enum XSD restrictions. Each entry records its SQL
 type, JSON type, and supported facets such as length, range, and pattern.
 
+### `valueTypes`
+
+For generated TypeScript entity and nested value types, including anonymous
+definitions, see [TypeScript For Project UIs](developer-guide.md#typescript-for-project-uis).
+Generate each project's issue into its own module; the generator retains that
+issue's decoded JSON shapes and uses the exact IR keys in its `ValueTypes` map.
+
+This map preserves the XSD shape of complex values stored inside JSON-backed
+columns. Named complex types use their type name as the key. Anonymous types
+use a stable structural path, so callers must follow a column or nested
+`TypeUse.valueTypeRef` and look up that exact key. Do not assume `xsdType`
+contains the registry key. A named value type can also have an entry in
+`entities`; the value-type definition still describes the JSON subtree rather
+than a database row.
+
+Each value type retains its content particle (`sequence`, `choice`, `all`, or
+`group`), attributes, optional text type, derivation, mixed-content flag,
+assertion references, documentation, and unsupported-semantics annotations.
+Element and attribute fields retain their exact XML/JSON names, occurrence,
+nillability, defaults, fixed values, constraints, and nested value-type
+references.
+
 ### `assertions` and `assertionPaths`
 
-`assertions` inventories named complex types that contain `xs:assert`.
-Recognized exactly-one reference rules are marked as enforceable. Other XPath
-rules remain raw metadata.
+`assertions` inventories local `xs:assert` declarations on named complex types
+and retained anonymous value types, including declarations inside
+`complexContent` and `simpleContent` extension/restriction bodies. Each value
+type's `assertionRefs` identifies its local declarations. Runtime validation and
+JSON Schema follow `baseTypeRef` to apply inherited rules before local rules,
+for both extension and restriction. Original rule IDs are retained without
+duplicating inherited rules in the inventory.
+Recognized exactly-one reference rules are marked as enforceable. Issue 1.1's
+grouped UID-or-identifier pattern uses `kind: "exactlyOneGroup"`: `groups` holds
+arrays of field descriptors, and `fields` retains the flattened descriptors.
+Exactly one group must have at least one present member; multiple members within
+that group are permitted by the assertion. XSD particles separately constrain
+their combinations. Other XPath rules remain raw metadata. Regenerate older IRs
+to obtain the grouped classification; stored rule IDs and XPath text are stable.
 
-`assertionPaths` identifies asserted types nested inside persisted JSON
-columns. The runtime assertion validator follows direct paths and paths up to
-two elements deep. It is not a complete XPath or XSD 1.1 engine.
+Simple and grouped rules test XML node existence using each field's `xmlName`,
+including the `@_` attribute prefix. Empty strings, zero, false, and explicit nil
+elements count as present; missing properties and empty occurrence arrays do not.
+JSON Schema enforces field datatypes and occurrence bounds separately from these
+presence rules. Runtime assertion checks do not replace full XSD validation.
+
+`assertionPaths` is a finite compatibility catalog of asserted types nested
+inside persisted JSON columns. It records paths up to two child steps and stops
+expanding repeated types, so it is not a complete inventory of possible runtime
+paths. Import/export resolve assertions through `valueTypeRef`, falling back
+to `xsdType` for older IRs. Paths follow retained value definitions, including
+anonymous wrappers and anonymous asserted children; their roots and targets may
+use stable anonymous type IDs. Paths include children inherited by extension and
+children with inherited assertions. Restriction uses its replacement content
+particle, so removed children are excluded. Regenerate older IR and JSON Schema
+artifacts to obtain derivation-body rules and these additional paths; the
+metadata structure is unchanged.
+
+`validateValueAssertions` traverses present JSON values through `valueTypes`,
+including anonymous and inherited definitions, with no fixed depth or
+repeated-type cutoff. It does not use `assertionPaths` when the value definition
+is available. Diagnostics include property names and array indices at every
+level. An explicit traversal stack handles deep finite values; input object
+cycles encountered during traversal throw `TypeError`, while shared objects are
+checked at every occurrence. `validateNodeAssertions` checks only one node.
+
+Older IRs without retained value definitions fall back to their finite path
+catalog; regenerate those artifacts for full traversal. Complete existing type
+graphs need no structural update. The assertion validator is not a complete
+XPath or XSD 1.1 engine.
 
 ### `s3000lMode` and `s3000lDialect`
 
@@ -1078,6 +1139,10 @@ plain strings. For example, an Issue 1.1 product identifier is stored as:
 The `product.prod_id` MariaDB column contains that JSON text. XML export expands
 the object back into nested XML elements.
 
+The column's `valueTypeRef` points into `ir.valueTypes`, including for an
+anonymous inline type. This adds schema metadata only: the MariaDB layout and
+the `LONGTEXT` storage format do not change.
+
 ### `xs:choice`
 
 Choice branches become nullable columns or relations. When a type has more
@@ -1149,8 +1214,10 @@ for XML. Do not assume that case conversion can reconstruct either name.
   constraints: {},
   documentation: '...',
   xsdType: 'productIdentifier',
+  valueTypeRef: 'productIdentifier',
   minOccurs: 1,
   maxOccurs: 'unbounded',
+  nillable: false,
 }
 ```
 
@@ -1191,9 +1258,46 @@ console.log(productId.id);
 Preserve the XML parser representation:
 
 - attributes use the `@_` prefix, such as `@_uidRef`;
+- element text uses `#text` when the same value also has attributes or child
+  metadata;
 - repeated XML elements use arrays;
-- one occurrence can be an object rather than a one-element array;
-- element text can use `#text` when attributes are also present.
+- a repeatable location accepts a singleton value or an array, so one
+  occurrence can be an object rather than a one-element array.
+
+New imports use value-type metadata to preserve XSD strings:
+`<id>001234</id>` becomes `{"id":"001234"}`. Whitespace follows each type's
+effective `whiteSpace` rule, including inherited restrictions. Simple content
+without attributes is stored as a JSON scalar; text with attributes uses `#text`.
+Attributes retain string values. Numeric and boolean element types keep their
+existing representation, and unknown or union types retain lexical text.
+
+Generated value schemas still accept numeric/boolean scalars from older imports
+alongside strings, including parsed enum and fixed-value equivalents. Facets
+cannot always be checked on those older values after their spelling has been
+lost; `x-xsd-unsupported` documents this limitation. Existing rows are not migrated,
+and lost leading zeros require the original source data to recover. See the
+[JSON representation assessment](developer-guide.md#json-representation-baseline)
+for the completed baseline fixes and remaining representation choices. The XML
+serializer uses value-type particles to order known nested children, including
+base extensions and selected choice branches, without changing scalar values or
+array item order. Mixed content and repeated groups with multiple child names
+present retain their direct order because object properties cannot recover their
+original interleaving. The same applies to names reused at distinct sequence
+positions. Regenerate older IR artifacts to obtain the corrected particle order.
+Numeric value schemas accept exact integer and decimal strings alongside numbers;
+for example, `"9007199254740993"` is valid for an `xs:integer` field without
+converting it to a JavaScript number. Numeric
+string bounds and digit facets remain in `x-xsd-facets` and are marked as requiring
+XSD validation. Full XSD validation is still required.
+
+Follow `column.valueTypeRef` to validate or render the stored object. Within a
+definition, follow `field.type.valueTypeRef` for nested objects. Keep a set of
+visited registry keys while traversing because recursive XSD types can point
+back to an ancestor.
+
+Particle nesting preserves conditional requiredness. A child with
+`minOccurs: 1` inside a `choice` is required only when that branch is selected;
+it is not an unconditional property requirement on the enclosing object.
 
 Use a helper that accepts both one object and an array. The worked example uses
 `asArray()` for this reason.
@@ -1352,8 +1456,17 @@ node scripts/validate-xsd11.js \
   --xml /mounted/import/message.xml
 ```
 
-The generated JSON Schema describes IR entities. It is not a replacement for
-validation of the complete S3000L message envelope and all XSD 1.1 assertions.
+The generated draft-07 JSON Schema keeps the existing entity `$defs` contract
+and adds complex JSON values under `definitions`. Each value-type key is used
+directly; `$ref` JSON Pointer tokens escape `~` as `~0` and `/` as `~1`, for
+example `#/definitions/record~1value~1anonymous-1`. Entity and value-type names
+cannot collide because they are in separate namespaces.
+
+The schema represents choices, occurrence, constraints, and assertions when
+they can be expressed safely. Definitions retain `x-xsd-unsupported` annotations for
+XSD semantics that cannot be translated. This shape validation is not a
+replacement for validation of the complete S3000L message envelope or full
+XSD 1.1 validation.
 
 ### Database reads
 
@@ -1378,7 +1491,12 @@ npm run visualize:1_1
 ```
 
 It shows entity definitions, fields, relations, connected components, and XSD
-constraints. It does not query MariaDB and it does not display project records.
+constraints. JSON-backed fields with `valueTypeRef` have a lazy **Structure**
+control. It displays particles and choice context, required or optional
+occurrence, nillability, attributes, text, constraints, documentation,
+assertions, nested references, and unsupported annotations. Nested definitions
+expand on demand and recursive references stop at the first repeated registry
+key. The viewer does not query MariaDB and it does not display project records.
 
 Use `buildVisualizationModel(ir)` when a browser needs a JSON-safe form of the
 schema IR:
@@ -1466,7 +1584,11 @@ Aircraft Product (PROD-1)
    └─ HY breakdown
 ```
 
-The quantity follows `×`. The reference designator is in square brackets.
+The quantity follows `×`. Reference designators appear in square brackets,
+for example `[L, R]`. Usage nodes and unresolved child references expose all
+designator labels in `referenceDesignators`. The existing `referenceDesignator`
+field contains the labels joined with commas, so the text and browser renderers
+display all of them.
 
 ### What the example reads from the IR
 
@@ -1558,9 +1680,17 @@ The loader handles common data conditions explicitly:
 
 - It accepts an object or array at every repeating XML location.
 - It resolves a breakdown element revision by `uidRef` first.
-- It can also resolve a natural `beId` plus `beRevId` reference.
+- It can also resolve a natural `beId` plus `beRevId` reference against any of
+  the element's identifiers, including identifiers stored in a singleton array.
+  Identifier qualifiers and the revision identifier remain part of the match.
 - It labels a missing target as unresolved instead of silently dropping it.
-- It marks a repeated usage path as a cycle and stops recursion.
+- It marks a repeated usage path as a cycle and stops recursion. Disconnected
+  cyclic components remain visible alongside ordinary roots, and shared children
+  appear under each parent.
+- It displays explicitly nil revisions, usages, and child structures as `[nil]`
+  nodes, with `nil: true` and their XML attributes retained in `attributes`.
+  They do not produce missing-reference warnings. `xsi:nil="false"` or `"0"`
+  retains normal content display.
 - It excludes soft-deleted rows because it reads through `DBAdapter`.
 - It sorts product, variant, element, and revision rows for stable output.
 

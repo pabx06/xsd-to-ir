@@ -36,6 +36,7 @@
 
 const { XMLBuilder } = require('fast-xml-parser');
 const { validateValueAssertions } = require('./assertion-validator');
+const { XMLValueOrder } = require('./xml-value-order');
 const {
   collectionEntries,
   columnXmlKindForExport,
@@ -110,7 +111,7 @@ function _canonicalBooleanXmlValue(entity, col, value) {
  * @param {object} row     DB row
  * @param {string} crud    'I' | 'U' | 'D'
  */
-async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since) {
+async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since, valueOrder) {
   const node = _hasColumn(entity, 'crud') ? { '@_crud': crud } : {};
 
   for (const col of entity.columns) {
@@ -151,7 +152,7 @@ async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since) {
         }
       }
       _validateColumnAssertions(ir, entity, col, parsed);
-      node[xmlKey] = parsed;
+      node[xmlKey] = col.valueTypeRef ? valueOrder.complex(parsed, col.valueTypeRef) : parsed;
     } else if (col.sqlType === 'LONGBLOB') {
       // Base64-encode binary back to XML
       node[xmlKey] = Buffer.isBuffer(val)
@@ -162,11 +163,11 @@ async function _rowToXmlNode(entity, row, crud, ir, db, msgType, since) {
     }
   }
 
-  await _appendRelationNodes(entity, row, node, ir, db, msgType, since);
+  await _appendRelationNodes(entity, row, node, ir, db, msgType, since, valueOrder);
   return node;
 }
 
-async function _appendRelationNodes(entity, row, node, ir, db, msgType, since) {
+async function _appendRelationNodes(entity, row, node, ir, db, msgType, since, valueOrder) {
   if (!row || row.id === undefined || row.id === null) return;
 
   for (const relation of (entity.relations || [])) {
@@ -184,7 +185,8 @@ async function _appendRelationNodes(entity, row, node, ir, db, msgType, since) {
       if (!childRow) continue;
 
       const childCrud = _crudForRow(childRow, msgType, since);
-      node[relation.fieldName] = await _rowToXmlNode(childEntity, childRow, childCrud, ir, db, msgType, since);
+      const childNode = await _rowToXmlNode(childEntity, childRow, childCrud, ir, db, msgType, since, valueOrder);
+      node[relation.fieldName] = childNode;
       continue;
     }
 
@@ -194,7 +196,7 @@ async function _appendRelationNodes(entity, row, node, ir, db, msgType, since) {
 
     const childNodes = await Promise.all(childRows.map((childRow) => {
       const childCrud = _crudForRow(childRow, msgType, since);
-      return _rowToXmlNode(childEntity, childRow, childCrud, ir, db, msgType, since);
+      return _rowToXmlNode(childEntity, childRow, childCrud, ir, db, msgType, since, valueOrder);
     }));
 
     if (relation.flattened) {
@@ -256,13 +258,14 @@ function _crudForRow(row, msgType, since) {
 }
 
 function _validateColumnAssertions(ir, entity, col, value) {
-  if (!col.xsdType || value === null || typeof value !== 'object') return;
-  const result = validateValueAssertions(ir, col.xsdType, value);
+  const typeName = col.valueTypeRef || col.xsdType;
+  if (!typeName || value === null) return;
+  const result = validateValueAssertions(ir, typeName, value);
   if (!result.valid) {
     const err = result.errors[0];
     throw new Error(
       `XSD assertion failed while serializing ${entity.name}.${col.name} `
-      + `as ${col.xsdType}: ${err.message}`,
+      + `as ${typeName}: ${err.message}`,
     );
   }
 }
@@ -278,6 +281,7 @@ class XMLSerializer {
     this.ir = ir;
     this.db = db;
     this.builder = _makeBuilder();
+    this.valueOrder = new XMLValueOrder(ir);
     this.collectionMeta = collectionEntries(ir, { requireSection: true });
   }
 
@@ -404,7 +408,7 @@ class XMLSerializer {
       // ── Map rows → XML nodes ─────────────────────────────────────────
       const activeNodes = await Promise.all(rows.map((row) => {
         const crud = _crudForRow(row, msgType, since);
-        return _rowToXmlNode(entity, row, crud, this.ir, this.db, msgType, since);
+        return _rowToXmlNode(entity, row, crud, this.ir, this.db, msgType, since, this.valueOrder);
       }));
 
       const xmlNodes = [

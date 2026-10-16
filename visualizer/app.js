@@ -78,16 +78,145 @@ function formatOccurrence(column) {
   return `${min}..${max}`;
 }
 
-function formatConstraints(column) {
-  const constraints = column.constraints || {};
+function formatConstraints(type) {
+  const constraints = type?.constraints || {};
   const parts = [];
   if (constraints.enum) parts.push(`enum: ${constraints.enum.join(', ')}`);
   if (constraints.minimum != null) parts.push(`min: ${constraints.minimum}`);
   if (constraints.maximum != null) parts.push(`max: ${constraints.maximum}`);
+  if (constraints.exclusiveMinimum != null) parts.push(`exclusive min: ${constraints.exclusiveMinimum}`);
+  if (constraints.exclusiveMaximum != null) parts.push(`exclusive max: ${constraints.exclusiveMaximum}`);
   if (constraints.minLength != null) parts.push(`minLength: ${constraints.minLength}`);
   if (constraints.maxLength != null) parts.push(`maxLength: ${constraints.maxLength}`);
   if (constraints.pattern) parts.push(`pattern: ${constraints.pattern}`);
+  Object.entries(constraints).forEach(([name, value]) => {
+    if (parts.some((part) => part.startsWith(`${name}:`))) return;
+    if (['enum', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'minLength', 'maxLength', 'pattern'].includes(name)) return;
+    parts.push(`${name}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+  });
   return parts.join(' · ') || '—';
+}
+
+function occurrenceLabel(item, requirementContext = '') {
+  const occurrence = formatOccurrence(item);
+  let required = 'optional';
+  if ((item.minOccurs ?? 0) > 0) {
+    required = requirementContext ? `required when ${requirementContext}` : 'required';
+  }
+  return `${occurrence} · ${required}`;
+}
+
+function valueTypePath(path) {
+  return escapeHtml(encodeURIComponent(JSON.stringify(path)));
+}
+
+function renderValueTypeReference(ref, ancestry = []) {
+  if (!ref) return '';
+  if (ancestry.includes(ref)) {
+    return `<span class="recursive-ref">↻ recursive ${escapeHtml(ref)}</span>`;
+  }
+  if (!state.model.valueTypes?.[ref]) {
+    return `<span class="missing-ref">unresolved value type ${escapeHtml(ref)}</span>`;
+  }
+  return [
+    '<span class="value-type-ref">',
+    `<button type="button" class="value-type-toggle" data-value-type-ref="${escapeHtml(ref)}" data-value-type-path="${valueTypePath(ancestry)}" aria-expanded="false">Structure: ${escapeHtml(ref)}</button>`,
+    '<span class="value-type-slot"></span>',
+    '</span>',
+  ].join('');
+}
+
+function typeUseLabel(typeUse) {
+  if (!typeUse) return 'unspecified';
+  return typeUse.xsdType || typeUse.jsonType || (typeUse.valueTypeRef ? 'structured value' : 'unspecified');
+}
+
+function renderTypeUse(typeUse, ancestry) {
+  if (!typeUse) return '<span class="field-meta">unspecified type</span>';
+  const constraints = formatConstraints(typeUse);
+  const alternatives = (typeUse.alternatives || []).map((alternative) => (
+    `<li>${renderTypeUse(alternative, ancestry)}</li>`
+  )).join('');
+  const itemType = typeUse.itemType
+    ? `<div class="field-meta">items: ${renderTypeUse(typeUse.itemType, ancestry)}</div>`
+    : '';
+  const unsupported = (typeUse.unsupported || []).map((item) => (
+    `<span class="unsupported">unsupported: ${escapeHtml(item)}</span>`
+  )).join('');
+  return [
+    `<span class="type-name">${escapeHtml(typeUseLabel(typeUse))}</span>`,
+    typeUse.jsonType ? `<span class="field-meta">JSON ${escapeHtml(typeUse.jsonType)}</span>` : '',
+    constraints === '—' ? '' : `<span class="constraint-list">${escapeHtml(constraints)}</span>`,
+    itemType,
+    alternatives ? `<details class="type-alternatives"><summary>${typeUse.alternatives.length} alternative types</summary><ul>${alternatives}</ul></details>` : '',
+    unsupported,
+    renderValueTypeReference(typeUse.valueTypeRef, ancestry),
+  ].join(' ');
+}
+
+function renderValueField(field, ancestry, requirementContext = '') {
+  const labels = [
+    occurrenceLabel(field, requirementContext),
+    field.nillable ? 'nillable' : null,
+    field.defaultValue != null ? `default ${field.defaultValue}` : null,
+    field.fixedValue != null ? `fixed ${field.fixedValue}` : null,
+  ].filter(Boolean);
+  return [
+    '<li class="value-field">',
+    `<div><strong>${escapeHtml(field.jsonName || field.name)}</strong> <span class="xml-name">XML ${escapeHtml(field.xmlName || field.name)}</span></div>`,
+    `<div class="field-meta">${escapeHtml(labels.join(' · '))}</div>`,
+    `<div class="value-field-type">${renderTypeUse(field.type, ancestry)}</div>`,
+    field.documentation ? `<div class="value-documentation">${escapeHtml(field.documentation)}</div>` : '',
+    '</li>',
+  ].join('');
+}
+
+function renderParticle(particle, ancestry, requirementContext = '') {
+  if (!particle) return '';
+  if (particle.kind === 'element' || particle.kind === 'attribute') {
+    return `<ul class="value-fields">${renderValueField(particle, ancestry, requirementContext)}</ul>`;
+  }
+  let childRequirementContext = requirementContext;
+  if (!childRequirementContext && particle.kind === 'choice') childRequirementContext = 'branch selected';
+  if (!childRequirementContext && (particle.minOccurs ?? 0) === 0) childRequirementContext = 'parent present';
+  const label = [particle.kind || 'group', formatOccurrence(particle), particle.ref ? `ref ${particle.ref}` : null]
+    .filter(Boolean).join(' · ');
+  return [
+    '<details class="value-compositor" open>',
+    `<summary>${escapeHtml(label)}</summary>`,
+    `<div class="value-children">${(particle.children || []).map((child) => renderParticle(child, ancestry, childRequirementContext)).join('') || '<span class="muted">No child particles.</span>'}</div>`,
+    '</details>',
+  ].join('');
+}
+
+function renderValueTypeDefinition(ref, ancestry) {
+  const valueType = state.model.valueTypes?.[ref];
+  if (!valueType) return `<div class="missing-ref">Value type ${escapeHtml(ref)} is unavailable.</div>`;
+  const path = [...ancestry, ref];
+  const attributes = (valueType.attributes || []).map((field) => renderValueField(field, path)).join('');
+  const facts = [
+    valueType.derivation ? `${valueType.derivation} of ${valueType.baseTypeRef || 'unknown base'}` : null,
+    valueType.mixed ? 'mixed content' : null,
+  ].filter(Boolean);
+  const assertions = (valueType.assertionRefs || []).map((assertion) => (
+    `<span class="value-assertion">assertion ${escapeHtml(assertion)}</span>`
+  )).join('');
+  const unsupported = (valueType.unsupported || []).map((item) => (
+    `<span class="unsupported">unsupported: ${escapeHtml(item)}</span>`
+  )).join('');
+  return [
+    '<div class="value-type-definition">',
+    `<div class="value-type-heading"><strong>${escapeHtml(valueType.name || ref)}</strong><code>${escapeHtml(ref)}</code></div>`,
+    valueType.documentation ? `<div class="value-documentation">${escapeHtml(valueType.documentation)}</div>` : '',
+    facts.length ? `<div class="field-meta">${escapeHtml(facts.join(' · '))}</div>` : '',
+    valueType.baseTypeRef ? renderValueTypeReference(valueType.baseTypeRef, path) : '',
+    valueType.content ? renderParticle(valueType.content, path) : '',
+    attributes ? `<details class="value-compositor" open><summary>attributes · ${valueType.attributes.length}</summary><ul class="value-fields">${attributes}</ul></details>` : '',
+    valueType.text ? `<div class="value-text"><strong>#text</strong> ${renderTypeUse(valueType.text, path)}</div>` : '',
+    assertions,
+    unsupported,
+    '</div>',
+  ].join('');
 }
 
 function relationText(relation) {
@@ -204,7 +333,11 @@ function renderDetails() {
   });
   const columns = (entity.columns || []).map((column) => {
     const reference = column.referencesEntity ? ` → ${column.referencesEntity}` : '';
-    return `<tr><td>${escapeHtml(column.name)}<div class="field-meta">${escapeHtml(column.xmlName || column.xmlKind || '')}</div></td><td>${escapeHtml(column.sqlType || '—')} / ${escapeHtml(column.jsonType || '—')}<div class="field-meta">${escapeHtml(column.xsdType || '')}</div></td><td>${escapeHtml(formatOccurrence(column))}<div class="field-meta">${column.nullable ? 'nullable' : 'required'}${escapeHtml(reference)}</div></td><td>${escapeHtml(formatConstraints(column))}</td></tr>`;
+    const structure = column.valueTypeRef
+      ? `<div class="field-structure">${renderValueTypeReference(column.valueTypeRef)}</div>`
+      : '';
+    const metadata = `<tr><td>${escapeHtml(column.name)}<div class="field-meta">${escapeHtml(column.xmlName || column.xmlKind || '')}</div></td><td>${escapeHtml(column.sqlType || '—')} / ${escapeHtml(column.jsonType || '—')}<div class="field-meta">${escapeHtml(column.xsdType || '')}</div></td><td>${escapeHtml(formatOccurrence(column))}<div class="field-meta">${column.nullable ? 'nullable' : 'required'}${column.nillable ? ' · nillable' : ''}${escapeHtml(reference)}</div></td><td>${escapeHtml(formatConstraints(column))}</td></tr>`;
+    return metadata + (structure ? `<tr><td colspan="4">${structure}</td></tr>` : '');
   }).join('');
   const assertionRows = assertionMatches(entity).map((match) => {
     const count = (match.value.rules || match.value.paths || []).length;
@@ -429,6 +562,27 @@ function clearIsland() {
   renderNavigator();
 }
 
+function toggleValueType(valueTypeControl) {
+  if (!valueTypeControl) return false;
+  const wrapper = valueTypeControl.closest('.value-type-ref');
+  const slot = wrapper?.querySelector('.value-type-slot');
+  if (!slot) return false;
+  const expanded = valueTypeControl.getAttribute('aria-expanded') === 'true';
+  if (!slot.dataset.loaded) {
+    let ancestry = [];
+    try {
+      ancestry = JSON.parse(decodeURIComponent(valueTypeControl.dataset.valueTypePath || '%5B%5D'));
+    } catch (_error) {
+      ancestry = [];
+    }
+    slot.innerHTML = renderValueTypeDefinition(valueTypeControl.dataset.valueTypeRef, ancestry);
+    slot.dataset.loaded = 'true';
+  }
+  slot.hidden = expanded;
+  valueTypeControl.setAttribute('aria-expanded', String(!expanded));
+  return true;
+}
+
 function bindEvents() {
   elements.navigator.addEventListener('click', (event) => {
     const button = event.target.closest('[data-entity]');
@@ -447,6 +601,8 @@ function bindEvents() {
   });
   elements.allIslands.addEventListener('click', clearIsland);
   elements.details.addEventListener('click', (event) => {
+    const valueTypeControl = event.target.closest('[data-value-type-ref]');
+    if (toggleValueType(valueTypeControl)) return;
     const button = event.target.closest('[data-entity]');
     if (button) selectEntity(button.dataset.entity);
     const islandControl = event.target.closest('[data-island]');

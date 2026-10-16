@@ -18,6 +18,9 @@ const fs = require('fs');
 const path = require('path');
 const { XMLParser } = require('fast-xml-parser');
 
+const XML_METADATA = XMLParser.getMetaDataSymbol();
+const sourcePositions = new WeakMap();
+
 // ─── parser configuration ────────────────────────────────────────────────────
 
 const ARRAY_TAGS = new Set([
@@ -37,6 +40,7 @@ function makeParser() {
     parseAttributeValue: false,
     trimValues: true,
     processEntities: false,
+    captureMetaData: true,
   });
 }
 
@@ -57,9 +61,25 @@ function deepStripNs(node) {
       const cleanVal = typeof v === 'string' ? stripNs(v) : deepStripNs(v);
       out[cleanKey] = cleanVal;
     }
+    const position = node[XML_METADATA]?.startIndex;
+    if (position !== undefined) sourcePositions.set(out, position);
     return out;
   }
   return node;
+}
+
+/** Recover sibling order across different tag names without changing the public tree. */
+function orderedChildren(node, kinds) {
+  const children = Object.entries(node)
+    .filter(([kind]) => kinds.includes(kind))
+    .flatMap(([kind, values]) => (Array.isArray(values) ? values : [values])
+      .map((value) => [kind, value]));
+  // Empty nodes and hand-built schema objects have no source positions. Keep
+  // their slots while ordering the children whose positions are available.
+  const positioned = children.filter(([, child]) => sourcePositions.has(child))
+    .sort(([, left], [, right]) => sourcePositions.get(left) - sourcePositions.get(right));
+  let index = 0;
+  return children.map((entry) => (sourcePositions.has(entry[1]) ? positioned[index++] : entry));
 }
 
 // ─── top-level collection keys that can be merged across files ───────────────
@@ -158,4 +178,4 @@ function parseXSD(filePath, opts = {}) {
   return load(absPath);
 }
 
-module.exports = { parseXSD, stripNs };
+module.exports = { parseXSD, stripNs, orderedChildren };
