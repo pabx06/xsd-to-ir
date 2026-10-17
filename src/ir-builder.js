@@ -151,6 +151,10 @@ class IRBuilder {
     // are mostly reference value types, not persistable uid+crud entities.
     this.assertions = extractAssertionSets(this.schema);
     this._valueTypeBuilder = new ValueTypeBuilder(this.schema, this.resolver, this.assertions);
+    for (const [name, enumeration] of this.enums) {
+      const { enumAnnotations } = this._valueTypeBuilder.typeUse(name);
+      if (enumAnnotations && Object.keys(enumAnnotations).length) enumeration.enumAnnotations = enumAnnotations;
+    }
 
     // 2. Identify S3000L "real entities" — complexTypes that carry both
     //    uid AND crud attributes.  When such a set exists we restrict

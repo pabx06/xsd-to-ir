@@ -42,12 +42,93 @@ function loadVisualizerRenderer(currentModel) {
     URLSearchParams,
     window: { addEventListener() {} },
   };
-  vm.runInNewContext(`${source}\n;globalThis.__renderer = { state, renderValueTypeDefinition, renderValueTypeReference, toggleValueType };`, sandbox, {
+  vm.runInNewContext(`${source}\n;globalThis.__renderer = { state, elements, renderDetails, renderValueTypeDefinition, renderValueTypeReference, toggleValueType };`, sandbox, {
     filename: visualizerPath,
   });
   sandbox.__renderer.state.model = currentModel;
   return sandbox.__renderer;
 }
+
+function xmlElementNames(entity) {
+  return entity.columns.filter((column) => ['element', 'relation'].includes(column.xmlKind))
+    .map((column) => column.xmlName);
+}
+
+test('Issue 1.1 entity fields follow XSD order across elements, groups, choices and foreign keys', () => {
+  const current = issue11Model();
+  const expected = {
+    supportingTaskTarget: ['taskFreq', 'taskRef', 'orgInfos', 'docs', 'rmks', 'applic'],
+    applicabilityEvaluationByAssertionOfCondition: ['condTypeRef', 'condInstRef', 'assertValue', 'rmks'],
+    datedApplicabilityStatement: [
+      'applicId', 'applicDescr', 'startDate', 'endDate',
+      'and', 'not', 'or', 'assertInst', 'assertCond', 'nestedApplic', 'assertSi', 'docs', 'rmks',
+    ],
+    AndApplicabilityEvaluationNonAbstractClasses: [
+      'and', 'not', 'or', 'assertInst', 'assertCond', 'nestedApplic', 'assertSi',
+    ],
+    TaskRevisionSubtaskNonAbstractClasses: ['subtByDef', 'subtByExtRef', 'subtByRef'],
+  };
+  for (const [name, names] of Object.entries(expected)) {
+    assert.deepEqual(xmlElementNames(current.entities.find((entity) => entity.name === name)), names, name);
+  }
+});
+
+test('Issue 2.0 entity fields follow XSD order across choices and groups', () => {
+  const ir = new IRBuilder(parseXSD(path.join(__dirname, '../s3000l/2_0/s3000l_2-0_lsaDataset.xsd'))).build();
+  const current = buildVisualizationModel(ir);
+  assert.deepEqual(xmlElementNames(current.entities.find((entity) => entity.name === 'applicabilityStatement')), [
+    'applicId', 'applicDescr', 'applicDates',
+    'assertInst', 'assertCond', 'assertSi', 'nestedApplic', 'and', 'not', 'or', 'xor',
+    'docs', 'orgRefs', 'projAttrs', 'rmks',
+  ]);
+});
+
+test('display ordering respects inheritance, preserves other columns and leaves the IR unchanged', () => {
+  const field = (name) => ({ kind: 'element', xmlName: name });
+  const sequence = (...children) => ({ kind: 'sequence', children });
+  const columns = [
+    { name: 'id', xmlKind: 'internal' },
+    { name: 'last', xmlName: 'last', xmlKind: 'element' },
+    { name: 'choiceType', xmlKind: 'internal' },
+    { name: 'first', xmlName: 'first', xmlKind: 'element' },
+    { name: 'middleId', xmlName: 'middle', xmlKind: 'relation' },
+    { name: 'unknown', xmlName: 'unknown', xmlKind: 'element' },
+    { name: 'middleAttribute', xmlName: 'middle', xmlKind: 'attribute' },
+  ];
+  const ir = {
+    entities: Object.fromEntries(['Extended', 'Restricted', 'NoMetadata'].map((name) => [name, { name, columns }])),
+    valueTypes: {
+      Base: { content: sequence(field('first')) },
+      Extended: {
+        baseTypeRef: 'Base', derivation: 'extension', content: sequence(field('middle'), field('last')),
+      },
+      Restricted: {
+        baseTypeRef: 'Base', derivation: 'restriction', content: sequence(field('last'), field('middle')),
+      },
+    },
+  };
+  const before = JSON.stringify(ir);
+  const current = buildVisualizationModel(ir);
+  assert.deepEqual(current.entities[0].columns.map((column) => column.name), [
+    'id', 'first', 'choiceType', 'middleId', 'last', 'unknown', 'middleAttribute',
+  ]);
+  assert.deepEqual(current.entities[1].columns, columns);
+  assert.deepEqual(current.entities[2].columns, columns);
+  assert.equal(JSON.stringify(ir), before);
+});
+
+test('entity panel renders the corrected field order', () => {
+  const current = issue11Model();
+  const renderer = loadVisualizerRenderer(current);
+  renderer.state.entities = new Map(current.entities.map((entity) => [entity.name, entity]));
+  renderer.state.selected = 'supportingTaskTarget';
+  renderer.elements.details = { innerHTML: '' };
+  renderer.renderDetails();
+  const html = renderer.elements.details.innerHTML;
+  const frequency = html.indexOf('<td>taskFreq<');
+  const reference = html.indexOf('<td>taskRef<');
+  assert.ok(frequency >= 0 && reference > frequency, 'taskFreq must precede taskRef');
+});
 
 test('Issue 1.1 visualization model preserves IR counts and mappings', () => {
   const current = issue11Model();

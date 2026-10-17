@@ -148,6 +148,12 @@ class ValueJSONSchema {
   }
 
   scalar(use, attribute, warnings) {
+    const schema = this.scalarSchema(use, attribute, warnings);
+    return use.enumAnnotations && Object.keys(use.enumAnnotations).length
+      ? { ...schema, 'x-xsd-enum-annotations': use.enumAnnotations } : schema;
+  }
+
+  scalarSchema(use, attribute, warnings) {
     use.unsupported.forEach((reason) => warnings.add(reason));
     if (use.valueTypeRef) return ref(use.valueTypeRef);
     if (use.alternatives) return { anyOf: use.alternatives.map((item) => this.scalar(item, attribute, warnings)) };

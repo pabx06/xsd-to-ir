@@ -52,13 +52,15 @@ function stripNs(name) {
   return idx === -1 ? name : name.slice(idx + 1);
 }
 
-function deepStripNs(node) {
-  if (Array.isArray(node)) return node.map(deepStripNs);
+function deepStripNs(node, inAnnotation = false) {
+  if (Array.isArray(node)) return node.map((item) => deepStripNs(item, inAnnotation));
   if (node && typeof node === 'object') {
     const out = {};
     for (const [k, v] of Object.entries(node)) {
       const cleanKey = k.startsWith('@_') ? `@_${stripNs(k.slice(2))}` : stripNs(k);
-      const cleanVal = typeof v === 'string' ? stripNs(v) : deepStripNs(v);
+      // Annotation text and source URLs are data, not schema type references.
+      const preserveText = inAnnotation || cleanKey === 'annotation';
+      const cleanVal = typeof v === 'string' && !preserveText ? stripNs(v) : deepStripNs(v, preserveText);
       out[cleanKey] = cleanVal;
     }
     const position = node[XML_METADATA]?.startIndex;

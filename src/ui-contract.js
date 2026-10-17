@@ -47,7 +47,10 @@ class UIModel {
   columnUse(column) {
     const constraints = { ...column.constraints };
     if (constraints.pattern && !constraints.patterns) constraints.patterns = [constraints.pattern];
-    return { ...column, constraints, unsupported: [] };
+    const enumAnnotations = this.ir.enums.get(column.enumRef)?.enumAnnotations;
+    return {
+      ...column, constraints, unsupported: [], ...(enumAnnotations ? { enumAnnotations } : {}),
+    };
   }
 
   shape(name) {

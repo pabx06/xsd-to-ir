@@ -39,6 +39,7 @@ function generateJSONSchema(ir, options = {}) {
       description: enumDef.docs || undefined,
       type: 'string',
       enum: enumDef.values,
+      ...(enumDef.enumAnnotations ? { 'x-xsd-enum-annotations': enumDef.enumAnnotations } : {}),
     };
   }
 

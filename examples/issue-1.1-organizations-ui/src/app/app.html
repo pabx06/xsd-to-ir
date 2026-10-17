@@ -1,0 +1,476 @@
+<a class="skip-link" href="#main-content" [inert]="editorOpen() || !!confirmation()"
+  >Skip to Organizations</a
+>
+<div class="app-layout" [inert]="editorOpen() || !!confirmation()">
+  <aside class="sidebar" aria-label="Project navigation">
+    <div class="brand">
+      <span class="brand-mark"><i class="pi pi-compass" aria-hidden="true"></i></span>
+      <div>AURORA<span>LOGISTICS WORKSPACE</span></div>
+    </div>
+    <div class="sidebar-project">
+      <span class="project-avatar">A</span>
+      <div><strong>Aurora demonstrator</strong><span>LSA project · Issue 1.1</span></div>
+      <i class="pi pi-lock" aria-hidden="true"></i>
+    </div>
+    <nav aria-label="Work areas">
+      <p class="nav-heading">WORK AREAS</p>
+      @for (area of workAreas; track area.label) {
+      <button
+        class="nav-link"
+        type="button"
+        disabled
+        [attr.aria-label]="area.label + ' — not available in this example'"
+      >
+        <i [class]="'pi ' + area.icon" aria-hidden="true"></i><span>{{ area.label }}</span
+        ><i class="pi pi-lock nav-lock" aria-hidden="true"></i>
+      </button>
+      }
+      <div class="nav-section">
+        <i class="pi pi-database" aria-hidden="true"></i><span>Shared records</span
+        ><i class="pi pi-chevron-down" aria-hidden="true"></i>
+      </div>
+      <a href="#main-content" class="nav-active" aria-current="page"
+        ><span class="active-dot"></span>Organizations<span class="nav-count"
+          >{{ stats().total }}</span
+        ></a
+      >
+      <span class="nav-soon">More work areas are coming.</span>
+    </nav>
+    <div class="sidebar-bottom">
+      <div><span class="offline-dot"></span><strong>Offline workspace</strong></div>
+      <p>Saved in this browser.<br />No server connection needed.</p>
+      <button type="button" (click)="reset()">
+        <i class="pi pi-refresh" aria-hidden="true"></i>Reset demo data
+      </button>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div>
+        <span class="breadcrumb">Aurora demonstrator</span><span class="crumb-divider">/</span
+        ><span>Shared records</span>
+      </div>
+      <div class="topbar-right">
+        <span class="issue-chip">S3000L Issue 1.1</span
+        ><span class="local-chip"><span class="offline-dot"></span>Local demo</span
+        ><span class="user-avatar" aria-label="Demo user">JD</span>
+      </div>
+    </header>
+    <main id="main-content" tabindex="-1">
+      <div class="page-heading">
+        <div>
+          <div class="eyebrow">SHARED RECORDS</div>
+          <h1>Organizations</h1>
+          <p>The people and partners behind your support network.</p>
+        </div>
+        <p-button
+          label="New organization"
+          ariaLabel="New organization"
+          icon="pi pi-plus"
+          (onClick)="open()"
+        />
+      </div>
+      @if (feedback()) {
+      <div class="feedback" role="status">
+        <i class="pi pi-check-circle" aria-hidden="true"></i>{{ feedback() }}
+      </div>
+      } @if (error() && !editorOpen()) {
+      <div class="error-banner" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ error() }}<button
+          type="button"
+          (click)="refresh()"
+        >
+          Try again
+        </button>
+      </div>
+      }
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div>
+            <span>Organizations</span><strong>{{ stats().total }}</strong
+            ><small>In this project</small>
+          </div>
+          <span class="stat-icon teal"><i class="pi pi-building" aria-hidden="true"></i></span>
+        </div>
+        <div class="stat-card">
+          <div>
+            <span>Pending changes</span><strong>{{ stats().pending }}</strong
+            ><small
+              >{{ stats().deleted ? stats().deleted + ' deletion(s) included' : 'Ready for a future
+              export' }}</small
+            >
+          </div>
+          <span class="stat-icon amber"><i class="pi pi-history" aria-hidden="true"></i></span>
+        </div>
+        <div class="stat-card">
+          <div>
+            <span>Document assignments</span><strong>{{ stats().documents }}</strong
+            ><small>Linked to active organizations</small>
+          </div>
+          <span class="stat-icon blue"><i class="pi pi-file" aria-hidden="true"></i></span>
+        </div>
+      </div>
+      <section class="records-card" aria-label="Organization records">
+        <div class="records-toolbar">
+          <div class="search-field">
+            <i class="pi pi-search" aria-hidden="true"></i
+            ><input
+              pInputText
+              type="search"
+              aria-label="Search organizations"
+              placeholder="Search name or identifier…"
+              [formControl]="search"
+            />
+          </div>
+          <div class="toolbar-filter">
+            <label for="status-filter">Change status</label
+            ><select id="status-filter" [formControl]="status">
+              <option value="">All records</option>
+              <option value="pending">Pending export</option>
+              <option value="R">Baseline</option>
+              <option value="I">New</option>
+              <option value="U">Updated</option>
+            </select>
+          </div>
+        </div>
+        <p-table [value]="rows()" dataKey="id" [tableStyle]="{ 'min-width': '720px' }">
+          <ng-template #header
+            ><tr>
+              <th [attr.aria-sort]="ariaSort('name')">
+                <button class="sort-button" type="button" (click)="sort('name')">
+                  Organization<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th [attr.aria-sort]="ariaSort('identifiers')">
+                <button class="sort-button" type="button" (click)="sort('identifiers')">
+                  Identifiers<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th [attr.aria-sort]="ariaSort('documents')">
+                <button class="sort-button" type="button" (click)="sort('documents')">
+                  Documents<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th [attr.aria-sort]="ariaSort('crud')">
+                <button class="sort-button" type="button" (click)="sort('crud')">
+                  Change status<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th [attr.aria-sort]="ariaSort('updatedAt')">
+                <button class="sort-button" type="button" (click)="sort('updatedAt')">
+                  Last update<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th><span class="sr-only">Edit</span></th>
+            </tr></ng-template
+          >
+          <ng-template #body let-row
+            ><tr>
+              <td>
+                <div class="name-cell">
+                  <span class="org-avatar">{{ title(row.value).slice(0, 1) }}</span>
+                  <div>
+                    <button class="record-name" type="button" (click)="open(row)">
+                      {{ title(row.value) }}</button
+                    ><span class="record-subtitle"
+                      >{{ row.value.name?.lang ? row.value.name.lang.toUpperCase() + ' · ' : ''
+                      }}Organization record</span
+                    >
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="identifier-list">
+                  @for (identifier of row.value.orgId; track $index) {
+                  <span class="identifier">{{ identifier.id }}</span> }
+                </div>
+              </td>
+              <td>
+                <span class="doc-count"
+                  ><i class="pi pi-file" aria-hidden="true"></i>{{ row.value.docs?.doc.length || 0
+                  }}</span
+                >
+              </td>
+              <td>
+                <span
+                  class="status-badge"
+                  [class.updated]="row.crud === 'U'"
+                  [class.inserted]="row.crud === 'I'"
+                  ><span></span>{{ row.crud === 'R' ? 'Baseline' : row.crud === 'I' ? 'New' :
+                  'Updated' }}</span
+                >
+              </td>
+              <td class="date-cell">{{ row.updatedAt | date:'dd MMM yyyy' }}</td>
+              <td>
+                <button
+                  class="icon-action"
+                  type="button"
+                  [attr.aria-label]="'Edit ' + title(row.value)"
+                  (click)="open(row)"
+                >
+                  <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
+                </button>
+              </td></tr
+          ></ng-template>
+          <ng-template #emptymessage
+            ><tr>
+              <td colspan="6">
+                <div class="empty-state">
+                  <i class="pi pi-building" aria-hidden="true"></i>
+                  <h2>No organizations found</h2>
+                  <p>
+                    {{ search.value || status.value ? 'Try another search or change the filter.' :
+                    'Add the first organization to this project.' }}
+                  </p>
+                  @if (!search.value && !status.value && !error()) {
+                  <p-button
+                    label="Add organization"
+                    ariaLabel="Add organization"
+                    icon="pi pi-plus"
+                    (onClick)="open()"
+                  />
+                  }
+                </div>
+              </td>
+            </tr></ng-template
+          >
+        </p-table>
+        <div class="pagination">
+          <span
+            >{{ pageInfo().total }} {{ pageInfo().total === 1 ? 'organization' : 'organizations'
+            }}<span class="pagination-secondary">
+              · Page {{ pageInfo().page }} of {{ pageInfo().pageCount || 1 }}</span
+            ></span
+          >
+          <div>
+            <label for="page-size" class="sr-only">Records per page</label
+            ><select id="page-size" [value]="pageInfo().pageSize" (change)="setPageSize($event)">
+              <option value="6">6 per page</option>
+              <option value="12">12 per page</option>
+              <option value="24">24 per page</option></select
+            ><button
+              class="icon-action"
+              type="button"
+              aria-label="Previous page"
+              [disabled]="pageInfo().page <= 1"
+              (click)="refresh(pageInfo().page - 1)"
+            >
+              <i class="pi pi-chevron-left" aria-hidden="true"></i></button
+            ><button
+              class="icon-action"
+              type="button"
+              aria-label="Next page"
+              [disabled]="pageInfo().page >= pageInfo().pageCount"
+              (click)="refresh(pageInfo().page + 1)"
+            >
+              <i class="pi pi-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+      <div class="demo-note">
+        <i class="pi pi-info-circle" aria-hidden="true"></i>
+        <p>
+          Fictional records for exploring Issue 1.1. Changes stay in this browser. XML export is not
+          part of this example.
+        </p>
+      </div>
+      <footer class="workspace-footer">
+        <span>AURORA / ORGANIZATIONS</span><span>One project. One source of shared records.</span>
+      </footer>
+    </main>
+  </div>
+</div>
+<p-drawer
+  [inert]="!!confirmation()"
+  (onShow)="focusEditor()"
+  [visible]="editorOpen()"
+  position="right"
+  styleClass="organization-drawer"
+  [blockScroll]="true"
+  [dismissible]="false"
+  [showCloseIcon]="false"
+  [closeOnEscape]="false"
+  [pt]="{ root: { role: 'dialog', 'aria-labelledby': 'editor-title', 'aria-modal': 'true' } }"
+>
+  <ng-template #header
+    ><div class="editor-heading">
+      <div>
+        <span class="eyebrow">ORGANIZATION RECORD</span>
+        <h2 id="editor-title">{{ selected() ? 'Edit organization' : 'New organization' }}</h2>
+      </div>
+      <button
+        id="editor-close"
+        type="button"
+        class="icon-action"
+        aria-label="Close editor"
+        (click)="close()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button></div
+  ></ng-template>
+  @if (editorOpen()) {
+  <div class="editor-summary">
+    <div>
+      <span class="org-avatar">{{ selected() ? title(selected()!.value).slice(0, 1) : '+' }}</span>
+      <div>
+        <strong>{{ selected() ? title(selected()!.value) : 'A new shared record' }}</strong>
+        <p>
+          {{ selected() ? 'Record ' + selected()!.id + ' · Revision ' + selected()!.revision :
+          'Identifiers and tracking are assigned on save.' }}
+        </p>
+      </div>
+    </div>
+    <span class="editor-state">{{ dirty() ? 'Unsaved changes' : 'No unsaved changes' }}</span>
+  </div>
+  <div class="editor-tabs" role="tablist" aria-label="Organization sections">
+    @for (section of tabs; track section) {
+    <button
+      type="button"
+      role="tab"
+      [id]="'tab-' + section"
+      [attr.aria-selected]="tab() === section"
+      [tabIndex]="tab() === section ? 0 : -1"
+      (keydown)="tabKey($event, section)"
+      [attr.aria-controls]="'panel-' + section"
+      (click)="tab.set(section)"
+    >
+      {{ section }}@if (section === 'Identifiers') {
+      <span class="required-dot" aria-label="required"></span> }
+    </button>
+    }
+  </div>
+  @if (error()) {
+  <div class="error-banner" role="alert">{{ error() }}</div>
+  } @if (issues().length) {
+  <div class="validation-summary" role="alert">
+    <strong>Check these fields</strong>
+    <ul>
+      @for (issue of issues(); track $index) {
+      <li>
+        <button type="button" (click)="focusIssue(issue)">
+          {{ issue.path || 'Organization' }}: {{ issue.message }}
+        </button>
+      </li>
+      }
+    </ul>
+  </div>
+  }
+  <form id="organization-form" (submit)="$event.preventDefault(); save()">
+    <div
+      class="editor-panel"
+      role="tabpanel"
+      [id]="'panel-' + tab()"
+      [attr.aria-labelledby]="'tab-' + tab()"
+    >
+      <div class="section-intro">
+        <h3>{{ tab() === 'Details' ? 'Organization details' : tab() }}</h3>
+        <p>
+          {{ tab() === 'Details' ? 'Give this record a clear name. Add language, date, or
+          applicability when needed.' : tab() === 'Identifiers' ? 'At least one identifier is
+          required. Leading zeroes are preserved.' : tab() === 'Documents' ? 'Link a document or a
+          specific document issue. Expand an assignment for its full details.' : 'Add remarks, their
+          source, and any supporting documents or applicability.' }}
+        </p>
+      </div>
+      @for (field of visibleFields(); track field) {
+      <app-field-editor
+        [node]="field"
+        [path]="'/' + field.field.name"
+        [references]="references()"
+        [issues]="issues()"
+      />
+      }
+    </div>
+  </form>
+  @if (selected(); as row) {
+  <details class="record-details">
+    <summary>Record information <span>Read only</span></summary>
+    <dl>
+      <div>
+        <dt>Record ID</dt>
+        <dd>{{ row.id }}</dd>
+      </div>
+      <div>
+        <dt>XML UID</dt>
+        <dd>{{ row.uid }}</dd>
+      </div>
+      <div>
+        <dt>CRUD action</dt>
+        <dd>{{ row.crud }}</dd>
+      </div>
+      <div>
+        <dt>Revision</dt>
+        <dd>{{ row.revision }}</dd>
+      </div>
+      <div>
+        <dt>Created</dt>
+        <dd>{{ row.createdAt | date:'medium' }}</dd>
+      </div>
+      <div>
+        <dt>Last update</dt>
+        <dd>{{ row.updatedAt | date:'medium' }}</dd>
+      </div>
+      <div>
+        <dt>Pending export</dt>
+        <dd>{{ row.pendingExport ? 'Yes' : 'No' }}</dd>
+      </div>
+      <div>
+        <dt>Nested deletions</dt>
+        <dd>{{ row.deletedNested.length }}</dd>
+      </div>
+    </dl>
+  </details>
+  } }
+  <ng-template #footer
+    ><div class="editor-footer">
+      <div>
+        @if (selected()) {
+        <p-button
+          label="Delete"
+          ariaLabel="Delete"
+          icon="pi pi-trash"
+          severity="danger"
+          [text]="true"
+          (onClick)="deleteSelected()"
+        />
+        }
+      </div>
+      <div>
+        <p-button
+          label="Cancel"
+          severity="secondary"
+          [outlined]="true"
+          (onClick)="close()"
+        /><p-button
+          label="Save organization"
+          ariaLabel="Save organization"
+          icon="pi pi-check"
+          [loading]="busy()"
+          (onClick)="save()"
+        />
+      </div></div
+  ></ng-template>
+</p-drawer>
+<p-dialog
+  [visible]="!!confirmation()"
+  [modal]="true"
+  [closable]="false"
+  [closeOnEscape]="false"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '440px', maxWidth: 'calc(100vw - 32px)' }"
+  [header]="confirmation()?.title || ''"
+>
+  <p class="confirmation-message">{{ confirmation()?.message }}</p>
+  <ng-template #footer
+    ><p-button
+      label="Keep working"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="cancelConfirmation()" /><p-button
+      [label]="confirmation()?.action || 'Confirm'"
+      severity="danger"
+      (onClick)="confirm()"
+  /></ng-template>
+</p-dialog>

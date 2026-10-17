@@ -1,0 +1,181 @@
+<div
+  class="schema-field"
+  [class.field-invalid]="errors.length"
+  [attr.data-path]="path"
+  [attr.id]="node.isObject || node.isArray ? id : null"
+  tabindex="-1"
+>
+  <div class="field-heading">
+    @if (node.field.system) {
+    <span class="field-label">{{ node.field.label }}</span>
+    <span class="system-value"
+      >{{ node.summary() === 'Not supplied' ? 'Assigned on save' : node.summary() }}</span
+    >
+    } @else { @if (node.isObject || node.isArray) {
+    <button
+      type="button"
+      class="expand-field"
+      [attr.aria-expanded]="node.expanded"
+      [attr.aria-controls]="id + '-content'"
+      (click)="node.toggle()"
+    >
+      <i
+        class="pi"
+        [class.pi-chevron-right]="!node.expanded"
+        [class.pi-chevron-down]="node.expanded"
+        aria-hidden="true"
+      ></i>
+      {{ node.field.label }} @if (node.field.required) { <span class="required-mark">*</span> }
+    </button>
+    } @else {
+    <label class="field-label" [for]="id"
+      >{{ node.field.label }} @if (node.field.required) {
+      <span class="required-mark">*</span> }</label
+    >
+    } @if (!node.field.required || (node.field.nullable && !node.isArray)) {
+    <select
+      class="presence-select"
+      [formControl]="node.form.controls.presence"
+      [attr.aria-label]="path + ' presence'"
+    >
+      @if (!node.field.required) {
+      <option value="absent">Not supplied</option>
+      }
+      <option value="value">Value</option>
+      @if (node.field.nullable && !node.isArray) {
+      <option value="null">Explicit null</option>
+      }
+    </select>
+    } }
+  </div>
+  @if (!node.field.system) { @if (node.presence === 'null') {
+  <p class="field-hint">Explicitly empty. This is different from a field that is not supplied.</p>
+  } @if (node.presence === 'value') { @if (node.isArray || node.isObject) { @if (!node.expanded) {
+  <button type="button" class="field-preview" (click)="node.toggle()">
+    {{ node.summary() }} <span>Open</span>
+  </button>
+  } @if (node.expanded) {
+  <div class="field-content" [id]="id + '-content'">
+    @if (node.isArray) { @for (item of node.items; track item; let index = $index) {
+    <div class="array-item">
+      <div class="array-toolbar">
+        <span>{{ node.field.label }} {{ index + 1 }}</span>
+        <div>
+          <button
+            type="button"
+            class="icon-action"
+            [disabled]="index === 0"
+            [attr.aria-label]="'Move ' + path + '/' + index + ' up'"
+            (click)="node.move(index, -1)"
+          >
+            <i class="pi pi-arrow-up" aria-hidden="true"></i>
+          </button>
+          <button
+            type="button"
+            class="icon-action"
+            [disabled]="index === node.items!.length - 1"
+            [attr.aria-label]="'Move ' + path + '/' + index + ' down'"
+            (click)="node.move(index, 1)"
+          >
+            <i class="pi pi-arrow-down" aria-hidden="true"></i>
+          </button>
+          <button
+            type="button"
+            class="icon-action danger"
+            [attr.aria-label]="'Remove ' + path + '/' + index"
+            (click)="node.remove(index)"
+          >
+            <i class="pi pi-trash" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+      <app-field-editor
+        [node]="item"
+        [path]="path + '/' + index"
+        [references]="references"
+        [issues]="issues"
+      />
+    </div>
+    } @if (!node.items?.length) {
+    <p class="field-hint">No items. Add a value or set this field to Not supplied if permitted.</p>
+    }
+    <p-button
+      [label]="'Add ' + node.field.label.toLowerCase()"
+      [ariaLabel]="'Add ' + node.field.label.toLowerCase()"
+      icon="pi pi-plus"
+      severity="secondary"
+      size="small"
+      [disabled]="node.field.max !== 'unbounded' && node.items!.length >= +node.field.max"
+      (onClick)="node.add()"
+    />
+    } @else { @if (references[node.field.ref!]?.length) {
+    <label class="lookup-label" [for]="id + '-lookup'">Select an existing record</label>
+    <select class="reference-select" [id]="id + '-lookup'" (change)="pick($event)">
+      <option value="">Choose a reference…</option>
+      @for (option of references[node.field.ref!]; track $index) {
+      <option [value]="$index">{{ option.label }}</option>
+      }
+    </select>
+    <p class="field-hint">Or enter a permitted reference below.</p>
+    } @for (choice of node.shape!.choices; track $index; let ci = $index) { @if (!choice.repeated) {
+    <label class="lookup-label" [for]="id + '-choice-' + ci"
+      >{{ node.shape!.reference ? 'Reference form' : 'Choose one form' }}</label
+    >
+    <select
+      class="reference-select"
+      [id]="id + '-choice-' + ci"
+      [value]="node.selected(choice)"
+      (change)="choose(choice, $event)"
+    >
+      <option value="-1">{{ choice.optional ? 'Not supplied' : 'Select a form…' }}</option>
+      @for (branch of choice.branches; track $index; let bi = $index) {
+      <option [value]="bi">{{ choiceLabel(choice, bi) }}</option>
+      }
+    </select>
+    } @else {
+    <p class="field-hint">Repeated choice: add values to the applicable branches below.</p>
+    } } @for (child of node.children; track child) { @if (node.visible(child)) {
+    <app-field-editor
+      [node]="child"
+      [path]="path + '/' + child.field.name"
+      [references]="references"
+      [issues]="issues"
+    />
+    } } }
+  </div>
+  } } @else { @if (node.constraints.enum?.length || node.kind === 'boolean') {
+  <select
+    class="scalar-select"
+    [id]="id"
+    [formControl]="node.form.controls.scalar"
+    [attr.aria-invalid]="!!errors.length"
+    [attr.aria-describedby]="errors.length ? id + '-error' : null"
+  >
+    @for (value of node.constraints.enum || [true, false]; track $index) {
+    <option [ngValue]="value">{{ node.enumLabel(value) }}</option>
+    }
+  </select>
+  } @else {
+  <input
+    pInputText
+    [id]="id"
+    type="text"
+    [formControl]="node.form.controls.scalar"
+    [readonly]="node.field.fixedValue != null"
+    [attr.aria-invalid]="!!errors.length"
+    [attr.aria-describedby]="errors.length ? id + '-error' : null"
+    autocomplete="off"
+  />
+  @if (node.constraints.format) {
+  <small class="field-hint"
+    >Format: {{ node.constraints.format }}{{ node.constraints.format === 'date' ? ' (YYYY-MM-DD)' :
+    '' }}</small
+  >
+  } } } } } @if (errors.length) {
+  <div class="field-error" [id]="id + '-error'">
+    @for (error of errors; track $index) {
+    <p>{{ error.message }}</p>
+    }
+  </div>
+  }
+</div>

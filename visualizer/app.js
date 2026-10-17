@@ -357,6 +357,7 @@ function renderDetails() {
     `<dt>Graph island</dt><dd><button type="button" data-island="${escapeHtml(entity.islandId || '')}">${escapeHtml(entity.islandId || '—')}</button></dd>`,
     '</dl></section>',
     '<section class="detail-section"><h3>Fields</h3>',
+    '<p class="field-meta">XML element columns follow XSD declaration order where available. Other columns keep their IR positions.</p>',
     '<table class="field-table"><thead><tr><th>Name / XML</th><th>Types</th><th>Occurrence</th><th>Constraints</th></tr></thead>',
     `<tbody>${columns || '<tr><td colspan="4">No fields</td></tr>'}</tbody></table></section>`,
     '<section class="detail-section"><h3>Relations</h3>',

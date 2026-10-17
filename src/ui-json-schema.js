@@ -4,7 +4,7 @@ const { UIModel } = require('./ui-contract');
 const { ValueJSONSchema } = require('./value-json-schema');
 
 function annotations(source, target) {
-  for (const key of ['title', 'description', 'x-xsd-assertions', 'x-xsd-unsupported']) {
+  for (const key of ['title', 'description', 'x-xsd-assertions', 'x-xsd-unsupported', 'x-xsd-enum-annotations']) {
     if (source[key] !== undefined) target[key] = source[key];
   }
   return target;
@@ -36,7 +36,7 @@ class UIValueJSONSchema extends ValueJSONSchema {
     const schema = super.scalar(use, true, warnings);
     if (use.jsonType !== 'boolean') return schema;
     const values = (schema.enum || [true, false]).filter((value) => typeof value === 'boolean');
-    return values.length === 2 ? { type: 'boolean' } : { enum: values };
+    return annotations(schema, values.length === 2 ? { type: 'boolean' } : { enum: values });
   }
 
   nilValue() {
@@ -145,7 +145,8 @@ class UIValueJSONSchema extends ValueJSONSchema {
       const result = {};
       for (const [key, value] of Object.entries(schema)) {
         if (key === 'patternProperties') continue;
-        if (key === 'properties') {
+        if (key.startsWith('x-')) result[key] = value;
+        else if (key === 'properties') {
           result.properties = Object.fromEntries(Object.entries(value)
             .filter(([field]) => field !== '@_xsi:nil')
             .map(([field, child]) => [rename(field), transform(child)]));

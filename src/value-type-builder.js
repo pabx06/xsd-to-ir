@@ -2,6 +2,7 @@ const { XSD_PRIMITIVES } = require('./type-resolver');
 const { extractAssertionSets } = require('./xsd-assertion-metadata');
 const { primitiveWhitespace } = require('./xml-value-normalizer');
 const { orderedChildren } = require('./xsd-parser');
+const { extractEnumAnnotations } = require('./enum-annotations');
 
 const nodes = (value) => {
   if (Array.isArray(value)) return value;
@@ -28,6 +29,15 @@ function facets(node) {
   const values = nodes(node.enumeration).map((item) => item['@_value']);
   if (values.length) result.enum = values;
   return result;
+}
+
+function restrictedUse(base, restriction) {
+  const enumAnnotations = extractEnumAnnotations(restriction, base.enumAnnotations);
+  return {
+    ...base,
+    constraints: { ...base.constraints, ...facets(restriction) },
+    ...(base.enumAnnotations || Object.keys(enumAnnotations).length ? { enumAnnotations } : {}),
+  };
 }
 
 /** Build the XML-shaped values inside JSON columns independently of database entities. */
@@ -89,7 +99,7 @@ class ValueTypeBuilder {
       if (simple && !type.baseTypeRef) type.text = this.typeUse(base);
       if (simple && type.derivation === 'restriction') {
         const text = type.text || this._textType(type.baseTypeRef);
-        if (text) type.text = { ...text, constraints: { ...text.constraints, ...facets(body) } };
+        if (text) type.text = restrictedUse(text, body);
       }
       type.mixed ||= complex?.['@_mixed'] === 'true';
     }
@@ -143,9 +153,8 @@ class ValueTypeBuilder {
     if (restriction) {
       const base = this.typeUse(restriction['@_base'], restriction, visiting);
       return {
-        ...base,
+        ...restrictedUse(base, restriction),
         xsdType,
-        constraints: { ...base.constraints, ...facets(restriction) },
       };
     }
     const union = first(simple.union);

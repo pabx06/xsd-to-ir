@@ -168,6 +168,15 @@ becomes `~1`). The generated shapes preserve representable choices and
 assertions and annotate unsupported XSD semantics; use real XSD 1.1 validation
 for complete instance acceptance.
 
+Per-code XSD annotations are retained in `ir.enums.get(typeName).enumAnnotations`
+and in scalar value-type uses as `enumAnnotations`. Entries are keyed by the
+original code and contain `appInfo` and/or `documentation` text arrays. Both
+JSON Schema generators expose these as `x-xsd-enum-annotations`; they are help
+metadata and do not change validation or the allowed `enum` values. For example,
+Issue 1.1's `documentAssignmentRoleCodeValues.DRW` retains
+`SX001G:drawingReference`. Resolve meanings by issue and enumeration type: the
+same code can have a different meaning in another enumeration.
+
 Run lightweight runtime XML validation:
 
 ```javascript
@@ -299,6 +308,22 @@ These examples demonstrate types and value conversion. The rename helper uses
 product. A real backend must determine CRUD transitions from record history and
 apply validation, concurrency checks, timestamps, and export tracking. The demo
 does not implement that save workflow or assign message sequence numbers.
+
+For a runnable browser editor, use the
+[Issue 1.1 Organizations example](../examples/issue-1.1-organizations-ui/README.md).
+It has its own Angular 22.2 / Optimus UI 2 package and lockfile:
+
+```bash
+npm ci --prefix examples/issue-1.1-organizations-ui
+npm run example:organizations:1_1
+```
+
+The example generates its types, Organization UI schema, and recursive form
+metadata from the bundled XSD. It stores clean values in browser storage, validates
+edits, checks revisions and Organization references, and simulates CRUD tracking
+for root and nested records. It does not allocate message sequences or export XML.
+Node adapters remain outside the browser bundle. The example README describes
+the test commands, storage contract, and remaining XSD validation limits.
 
 The public JavaScript API also accepts a live IR or a parsed `ir.json` snapshot:
 
