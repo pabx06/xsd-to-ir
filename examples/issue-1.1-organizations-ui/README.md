@@ -2,8 +2,9 @@
 
 A working Organizations editor for the fictional **Aurora demonstrator** project.
 It uses Angular 22.2.3, standalone components, Reactive Forms, signals, and
-Optimus UI 2 with the Aura theme. Icons are bundled locally. Other work areas
-remain visible and disabled.
+Optimus UI 2 with the Aura theme and Tailwind CSS 4 through
+`@openng/optimus-ui-tailwindcss`. Icons are bundled locally. Other work areas remain
+visible and disabled.
 
 ## Run
 
@@ -44,6 +45,49 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:browser
 
 Generated files, build artifacts, browser reports, and dependencies are ignored by
 Git. Run `npm run generate` to inspect the generated files in `src/generated/`.
+
+## Styling
+
+`.postcssrc.json` enables `@tailwindcss/postcss` in the Angular build. `src/styles.css`
+imports Tailwind CSS 4, the Optimus Tailwind integration, local icons, and the
+example's custom styles from `src/app.css`. Dependencies stay in this example's
+package and lockfile; styles are compiled locally with no CDN requests.
+
+Tailwind's theme and utilities are imported separately. Preflight is omitted to
+preserve the existing browser defaults and spacing. The example's global styles
+remain in the `base` layer in `src/styles.css`.
+
+The CSS layer order is `theme, base, optimus, components, utilities`, declared in
+both `src/styles.css` and the Optimus provider in `src/main.ts`. Optimus uses the
+`optimus` layer, and custom application styles use `components`. Tailwind utilities
+can therefore override both without `!important`.
+
+Layout, spacing, typography, and responsive rules live in the templates as Tailwind
+utilities. `src/app.css` keeps shared controls, Optimus component overrides, and
+the reduced-motion rule. Shared styles use `@apply` to reuse the same utilities
+without repeating long class lists for every button or form control.
+
+The spacing unit is **4px**, independent of the example's **14px** base font, so
+`gap-3` and `p-3` mean 12px. The `ink`, `muted`, and `line` colors reuse the existing
+CSS variables. The Optimus integration provides `bg-primary-50`, `text-primary`,
+and `text-muted-color` from the active Aura theme. The example keeps its light
+theme; exact colors and dimensions use arbitrary values where needed to preserve
+the existing design.
+
+Three custom responsive variants retain the original layout boundaries:
+
+| Variant    | Viewport width                          |
+| ---------- | --------------------------------------- |
+| `compact:` | Up to and including 760px               |
+| `tablet:`  | Above 760px, up to and including 1150px |
+| `wide:`    | At least 1500px                         |
+
+These ranges do not overlap. For example, `flex compact:block` changes the main
+layout on a small screen. Ordinary Tailwind variants remain available.
+
+Tailwind scans `src/app` for complete class names in templates and TypeScript.
+Generated types and schemas are excluded from this scan. Use complete class names
+in Angular bindings so Tailwind can detect them at build time.
 
 ## Use the screen
 
@@ -197,4 +241,7 @@ XSD and project-level checks when you add import/export or a real backend.
 ## Sources
 
 - [Optimus UI installation and Angular compatibility](https://optimus.openng.org/installation)
+- [Optimus UI Tailwind integration](https://optimus.openng.org/tailwind)
+- [Tailwind CSS Angular setup](https://tailwindcss.com/docs/installation/framework-guides/angular)
+- [Tailwind CSS without Preflight](https://tailwindcss.com/docs/preflight#disabling-preflight)
 - [Angular version compatibility](https://angular.dev/reference/versions)

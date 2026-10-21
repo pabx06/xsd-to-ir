@@ -38,8 +38,12 @@
     "@angular/build": "22.2.3",
     "@angular/cli": "22.2.3",
     "@angular/compiler-cli": "22.2.3",
+    "@openng/optimus-ui-tailwindcss": "^2.0.2",
     "@playwright/test": "^1.58.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "postcss": "^8.5.31",
     "prettier": "3.9.10",
+    "tailwindcss": "^4.3.3",
     "typescript": "6.0.3",
     "vitest": "^4.0.8"
   }

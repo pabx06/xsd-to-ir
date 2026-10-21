@@ -1,14 +1,14 @@
 <div
-  class="schema-field"
+  class="schema-field mx-0 my-3 min-w-0"
   [class.field-invalid]="errors.length"
   [attr.data-path]="path"
   [attr.id]="node.isObject || node.isArray ? id : null"
   tabindex="-1"
 >
-  <div class="field-heading">
+  <div class="field-heading flex items-center justify-between gap-3 mb-2 compact:gap-[7px]">
     @if (node.field.system) {
     <span class="field-label">{{ node.field.label }}</span>
-    <span class="system-value"
+    <span class="system-value text-[#81939d] text-[11px] wrap-anywhere"
       >{{ node.summary() === 'Not supplied' ? 'Assigned on save' : node.summary() }}</span
     >
     } @else { @if (node.isObject || node.isArray) {
@@ -25,12 +25,13 @@
         [class.pi-chevron-down]="node.expanded"
         aria-hidden="true"
       ></i>
-      {{ node.field.label }} @if (node.field.required) { <span class="required-mark">*</span> }
+      {{ node.field.label }} @if (node.field.required) {
+      <span class="required-mark text-[#c48e4a]">*</span> }
     </button>
     } @else {
     <label class="field-label" [for]="id"
       >{{ node.field.label }} @if (node.field.required) {
-      <span class="required-mark">*</span> }</label
+      <span class="required-mark text-[#c48e4a]">*</span> }</label
     >
     } @if (!node.field.required || (node.field.nullable && !node.isArray)) {
     <select
@@ -51,16 +52,27 @@
   @if (!node.field.system) { @if (node.presence === 'null') {
   <p class="field-hint">Explicitly empty. This is different from a field that is not supplied.</p>
   } @if (node.presence === 'value') { @if (node.isArray || node.isObject) { @if (!node.expanded) {
-  <button type="button" class="field-preview" (click)="node.toggle()">
-    {{ node.summary() }} <span>Open</span>
+  <button
+    type="button"
+    class="field-preview px-3 py-2.5 border border-dashed border-[#d6e3e7] flex justify-between gap-2.5 w-full bg-[#f7fafb] text-left text-[#718a95] text-[11px] rounded-[5px] wrap-anywhere"
+    (click)="node.toggle()"
+  >
+    {{ node.summary() }} <span class="text-[#277b70] shrink-0 text-[10px]">Open</span>
   </button>
   } @if (node.expanded) {
-  <div class="field-content" [id]="id + '-content'">
+  <div
+    class="field-content pl-[15px] border-l border-l-[#e0e9eb] compact:pl-[9px]"
+    [id]="id + '-content'"
+  >
     @if (node.isArray) { @for (item of node.items; track item; let index = $index) {
-    <div class="array-item">
-      <div class="array-toolbar">
+    <div
+      class="array-item mx-0 my-3 px-3.5 border border-[#dde8eb] rounded-[6px] pt-0 pb-2 bg-[#fdfefe] compact:px-[9px]"
+    >
+      <div
+        class="array-toolbar px-0 py-[5px] flex items-center justify-between gap-2 border-b border-b-[#edf2f3] text-[10px] text-[#7d959e]"
+      >
         <span>{{ node.field.label }} {{ index + 1 }}</span>
-        <div>
+        <div class="flex">
           <button
             type="button"
             class="icon-action"
@@ -109,7 +121,11 @@
       (onClick)="node.add()"
     />
     } @else { @if (references[node.field.ref!]?.length) {
-    <label class="lookup-label" [for]="id + '-lookup'">Select an existing record</label>
+    <label
+      class="lookup-label mx-0 block text-[10px] text-[#5c7780] font-semibold mt-3 mb-[7px]"
+      [for]="id + '-lookup'"
+      >Select an existing record</label
+    >
     <select class="reference-select" [id]="id + '-lookup'" (change)="pick($event)">
       <option value="">Choose a reference…</option>
       @for (option of references[node.field.ref!]; track $index) {
@@ -118,7 +134,9 @@
     </select>
     <p class="field-hint">Or enter a permitted reference below.</p>
     } @for (choice of node.shape!.choices; track $index; let ci = $index) { @if (!choice.repeated) {
-    <label class="lookup-label" [for]="id + '-choice-' + ci"
+    <label
+      class="lookup-label mx-0 block text-[10px] text-[#5c7780] font-semibold mt-3 mb-[7px]"
+      [for]="id + '-choice-' + ci"
       >{{ node.shape!.reference ? 'Reference form' : 'Choose one form' }}</label
     >
     <select
@@ -172,9 +190,9 @@
     '' }}</small
   >
   } } } } } @if (errors.length) {
-  <div class="field-error" [id]="id + '-error'">
+  <div class="field-error text-[#b34b43] text-[11px]" [id]="id + '-error'">
     @for (error of errors; track $index) {
-    <p>{{ error.message }}</p>
+    <p class="mx-0 my-1.5">{{ error.message }}</p>
     }
   </div>
   }

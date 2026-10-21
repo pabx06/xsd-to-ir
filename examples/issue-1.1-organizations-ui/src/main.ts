@@ -35,7 +35,18 @@ const theme = definePreset(Aura, {
 });
 bootstrapApplication(App, {
   providers: [
-    provideOptimus({ theme: { preset: theme, options: { darkModeSelector: false } } }),
+    provideOptimus({
+      theme: {
+        preset: theme,
+        options: {
+          darkModeSelector: false,
+          cssLayer: {
+            name: 'optimus',
+            order: 'theme, base, optimus, components, utilities',
+          },
+        },
+      },
+    }),
     { provide: ENTITY_CRUD, useExisting: OfflineOrganizationService },
   ],
 }).catch((error) => console.error(error));
