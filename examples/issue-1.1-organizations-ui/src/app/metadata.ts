@@ -1,4 +1,4 @@
-import raw from '../generated/form-metadata.json';
+import raw from '../generated/form-metadata.json' with { type: 'json' };
 import type { JsonObject } from './models';
 
 export interface Constraints {

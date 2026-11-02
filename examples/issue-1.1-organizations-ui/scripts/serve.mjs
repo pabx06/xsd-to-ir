@@ -6,6 +6,7 @@ import { extname, resolve, sep } from 'node:path';
 const root = fileURLToPath(new URL('../dist/organizations/browser/', import.meta.url));
 const types = {
   '.html': 'text/html',
+  '.json': 'application/json',
   '.js': 'text/javascript',
   '.css': 'text/css',
   '.svg': 'image/svg+xml',

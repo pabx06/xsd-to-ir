@@ -5,6 +5,13 @@ const stats = JSON.parse(
 );
 const inputs = Object.keys(stats.inputs);
 assert(inputs.length > 0, 'Build statistics must include the bundle inputs.');
+assert.deepEqual(
+  inputs.filter((input) =>
+    /(^|\/)(tests|e2e)\/|(^|\/)(seeds|offline\.service|organization-store)\.ts$/.test(input),
+  ),
+  [],
+  'Test fixtures and offline services must not enter the browser bundle.',
+);
 const forbidden =
   /(^|\/)(ui-adapter|db-adapter|xml-parser|xml-serializer|xml-value-normalizer|ir-builder)\.[cm]?js$|fast-xml-parser|node_modules\/(knex|better-sqlite3|mysql2|libxmljs2)\/|^node:/;
 assert.deepEqual(

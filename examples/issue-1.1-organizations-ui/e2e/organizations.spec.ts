@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { expect, test } from './backend.fixture';
 
 const input = (page: Page, path: string) => page.locator(`[data-path="${path}"] > input`);
 const presence = (page: Page, path: string) =>
@@ -12,10 +13,14 @@ async function create(page: Page, name: string, id: string) {
   await expect(page.getByRole('status')).toContainText('saved');
 }
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, backend }) => {
+  void backend;
   await page.goto('/');
 });
-test('complete CRUD, reload, leading zeroes, null/removal, and reset', async ({ page }) => {
+test('complete HTTP CRUD, reload, leading zeroes, null/removal, and summaries', async ({
+  page,
+  backend,
+}) => {
   await create(page, 'Atlas Test Organization', '000009');
   await page.getByRole('button', { name: 'Atlas Test Organization', exact: true }).click();
   await input(page, '/name/descr').fill('Atlas Edited');
@@ -36,12 +41,19 @@ test('complete CRUD, reload, leading zeroes, null/removal, and reset', async ({ 
   await expect(page.getByRole('status')).toContainText('deleted');
   await page.getByRole('searchbox', { name: 'Search organizations' }).fill('Atlas Edited');
   await expect(page.getByRole('heading', { name: 'No organizations found' })).toBeVisible();
-  await page.getByRole('button', { name: 'Reset demo data', exact: true }).click();
-  await page
-    .getByRole('dialog', { name: 'Reset demo data?' })
-    .getByRole('button', { name: 'Reset demo data', exact: true })
-    .click();
-  await expect(page.getByRole('button', { name: 'Aurora Aerospace', exact: true })).toBeVisible();
+  const saved = backend.records.find((row) => row.value.orgId[0].id === '000009')!;
+  expect(saved.crud).toBe('D');
+  expect(saved.value.docs).toBeUndefined();
+  expect(backend.writes.map((call) => call.method)).toEqual(['POST', 'PUT', 'PUT', 'DELETE']);
+  expect(backend.writes[1].body).toMatchObject({ orgId: [{ id: '000009' }], docs: null });
+  expect(backend.writes[2].body).not.toHaveProperty('docs');
+  await expect(page.locator('.stat-card').nth(0).locator('strong')).toHaveText('8');
+  await expect(page.locator('.stat-card').nth(1).locator('strong')).toHaveText('1');
+  await expect(page.locator('.stat-card').nth(1)).toContainText('1 deletion(s)');
+  await expect(page.locator('.stat-card').nth(2).locator('strong')).toHaveText('3');
+  await page.locator('#status-filter').selectOption('pending');
+  await page.getByRole('searchbox').fill('');
+  await expect(page.getByRole('heading', { name: 'No organizations found' })).toBeVisible();
 });
 
 test('disabled navigation, search, sorting, pagination, keyboard access, and discard guard', async ({
@@ -60,8 +72,10 @@ test('disabled navigation, search, sorting, pagination, keyboard access, and dis
   }
   await page.getByRole('button', { name: 'Next page' }).click();
   await expect(page.locator('.pagination')).toContainText('Page 2');
-  await page.getByRole('button', { name: 'Organization', exact: true }).click();
-  await expect(page.getByRole('columnheader').first()).toHaveAttribute('aria-sort', 'descending');
+  await page.getByRole('button', { name: 'Last update', exact: true }).click();
+  await expect(
+    page.getByRole('columnheader', { name: 'Last update', exact: true }),
+  ).toHaveAttribute('aria-sort', 'ascending');
   await page.getByRole('searchbox').fill('000042');
   await expect(
     page.getByRole('button', { name: 'Northstar Engineering', exact: true }),
@@ -91,6 +105,7 @@ test('disabled navigation, search, sorting, pagination, keyboard access, and dis
 
 test('validates identifiers, offers document choices, and protects referenced Organizations', async ({
   page,
+  backend,
 }) => {
   await page.getByRole('button', { name: 'New organization', exact: true }).click();
   await input(page, '/name/descr').fill('Document Test');
@@ -115,16 +130,17 @@ test('validates identifiers, offers document choices, and protects referenced Or
     .selectOption({ label: 'DOC-001 · Issue 02' });
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(page.getByRole('status')).toContainText('saved');
-  const savedCode = await page.evaluate(() => {
-    const snapshot = JSON.parse(
-      localStorage.getItem('xsd-to-ir:organizations-ui:v1:aurora-demo:issue-1.1')!,
-    );
-    return snapshot.records.find(
-      (record: { value: { name?: { descr: string } } }) =>
-        record.value.name?.descr === 'Document Test',
-    ).value.docs.doc[0].docRole.code;
+  const saved = backend.records.find((record) => record.value.name?.descr === 'Document Test')!;
+  expect(saved.value.docs!.doc[0].docRole!.code).toBe('DRW');
+  expect(saved.value.docs!.doc[0]).toMatchObject({
+    uid: expect.stringMatching(/^docasg/),
+    crud: 'I',
+    docIssRef: { uidRef: 'dociss1' },
   });
-  expect(savedCode).toBe('DRW');
+  expect(backend.writes.at(-1)!.body).not.toHaveProperty('uid');
+  expect((backend.writes.at(-1)!.body!['docs'] as { doc: unknown[] }).doc[0]).not.toHaveProperty(
+    'uid',
+  );
   await page.getByRole('searchbox').fill('Northstar');
   await page.getByRole('button', { name: 'Northstar Engineering', exact: true }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -132,37 +148,58 @@ test('validates identifiers, offers document choices, and protects referenced Or
   await expect(page.getByRole('alert')).toContainText('reference');
 });
 
-test('handles corrupt storage and failed saves without claiming success', async ({ page }) => {
-  await page.evaluate(() =>
-    localStorage.setItem('xsd-to-ir:organizations-ui:v1:aurora-demo:issue-1.1', '{broken'),
-  );
-  await page.reload();
-  await expect(page.getByRole('alert')).toContainText('has not been replaced');
-  await page.getByRole('button', { name: 'Reset demo data', exact: true }).click();
-  await page
-    .getByRole('dialog', { name: 'Reset demo data?' })
-    .getByRole('button', { name: 'Reset demo data', exact: true })
-    .click();
+test('keeps drafts after server errors, maps fields, and prevents overlapping writes', async ({
+  page,
+  backend,
+}) => {
   await page.getByRole('button', { name: 'Aurora Aerospace', exact: true }).click();
   await input(page, '/name/descr').fill('Failed save');
-  await page.evaluate(() => {
-    Storage.prototype.setItem = () => {
-      throw new DOMException('Full', 'QuotaExceededError');
-    };
-  });
+  backend.failWrite = {
+    status: 400,
+    body: {
+      error: 'invalid_request',
+      message: 'Name is not permitted',
+      details: { issues: [{ path: '/name/descr', message: 'Use the approved name.' }] },
+    },
+  };
   await page.getByRole('button', { name: 'Save organization' }).click();
-  await expect(page.getByRole('alert')).toContainText('not saved');
+  await expect(page.locator('.validation-summary')).toContainText('/name/descr');
   await expect(input(page, '/name/descr')).toHaveValue('Failed save');
   await expect(page.getByRole('status')).toHaveCount(0);
+  backend.failWrite = {
+    status: 403,
+    body: { error: 'forbidden', message: 'No update permission' },
+  };
+  await page.getByRole('button', { name: 'Save organization' }).click();
+  await expect(page.getByRole('alert')).toContainText('403 · forbidden');
+  await expect(input(page, '/name/descr')).toHaveValue('Failed save');
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  backend.hold = (call) => (call.method === 'PUT' ? pending : undefined);
+  await page.getByRole('button', { name: 'Save organization' }).click();
+  await expect(page.getByRole('button', { name: 'Save organization' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Close editor' })).toBeDisabled();
+  await expect(input(page, '/name/descr')).toBeDisabled();
+  expect(backend.writes).toHaveLength(3);
+  release();
+  await expect(page.getByRole('status')).toContainText('saved');
+  expect(backend.writes.map((call) => call.method)).toEqual(['PUT', 'PUT', 'PUT']);
 });
 
-test('renders responsive layouts and needs no API or CDN', async ({ page }, testInfo) => {
+test('renders responsive layouts with only configured API and local assets', async ({
+  page,
+}, testInfo) => {
   const remote: string[] = [];
   const failures: string[] = [];
   page.on('request', (request) => {
     if (
-      ['fetch', 'xhr'].includes(request.resourceType()) ||
-      (!request.url().startsWith('http://127.0.0.1:4212/') && !request.url().startsWith('data:'))
+      !request.url().startsWith('data:') &&
+      (new URL(request.url()).origin !== 'http://127.0.0.1:4212' ||
+        (['fetch', 'xhr'].includes(request.resourceType()) &&
+          !new URL(request.url()).pathname.startsWith('/api/projects/contract-project/entities/') &&
+          !new URL(request.url()).pathname.endsWith('/organizations.config.json')))
     )
       remote.push(request.url());
   });
@@ -196,6 +233,7 @@ test('renders responsive layouts and needs no API or CDN', async ({ page }, test
 
 test('edits applicability, repeated identifiers, and a nested natural Organization reference', async ({
   page,
+  backend,
 }) => {
   await page.getByRole('button', { name: 'Aurora Aerospace', exact: true }).click();
   await presence(page, '/name/applic').selectOption('value');
@@ -210,7 +248,11 @@ test('edits applicability, repeated identifiers, and a nested natural Organizati
   await page.getByRole('button', { name: 'Add identifiers', exact: true }).click();
   await input(page, '/orgId/2/id').fill('000091');
   await page.getByRole('button', { name: 'Move /orgId/2 up', exact: true }).click();
+  await expect(input(page, '/orgId/1/id')).toHaveValue('000091');
+  await expect(input(page, '/orgId/2/id')).toHaveValue('AURORA-DESIGN');
   await page.getByRole('button', { name: 'Remove /orgId/2', exact: true }).click();
+  await expect(input(page, '/orgId/1/id')).toHaveValue('000091');
+  await expect(input(page, '/orgId/2/id')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Remarks' }).click();
   for (const path of [
     '/rmks/rmk',
@@ -227,23 +269,211 @@ test('edits applicability, repeated identifiers, and a nested natural Organizati
   await input(page, '/rmks/rmk/0/text/providedBy/orgId/id').fill('000042');
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(page.getByRole('status')).toContainText('saved');
-  const saved = await page.evaluate(() =>
-    JSON.parse(
-      localStorage.getItem('xsd-to-ir:organizations-ui:v1:aurora-demo:issue-1.1')!,
-    ).records.find((row: { id: number }) => row.id === 1),
-  );
+  const saved = backend.records.find((row) => row.id === '1')!;
   expect(saved.crud).toBe('U');
-  expect(saved.value.name.applic).toEqual({ applicRef: { uidRef: 'applst2' } });
+  expect(saved.value.name!.applic).toEqual({ applicRef: { uidRef: 'applst2' } });
   expect(saved.value.orgId.map((id: { id: string }) => id.id)).toEqual(['001234', '000091']);
-  expect(saved.value.docs.doc[0]).toEqual({
+  expect(saved.value.docs!.doc[0]).toEqual({
     docRef: { uidRef: 'doc1' },
     uid: 'docasg101',
     crud: 'R',
   });
-  expect(saved.value.rmks.rmk[0].uid).toBe('rmk102');
-  expect(saved.value.rmks.rmk[0].crud).toBe('U');
-  expect(saved.value.rmks.rmk[0].text.providedBy).toEqual({ orgId: { id: '000042' } });
+  expect(saved.value.rmks!.rmk[0].uid).toBe('rmk102');
+  expect(saved.value.rmks!.rmk[0].crud).toBe('U');
+  expect(saved.value.rmks!.rmk[0].text.providedBy).toEqual({ orgId: { id: '000042' } });
   await page.getByRole('button', { name: 'Aurora Aerospace', exact: true }).click();
+  const count = backend.writes.length;
   await page.getByRole('button', { name: 'Save organization' }).click();
   await expect(page.getByRole('status')).toContainText('No changes to save.');
+  expect(backend.writes).toHaveLength(count);
+});
+
+test('blocks CRUD for invalid configuration and blocks editing for a mismatched schema', async ({
+  page,
+  backend,
+}) => {
+  await expect(page.getByRole('button', { name: 'Aurora Aerospace', exact: true })).toBeVisible();
+  await expect
+    .poll(
+      () => backend.calls.filter((call) => call.url.searchParams.get('pageSize') === '100').length,
+    )
+    .toBe(4);
+  backend.calls = [];
+  backend.config = { ...(backend.config as object), projectId: '' };
+  await page.reload();
+  await expect(page.getByRole('alert')).toContainText('Set projectId');
+  await expect(page.getByRole('button', { name: 'New organization', exact: true })).toBeDisabled();
+  expect(backend.calls).toEqual([]);
+  backend.config = {
+    apiBasePath: '/api',
+    projectId: 'contract-project',
+    projectLabel: 'Contract test project',
+    schemaIssue: '1.1',
+  };
+  backend.schemaIssue = '2.0';
+  await page.reload();
+  await expect(page.getByRole('alert')).toContainText('does not report S3000L Issue 1.1');
+  await expect(page.getByRole('button', { name: 'New organization', exact: true })).toBeDisabled();
+  expect(backend.calls).toHaveLength(1);
+});
+
+test('keeps the newest search result after an earlier read finishes late', async ({
+  page,
+  backend,
+}) => {
+  await expect(page.getByRole('button', { name: 'Aurora Aerospace', exact: true })).toBeVisible();
+  let release!: () => void;
+  const delayed = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  backend.hold = (call) =>
+    call.url.searchParams.get('filter.search') === 'Aurora' ? delayed : undefined;
+  await page.getByRole('searchbox').fill('Aurora');
+  await expect
+    .poll(() =>
+      backend.calls.some((call) => call.url.searchParams.get('filter.search') === 'Aurora'),
+    )
+    .toBe(true);
+  const cancelled = page.waitForEvent('requestfailed', {
+    predicate: (request) => new URL(request.url()).searchParams.get('filter.search') === 'Aurora',
+  });
+  await page.getByRole('searchbox').fill('Northstar');
+  await cancelled;
+  await expect(
+    page.getByRole('button', { name: 'Northstar Engineering', exact: true }),
+  ).toBeVisible();
+  release();
+  await expect(page.getByRole('button', { name: 'Aurora Aerospace', exact: true })).toHaveCount(0);
+  await expect(page.locator('.pagination')).toContainText('1 organization');
+  backend.failList = {
+    status: 503,
+    body: { error: 'unavailable', message: 'Database temporarily unavailable' },
+  };
+  await page.getByRole('searchbox').fill('Boreal');
+  await expect(page.getByRole('alert')).toContainText('Database temporarily unavailable');
+  backend.failList = undefined;
+  await page.getByRole('button', { name: 'Try again', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Boreal Maintenance', exact: true })).toBeVisible();
+});
+
+test('loads every catalog page, reuses choices, and refreshes Organizations after writes', async ({
+  page,
+  backend,
+}) => {
+  const template = backend.catalogs['externalDocument'][0];
+  backend.catalogs['externalDocument'] = Array.from({ length: 101 }, (_, i) => ({
+    ...template,
+    id: String(i + 1),
+    uid: `doc${i + 1}`,
+    value: {
+      docId: [{ id: `DOC-${String(i + 1).padStart(3, '0')}` }],
+      docTitle: { descr: 'Catalog entry' },
+    },
+  }));
+  await page.reload();
+  await expect
+    .poll(() =>
+      backend.calls.some(
+        (call) =>
+          call.url.pathname.endsWith('/externalDocument') &&
+          call.url.searchParams.get('page') === '2',
+      ),
+    )
+    .toBe(true);
+  await page.getByRole('button', { name: 'Aurora Aerospace', exact: true }).click();
+  await page.getByRole('tab', { name: 'Documents' }).click();
+  for (const path of ['/docs/doc', '/docs/doc/0', '/docs/doc/0/docRef'])
+    await page.locator(`[data-path="${path}"] > .field-heading .expand-field`).click();
+  const options = page.locator('#field--docs-doc-0-docRef-lookup option');
+  await expect(options).toHaveCount(102);
+  await page
+    .locator('#field--docs-doc-0-docRef-lookup')
+    .selectOption({ label: 'DOC-101 · Catalog entry' });
+  await page.getByRole('button', { name: 'Save organization' }).click();
+  await expect(page.getByRole('status')).toContainText('saved');
+  expect(backend.records[0].value.docs!.doc[0].docRef).toEqual({ uidRef: 'doc101' });
+  const prior = backend.calls.filter(
+    (call) =>
+      call.url.pathname.endsWith('/organization') &&
+      call.url.searchParams.get('pageSize') === '100',
+  ).length;
+  await create(page, 'Catalog test partner', '000077');
+  await expect
+    .poll(
+      () =>
+        backend.calls.filter(
+          (call) =>
+            call.url.pathname.endsWith('/organization') &&
+            call.url.searchParams.get('pageSize') === '100',
+        ).length,
+    )
+    .toBeGreaterThan(prior);
+});
+
+test('shows project-status and constraint messages without losing the draft', async ({
+  page,
+  backend,
+}) => {
+  await page.getByRole('button', { name: 'Aurora Aerospace', exact: true }).click();
+  await input(page, '/name/descr').fill('Keep this draft');
+  backend.failWrite = {
+    status: 409,
+    body: {
+      error: 'project_not_ready',
+      message: 'Project is importing.',
+      status: 'importing',
+      constraint: 'project_state',
+    },
+  };
+  await page.getByRole('button', { name: 'Save organization' }).click();
+  await expect(page.getByRole('alert')).toContainText('Project status: importing');
+  await expect(page.getByRole('alert')).toContainText('Constraint: project_state');
+  await expect(input(page, '/name/descr')).toHaveValue('Keep this draft');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Discard unsaved changes?' })).toBeVisible();
+});
+
+test('sorts only scalar columns and sends CRUD filters before pagination', async ({
+  page,
+  backend,
+}) => {
+  await expect(page.getByRole('button', { name: 'Aurora Aerospace', exact: true })).toBeVisible();
+  const lastUpdate = page.getByRole('columnheader', { name: 'Last update', exact: true });
+  await expect(lastUpdate).toHaveAttribute('aria-sort', 'descending');
+  await expect(page.locator('tbody tr').first()).toContainText('Aurora Aerospace');
+  const initialList = backend.calls.find((call) => call.url.searchParams.get('pageSize') === '6')!;
+  expect(initialList.url.searchParams.get('sortBy')).toBe('_updatedAt');
+  expect(initialList.url.searchParams.get('sortDirection')).toBe('desc');
+  for (const name of ['Organization', 'Identifiers', 'Documents']) {
+    const heading = page.getByRole('columnheader', { name, exact: true });
+    await expect(heading.getByRole('button')).toHaveCount(0);
+    await expect(heading).not.toHaveAttribute('aria-sort', /.+/);
+  }
+  for (const [label, field] of [
+    ['Change status', 'crud'],
+    ['Last update', '_updatedAt'],
+  ]) {
+    await page.getByRole('button', { name: label, exact: true }).click();
+    await expect.poll(() => backend.calls.at(-1)?.url.searchParams.get('sortBy')).toBe(field);
+    await expect(
+      page
+        .getByRole('columnheader')
+        .filter({ has: page.getByRole('button', { name: label, exact: true }) }),
+    ).toHaveAttribute('aria-sort', 'ascending');
+  }
+  await page.locator('#status-filter').selectOption('U');
+  await expect(page.getByRole('heading', { name: 'No organizations found' })).toBeVisible();
+  expect(backend.calls.at(-1)!.url.searchParams.get('filter.status')).toBe('U');
+  await page.locator('#status-filter').selectOption('R');
+  await expect(page.locator('.pagination')).toContainText('8 organizations');
+  await page.locator('#page-size').selectOption('12');
+  await expect(page.locator('tbody tr')).toHaveCount(8);
+  expect(backend.calls.at(-1)!.url.searchParams.get('pageSize')).toBe('12');
+  expect(
+    backend.calls
+      .filter((call) => call.url.searchParams.has('sortBy'))
+      .every((call) =>
+        ['crud', '_updatedAt', 'uid'].includes(call.url.searchParams.get('sortBy')!),
+      ),
+  ).toBe(true);
 });

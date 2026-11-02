@@ -319,11 +319,15 @@ npm run example:organizations:1_1
 ```
 
 The example generates its types, Organization UI schema, and recursive form
-metadata from the bundled XSD. It stores clean values in browser storage, validates
-edits, checks revisions and Organization references, and simulates CRUD tracking
-for root and nested records. It does not allocate message sequences or export XML.
+metadata from the bundled XSD. Configure its API path and Issue 1.1 project before
+starting. It reads clean values through HTTP and saves complete business values
+with PUT; identities, reference checks, tracking, and persistence belong to the
+backend. It has no revision protocol, local database, or message-sequence allocator.
 Node adapters remain outside the browser bundle. The example README describes
-the test commands, storage contract, and remaining XSD validation limits.
+configuration, tests, and XSD validation limits. Its
+[backend contract](../examples/issue-1.1-organizations-ui/BACKEND-CONTRACT.md)
+lists the changes needed in the separate backend project. Automated HTTP fixtures
+verify the frontend contract; live backend verification remains separate.
 
 The public JavaScript API also accepts a live IR or a parsed `ir.json` snapshot:
 

@@ -1,10 +1,12 @@
 import { bootstrapApplication } from '@angular/platform-browser';
+import { provideHttpClient } from '@angular/common/http';
 import { provideOptimus } from '@openng/optimus-ui/config';
 import { definePreset } from '@openng/optimus-ui-themes';
 import Aura from '@openng/optimus-ui-themes/aura';
 import { App } from './app/app';
 import { ENTITY_CRUD } from './app/models';
-import { OfflineOrganizationService } from './app/offline.service';
+import { OrganizationService } from './app/organization.service';
+import { RUNTIME_CONFIG, loadRuntimeConfig } from './app/runtime-config';
 
 const theme = definePreset(Aura, {
   semantic: {
@@ -33,20 +35,26 @@ const theme = definePreset(Aura, {
     },
   },
 });
-bootstrapApplication(App, {
-  providers: [
-    provideOptimus({
-      theme: {
-        preset: theme,
-        options: {
-          darkModeSelector: false,
-          cssLayer: {
-            name: 'optimus',
-            order: 'theme, base, optimus, components, utilities',
+loadRuntimeConfig()
+  .then((configuration) =>
+    bootstrapApplication(App, {
+      providers: [
+        provideHttpClient(),
+        { provide: RUNTIME_CONFIG, useValue: configuration },
+        provideOptimus({
+          theme: {
+            preset: theme,
+            options: {
+              darkModeSelector: false,
+              cssLayer: {
+                name: 'optimus',
+                order: 'theme, base, optimus, components, utilities',
+              },
+            },
           },
-        },
-      },
+        }),
+        { provide: ENTITY_CRUD, useExisting: OrganizationService },
+      ],
     }),
-    { provide: ENTITY_CRUD, useExisting: OfflineOrganizationService },
-  ],
-}).catch((error) => console.error(error));
+  )
+  .catch((error) => console.error(error));

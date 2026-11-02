@@ -29,6 +29,7 @@ export class FieldEditor {
       .join(' + ');
   }
   pick(event: Event): void {
+    if ((event.target as HTMLSelectElement).value === '') return;
     const index = Number((event.target as HTMLSelectElement).value);
     const option = this.references[this.node.field.ref!]?.[index];
     if (option) this.node.replace(option.value);

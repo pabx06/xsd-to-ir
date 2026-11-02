@@ -91,6 +91,7 @@ export class FieldNode {
     if (this.expanded) this.materialize();
   }
   read(): unknown {
+    if (this.field.system) return structuredClone(this.original);
     if (this.presence === 'absent') return undefined;
     if (this.presence === 'null') return null;
     if (this.isArray)

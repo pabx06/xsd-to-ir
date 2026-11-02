@@ -1,6 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import schema from '../generated/organization.schema.json';
+import schema from '../generated/organization.schema.json' with { type: 'json' };
 import type { FieldIssue, OrganizationValue } from './models';
 
 const ajv = new Ajv({ allErrors: true, strict: false, coerceTypes: false, useDefaults: false });

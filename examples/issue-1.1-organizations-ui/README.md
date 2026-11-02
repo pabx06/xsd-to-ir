@@ -1,50 +1,122 @@
-# Issue 1.1 Organizations — offline Angular example
+# Issue 1.1 Organizations — Angular HTTP example
 
-A working Organizations editor for the fictional **Aurora demonstrator** project.
-It uses Angular 22.2.3, standalone components, Reactive Forms, signals, and
-Optimus UI 2 with the Aura theme and Tailwind CSS 4 through
-`@openng/optimus-ui-tailwindcss`. Icons are bundled locally. Other work areas remain
-visible and disabled.
+An Organizations editor for a configured S3000L Issue 1.1 project. It uses
+Angular 22.2.3, standalone components, Reactive Forms, signals, Optimus UI 2
+(Aura), and Tailwind CSS 4 through `@openng/optimus-ui-tailwindcss`. Icons are
+bundled locally. Other work areas remain visible and disabled.
 
-## Run
+The editor uses the backend API. It has no local storage database, runtime seeds,
+reset action, revision counter, or frontend UID allocator. The backend handoff is
+in [BACKEND-CONTRACT.md](BACKEND-CONTRACT.md). **The supplied backend needs the
+changes in that document before live CRUD can work.**
 
-Use Node **24.15 or later in the 24.x series**, or another Node version supported
-by Angular 22. Dependencies and the lockfile are separate from the root package.
-From the repository root:
+## Install and configure
+
+Use Node 24.15 or later in the 24.x series, or another Node version supported by
+the package's engines setting. Dependencies and the lockfile are separate from
+the repository's Node package. From the repository root:
 
 ```sh
 npm ci
 npm ci --prefix examples/issue-1.1-organizations-ui
-npm run example:organizations:1_1
 ```
 
-Open **http://127.0.0.1:4211**. The first load creates eight fictional records.
-The app needs a local web server to serve its files. It makes no API or CDN
-requests. After installation, development and build commands do not need a network
-connection. This is not an installable PWA or a service-worker cache.
+Edit `public/organizations.config.json` in this example before starting:
 
-To run from this directory:
+```json
+{
+  "apiBasePath": "/api",
+  "projectId": "your-issue-1.1-project-id",
+  "projectLabel": "Your project name",
+  "schemaIssue": "1.1"
+}
+```
+
+The committed template deliberately has an empty project ID and label. The app
+loads this file before Angular initialization. Missing settings, unreadable JSON,
+a non-local API base path, or an unsupported issue show a configuration error and
+cause **no CRUD requests**. Reload after changing configuration. Do not put
+credentials or tokens in this public file, or commit deployment-specific edits.
+
+For a production build, the file is copied to
+`dist/organizations/browser/organizations.config.json`. Deployment can replace
+that file without recompiling the app. Serve it without a stale cache. The
+schema issue reported by the backend summary is checked before enabling edits;
+changing this configuration cannot convert a project to Issue 1.1.
+
+## Authentication and development proxy
+
+Use an existing same-origin backend session. The HTTP service sends cookies; it
+does not implement login or store a token. Angular's default XSRF support remains
+enabled. If the backend uses different CSRF cookie/header names or a custom token
+flow, configure `provideHttpClient` in `src/main.ts` to match that flow.
+Do not disable the backend's CSRF checks to make the example connect.
+
+For local development, set the backend origin and run the root convenience command:
+
+```sh
+ORGANIZATIONS_API_TARGET=http://127.0.0.1:3000 npm run example:organizations:1_1
+```
+
+Port 3000 is an example: use the real backend origin. Open
+**http://127.0.0.1:4211**. `proxy.conf.cjs` forwards `/api/**` to that origin.
+It preserves the API path, verifies TLS, and removes a backend-only cookie domain
+for local development. If `apiBasePath` differs from `/api`, also set
+`ORGANIZATIONS_API_PATH` to the same path. Proxy environment changes require a
+server restart. Without a target, the dev server does not proxy API requests.
+
+Establish the session through the proxied authentication route on the UI origin,
+or through your application's existing same-origin login. If authentication is
+outside the proxied API path, extend the proxy for that route. Secure cookies
+require an appropriate HTTPS development setup. A 401 or 403 is shown to the user;
+the example does not bypass session or permission checks.
+
+Production must serve both the UI and API under one origin, typically using a
+reverse proxy. A cross-origin URL is intentionally rejected by runtime config.
+The static test server is not a production API proxy.
+
+## Build and verify
+
+From this example directory:
 
 ```sh
 npm start
-npm run build
 npm test
+npm run build
 npx playwright install chromium
 npm run test:browser
+npm run format:check
 ```
 
-Development, build, and both test commands generate their inputs first. `npm test`
-checks TypeScript and runs the form and storage tests. Browser tests use a local
-static server on port **4212** and the production build. They cover Chromium on
-desktop and a mobile viewport. If the downloaded Chromium cannot run on your OS,
-use an installed Chromium executable:
+Development, build, and test commands generate inputs first. `npm test` checks
+TypeScript and runs form, schema, configuration, and HTTP contract tests.
+`npm run build` compiles the Angular templates and checks the browser bundle.
+Browser tests serve the production build on port **4212**, intercept configuration
+and API requests with explicit fixtures, and run desktop/mobile Chromium layouts.
+They require no backend credentials and make no requests to a live project.
+
+If Playwright's downloaded Chromium cannot run on your OS, use a working local
+Chromium executable:
 
 ```sh
 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chromium npm run test:browser
 ```
 
+Tests cover complete CRUD bodies, leading zeroes, optional removal versus null,
+server-assigned identities, returned tracking, reference pagination/cache refresh,
+search/sorting/pagination, summaries, obsolete reads, failed writes, unsaved-change
+protection, keyboard navigation and responsive layouts. Network tests allow only
+local assets, runtime configuration and the configured API. Bundle checks exclude
+Node adapters, test fixtures, offline services, and external CDN assets.
+
+**No live backend has been verified.** The HTTP fixtures test this frontend's
+contract. They do not validate production transactions, reference resolution,
+identity allocation, or import/export history. The separate backend document has
+a live verification checklist. A real Issue 1.1 test project, API URL and session
+are needed for that step.
+
 Generated files, build artifacts, browser reports, and dependencies are ignored by
-Git. Run `npm run generate` to inspect the generated files in `src/generated/`.
+Git. Run `npm run generate` to inspect `src/generated/`.
 
 ## Styling
 
@@ -91,7 +163,10 @@ in Angular bindings so Tailwind can detect them at build time.
 
 ## Use the screen
 
-Search by name or identifier. Select a column heading to change the sort order.
+Search by name or identifier. Records initially show the latest update first.
+Select **Change status** or **Last update** to change the sort order. Names,
+identifiers, and document counts do not have sort controls; the API only needs
+its existing scalar-column sorting (`crud` and `_updatedAt`).
 Open a record by its name or edit button. The editor has four sections:
 
 - **Details:** optional name, language, date, and name applicability.
@@ -108,8 +183,7 @@ such as identifiers and descriptions. Repeated values have add, remove, and
 reorder controls. A nullable repeated element uses null on an individual item,
 not on the whole array.
 
-Choice controls select the permitted branch. Reference controls offer seeded
-documents and applicability statements, plus the current Organizations. These
+Choice controls select the permitted branch. Reference controls offer documents, document issues, applicability statements, and Organizations from the configured backend. These
 lookups are conveniences. You can also enter the permitted UID or natural
 identifier form. Document and applicability lookup records are read-only.
 Organization references must resolve to one active Organization in this project.
@@ -121,10 +195,17 @@ code. Values without a recognized annotation keep their code as the label.
 Storage and validation always use the original code. A label is a short name;
 it does not replace a full business definition or instructions for using it.
 
-Record information shows IDs, CRUD action, revision, and timestamps. Nested XML
-UIDs and CRUD actions are read-only. The service assigns them when you save.
+Record information shows IDs, CRUD action, pending export, and timestamps. Nested XML
+UIDs and CRUD actions are read-only. The backend assigns them when you save.
 Closing a changed editor requires confirmation. The page also registers the
 browser's standard unsaved-change prompt for navigation or reload.
+
+Search, filtering, sorting, pagination and summary counts run on the backend.
+The table does not filter only the loaded page. Reference catalogs load all pages
+of up to 100 records. A failed or inconsistent catalog shows an error instead of
+silently dropping choices. **Refresh connection** reloads totals and catalogs.
+The application preserves the draft when a save fails and blocks overlapping
+writes. It cancels obsolete reads so earlier results cannot replace newer results.
 
 ## Generated contracts and reusable parts
 
@@ -148,83 +229,49 @@ The browser imports only these generated artifacts. It does **not** import
 when a branch is opened, and preserve untouched nested values. Fields prohibited
 by the XSD are excluded, including `orgId.setBy` and `name.providedBy`.
 
-`ENTITY_CRUD` is the injection token for the CRUD interface. A future HTTP service
-can replace its provider. The project and entity parameters, Observable results,
-list query, and `{ data, metadata }` envelope remain available. The demo's
-`reset`, `summary`, and reference-catalog functions are separate convenience APIs
-on `OfflineOrganizationService`.
+## Data flow and reusable services
 
-Each record separates business values from storage and tracking information:
+`EntityCrudHttpService` is a generic HTTP transport. It keeps project/entity
+arguments, Observable results, and the existing list/record envelopes.
+`OrganizationService` provides Organization operations, validates the summary
+issue, and manages reference catalogs. `ENTITY_CRUD` binds the screen to that
+service. The runtime config is injected through `RUNTIME_CONFIG`.
 
-```typescript
-{
-  id: 1,
-  revision: 1,
-  uid: 'org1',
-  crud: 'R',
-  baseline: true,
-  pendingExport: false,
-  createdAt: '2026-09-01T09:00:00.000Z',
-  updatedAt: '2026-10-08T09:00:00.000Z',
-  deletedAt: null,
-  deletedNested: [],
-  value: { orgId: [{ id: '001234' }], name: { descr: 'Aurora Aerospace' } }
-}
+The wire record contains `id` (string or number), `uid`, `crud`,
+`pendingExport`, `_createdAt`, `_updatedAt`, `_deletedAt`, and `value`.
+Only the timestamp names change at the HTTP boundary. The editable `value` is
+`Omit<Entities['organization'], 'uid' | 'crud'>`. Root identity and tracking
+stay in the surrounding record. Nested UID/CRUD fields remain read-only. New
+nested values have no generated identities until the backend saves them.
+
+Creation sends POST. Saving an existing record sends a **complete business value**
+with PUT. For example:
+
+```json
+{ "orgId": [{ "id": "001234" }], "docs": null }
 ```
 
-`value` is `Omit<Entities['organization'], 'uid' | 'crud'>`. Nested UID/CRUD fields
-remain in the generated nested types for record identity, but controls cannot
-edit them. The service rejects forged system fields in incoming payloads.
+This removes an existing name and makes documents explicit nil. Omitting `docs`
+instead removes that property. There is no `makePatch`, revision, `changes`, or
+`remove` wrapper, and no PATCH fallback. The original value is retained only for
+dirty detection; unchanged saves do not send a write. Unopened nested fields are
+preserved when constructing the complete value.
 
-An update contains the record revision, changed **top-level** business fields, and
-an explicit list of fields to remove:
-
-```typescript
-{ revision: 1, changes: { docs: null }, remove: ['name'] }
-```
-
-This sets documents to explicit null and removes the name. Nested edits send the
-complete changed top-level field; unchanged nested values remain intact.
-`makePatch` computes this update from the original and edited values.
-
-## Storage and change tracking
-
-The service stores one snapshot under:
-
-```text
-xsd-to-ir:organizations-ui:v1:aurora-demo:issue-1.1
-```
-
-It seeds only when this key is absent. Deleting all records does not cause
-reseeding on reload. Each operation reads current storage, validates the candidate
-snapshot, and writes once. A failed `setItem` never produces a successful save.
-Unreadable or incompatible stored data stays in place until the user explicitly
-confirms **Reset demo data**. Reset affects only this key.
-
-Seeds use `R` as the established demonstration baseline. Editing a baseline
-record sets `U`; new records retain `I` after further edits. Deletion sets `D` and
-`deletedAt`, and removes the record from active lists. Changed records have
-`pendingExport: true`. Nested records receive the same treatment according to
-their own baseline state. Nested deletions are kept in `deletedNested`, outside
-the active editable value.
-
-An effective change increments the project-local revision and assigns that
-revision to the changed record. A no-op save does not increment it. Updates and
-deletes require the current record revision. Incoming UID and natural-identifier
-Organization references block deletion. Identifier edits that would break those
-references also fail.
-
-The revision is **not an S3000L message sequence**. This example does not allocate
-message sequences, export XML, mark changes as exported, or resolve production
-references. It has no cross-tab locking or multi-user synchronization. Use a
-backend transaction and a project change policy for those operations.
+The backend owns validation, reference integrity, UID allocation, timestamps,
+root/nested CRUD and deletion history. The editor displays returned pending state;
+it does not allocate message sequences or export XML. Pending records include
+pending deletions in the summary, while lists contain active Organizations only.
+This example assumes one active editing session per project and has no revision
+protocol or multi-user synchronization.
 
 ## Validation limits
 
-The service validates complete values against the generated UI JSON Schema before
-storage. It adds the managed root UID and CRUD action for this check. Validation
-errors retain JSON Pointer paths, which the editor uses to select the section and
-focus the field.
+The form validates the complete draft against the generated UI JSON Schema before
+sending it. Root validation placeholders are used only for this check and are
+never submitted. The backend must validate again after identity preparation.
+Structured backend issues are mapped to editable field paths. Zod top-level
+`fieldErrors` and message-only adapter errors are also displayed. Error codes,
+permission status, project status and constraint names remain available.
 
 The generated Organization schema reports these remaining XSD limits:
 
@@ -234,14 +281,5 @@ The generated Organization schema reports these remaining XSD limits:
 - Repeating choice totals and branch order require XSD validation.
 
 The schema is not a complete XSD 1.1 validator. The UI does not claim that a saved
-record is ready for valid XML export. The reference catalog is fictional, and
-non-Organization reference resolution is outside this demo. Run the production
-XSD and project-level checks when you add import/export or a real backend.
-
-## Sources
-
-- [Optimus UI installation and Angular compatibility](https://optimus.openng.org/installation)
-- [Optimus UI Tailwind integration](https://optimus.openng.org/tailwind)
-- [Tailwind CSS Angular setup](https://tailwindcss.com/docs/installation/framework-guides/angular)
-- [Tailwind CSS without Preflight](https://tailwindcss.com/docs/preflight#disabling-preflight)
-- [Angular version compatibility](https://angular.dev/reference/versions)
+record is ready for valid XML export. The backend must resolve references and enforce project rules. Run the production
+XSD and project-level checks through the backend import/export workflow.

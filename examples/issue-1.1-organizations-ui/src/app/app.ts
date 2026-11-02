@@ -1,7 +1,7 @@
 import { Component, HostListener, OnDestroy, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subscription, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subscription, debounceTime, distinctUntilChanged, finalize } from 'rxjs';
 import { ButtonModule } from '@openng/optimus-ui/button';
 import { InputTextModule } from '@openng/optimus-ui/inputtext';
 import { DrawerModule } from '@openng/optimus-ui/drawer';
@@ -10,13 +10,12 @@ import { TableModule } from '@openng/optimus-ui/table';
 import { FieldEditor } from './field-editor';
 import { FieldNode } from './field-node';
 import { organizationFields, same } from './metadata';
-import { makePatch } from './organization-store';
-import { OfflineOrganizationService } from './offline.service';
+import { RUNTIME_CONFIG } from './runtime-config';
+import { validateOrganization } from './validation';
 import {
   CrudError,
   ENTITY,
   ENTITY_CRUD,
-  PROJECT,
   displayName,
   type FieldIssue,
   type ListQuery,
@@ -42,7 +41,15 @@ import {
 })
 export class App implements OnDestroy {
   readonly api = inject(ENTITY_CRUD);
-  readonly demo = inject(OfflineOrganizationService);
+  readonly configuration = inject(RUNTIME_CONFIG);
+  readonly projectLabel = this.configuration.config?.projectLabel || 'Project not configured';
+  private readonly project = this.configuration.config?.projectId || '';
+  readonly ready = signal(false);
+  readonly connecting = signal(false);
+  readonly loading = signal(false);
+  readonly opening = signal(false);
+  readonly referencesLoading = signal(false);
+  readonly referenceError = signal('');
   readonly search = new FormControl('', { nonNullable: true });
   readonly status = new FormControl('', { nonNullable: true });
   readonly rows = signal<OrganizationRecord[]>([]);
@@ -74,9 +81,13 @@ export class App implements OnDestroy {
   readonly title = displayName;
   fields: FieldNode[] = [];
   original: OrganizationValue = { orgId: [{ id: '' }] };
-  sortBy: NonNullable<ListQuery['sortBy']> = 'name';
-  sortDirection: 'asc' | 'desc' = 'asc';
+  sortBy: NonNullable<ListQuery['sortBy']> = '_updatedAt';
+  sortDirection: 'asc' | 'desc' = 'desc';
   private subscriptions = new Subscription();
+  private listRead?: Subscription;
+  private summaryRead?: Subscription;
+  private referenceRead?: Subscription;
+  private recordRead?: Subscription;
   private opener: HTMLElement | null = null;
   // Intercept Escape before the drawer's own handler can remove its mask.
   private modalKey = (event: KeyboardEvent): void => {
@@ -108,20 +119,54 @@ export class App implements OnDestroy {
         .subscribe(() => this.refresh(1)),
     );
     this.subscriptions.add(this.status.valueChanges.subscribe(() => this.refresh(1)));
-    this.refresh();
+    this.connect();
+  }
+  connect(): void {
+    if (this.busy()) return;
+    if (!this.configuration.config) {
+      this.error.set(this.configuration.error);
+      return;
+    }
+    this.summaryRead?.unsubscribe();
+    this.listRead?.unsubscribe();
+    this.referenceRead?.unsubscribe();
+    this.recordRead?.unsubscribe();
+    this.ready.set(false);
+    this.connecting.set(true);
+    this.error.set('');
+    this.summaryRead = this.api
+      .summary(this.project)
+      .pipe(finalize(() => this.connecting.set(false)))
+      .subscribe({
+        next: (stats) => {
+          this.stats.set(stats);
+          this.ready.set(true);
+          this.refresh();
+          this.loadReferences(true);
+        },
+        error: (error) => this.report(error),
+      });
   }
   refresh(page = this.pageInfo().page): void {
+    if (!this.ready() || this.busy()) return;
+    this.listRead?.unsubscribe();
+    this.loading.set(true);
     this.error.set('');
-    this.api
-      .list(PROJECT, ENTITY, {
+    this.listRead = this.api
+      .list(this.project, ENTITY, {
         page,
         pageSize: this.pageInfo().pageSize,
         sortBy: this.sortBy,
         sortDirection: this.sortDirection,
         filters: { search: this.search.value, status: this.status.value },
       })
+      .pipe(finalize(() => this.loading.set(false)))
       .subscribe({
         next: (response) => {
+          if (response.metadata.page > 1 && response.metadata.page > response.metadata.pageCount) {
+            this.refresh(Math.max(1, response.metadata.pageCount));
+            return;
+          }
           this.rows.set(response.data);
           this.pageInfo.set(response.metadata);
         },
@@ -130,13 +175,20 @@ export class App implements OnDestroy {
           this.report(error);
         },
       });
-    this.demo
-      .summary()
-      .subscribe({ next: (stats) => this.stats.set(stats), error: (error) => this.report(error) });
-    this.demo.references().subscribe({
-      next: (references) => this.references.set(references),
-      error: (error) => this.report(error),
-    });
+  }
+  loadReferences(refresh = false): void {
+    if (!this.ready() || this.busy()) return;
+    this.referenceRead?.unsubscribe();
+    this.referencesLoading.set(true);
+    this.referenceError.set('');
+    this.references.set({});
+    this.referenceRead = this.api
+      .references(this.project, refresh)
+      .pipe(finalize(() => this.referencesLoading.set(false)))
+      .subscribe({
+        next: (references) => this.references.set(references),
+        error: (error) => this.referenceError.set(this.errorMessage(error)),
+      });
   }
   sort(field: NonNullable<ListQuery['sortBy']>): void {
     this.sortDirection = this.sortBy === field && this.sortDirection === 'asc' ? 'desc' : 'asc';
@@ -175,14 +227,20 @@ export class App implements OnDestroy {
     document.getElementById(`tab-${this.tabs[next]}`)?.focus();
   }
   open(row?: OrganizationRecord): void {
+    if (!this.ready() || this.busy()) return;
     const start = () => {
+      this.recordRead?.unsubscribe();
       this.opener = document.activeElement as HTMLElement;
-      if (row)
-        this.api.findById(PROJECT, ENTITY, row.id).subscribe({
-          next: (fresh) => this.startEditor(fresh),
-          error: (error) => this.report(error),
-        });
-      else this.startEditor(null);
+      if (row) {
+        this.opening.set(true);
+        this.recordRead = this.api
+          .findById(this.project, ENTITY, row.id)
+          .pipe(finalize(() => this.opening.set(false)))
+          .subscribe({
+            next: (fresh) => this.startEditor(fresh),
+            error: (error) => this.report(error),
+          });
+      } else this.startEditor(null);
     };
     this.guard(start);
   }
@@ -218,33 +276,46 @@ export class App implements OnDestroy {
     ) as OrganizationValue;
   }
   save(): void {
-    this.busy.set(true);
+    if (!this.ready() || this.busy() || !this.editorOpen()) return;
     this.error.set('');
     this.issues.set([]);
     const value = this.value();
     const row = this.selected();
+    if (row && same(this.original, value)) {
+      this.finishClose();
+      this.feedback.set('No changes to save.');
+      return;
+    }
+    const issues = validateOrganization(value, row?.uid, row?.crud);
+    if (issues.length) {
+      this.issues.set(issues);
+      this.error.set('Check the marked fields before saving.');
+      return;
+    }
+    this.busy.set(true);
     const request = row
-      ? this.api.update(PROJECT, ENTITY, row.id, makePatch(this.original, value, row.revision))
-      : this.api.create(PROJECT, ENTITY, value);
-    request.subscribe({
-      next: (saved) => {
-        this.busy.set(false);
-        this.finishClose();
-        this.refresh();
-        this.feedback.set(
-          row && saved.revision === row.revision
-            ? 'No changes to save.'
-            : `${displayName(saved.value)} saved. Changes are pending export.`,
-        );
-      },
-      error: (error) => {
-        this.busy.set(false);
-        this.report(error);
-        if (error instanceof CrudError) this.issues.set(error.issues);
-      },
-    });
+      ? this.api.update(this.project, ENTITY, row.id, value)
+      : this.api.create(this.project, ENTITY, value);
+    this.subscriptions.add(
+      request.pipe(finalize(() => this.busy.set(false))).subscribe({
+        next: (saved) => {
+          this.busy.set(false);
+          this.finishClose();
+          this.connect();
+          this.feedback.set(
+            `${displayName(saved.value)} saved.${saved.pendingExport ? ' Changes are pending export.' : ''}`,
+          );
+        },
+        error: (error) => {
+          this.busy.set(false);
+          this.report(error);
+          if (error instanceof CrudError) this.issues.set(error.issues);
+        },
+      }),
+    );
   }
   close(): void {
+    if (this.busy()) return;
     this.guard(() => this.finishClose());
   }
   private finishClose(): void {
@@ -275,40 +346,29 @@ export class App implements OnDestroy {
   }
   deleteSelected(): void {
     const row = this.selected();
-    if (!row) return;
+    if (!row || this.busy() || !this.ready()) return;
     this.confirmation.set({
       title: 'Delete organization?',
       message: `${displayName(row.value)} will be removed from the active list. Its deletion will remain pending export.${this.dirty() ? ' Unsaved changes will be discarded.' : ''}`,
       action: 'Delete organization',
       run: () => {
-        this.api.delete(PROJECT, ENTITY, row.id, row.revision).subscribe({
-          next: () => {
-            this.finishClose();
-            this.refresh();
-            this.feedback.set('Organization deleted. The deletion is pending export.');
-          },
-          error: (error) => this.report(error),
-        });
-      },
-    });
-  }
-  reset(): void {
-    this.confirmation.set({
-      title: 'Reset demo data?',
-      message:
-        'This replaces all local Organizations and pending changes with the eight demonstration records. Other projects are not affected.',
-      action: 'Reset demo data',
-      run: () => {
-        this.demo.reset().subscribe({
-          next: () => {
-            if (this.editorOpen()) this.finishClose();
-            this.search.setValue('', { emitEvent: false });
-            this.status.setValue('', { emitEvent: false });
-            this.refresh(1);
-            this.feedback.set('Demo data reset.');
-          },
-          error: (error) => this.report(error),
-        });
+        if (this.busy()) return;
+        this.busy.set(true);
+        this.error.set('');
+        this.subscriptions.add(
+          this.api
+            .delete(this.project, ENTITY, row.id)
+            .pipe(finalize(() => this.busy.set(false)))
+            .subscribe({
+              next: () => {
+                this.busy.set(false);
+                this.finishClose();
+                this.connect();
+                this.feedback.set('Organization deleted.');
+              },
+              error: (error) => this.report(error),
+            }),
+        );
       },
     });
   }
@@ -346,7 +406,17 @@ export class App implements OnDestroy {
     );
   }
   report(error: unknown): void {
-    this.error.set(error instanceof Error ? error.message : 'The operation failed.');
+    this.error.set(this.errorMessage(error));
+  }
+  private errorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : 'The operation failed.';
+    if (!(error instanceof CrudError)) return message;
+    const details = [
+      error.httpStatus ? `${error.httpStatus} · ${error.code}` : '',
+      error.projectStatus ? `Project status: ${error.projectStatus}` : '',
+      error.constraint ? `Constraint: ${error.constraint}` : '',
+    ].filter(Boolean);
+    return message + (details.length ? ` (${details.join('; ')})` : '');
   }
   @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void {
     if (this.dirty()) {
@@ -357,6 +427,9 @@ export class App implements OnDestroy {
   ngOnDestroy(): void {
     document.removeEventListener('keydown', this.modalKey, { capture: true });
     this.subscriptions.unsubscribe();
+    [this.listRead, this.summaryRead, this.referenceRead, this.recordRead].forEach((read) =>
+      read?.unsubscribe(),
+    );
     this.fields.forEach((node) => node.dispose());
   }
 }

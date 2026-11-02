@@ -1,19 +1,11 @@
-import type { OrganizationValue, ReferenceCatalog, Snapshot } from './models';
-import { PROJECT } from './models';
-
-export const fixedReferences: ReferenceCatalog = {
-  documentReference: [
-    { label: 'DOC-001 · Supplier quality guide', value: { uidRef: 'doc1' } },
-    { label: 'DOC-002 · Workshop capability register', value: { uidRef: 'doc2' } },
-  ],
-  documentIssueReference: [
-    { label: 'DOC-001 · Issue 02', value: { uidRef: 'dociss1' } },
-    { label: 'DOC-002 · Issue 01', value: { uidRef: 'dociss2' } },
-  ],
-  applicabilityStatementReference: [
-    { label: 'ALL-AURORA · All demonstration variants', value: { uidRef: 'applst1' } },
-    { label: 'COLD-WEATHER · Cold weather configuration', value: { uidRef: 'applst2' } },
-  ],
+import type { ApiEntityRecord, OrganizationValue, JsonObject } from '../../src/app/models';
+// Fictional API contract data. Never imported by production code.
+export const TEST_PROJECT = 'contract-project';
+export const TEST_CONFIG = {
+  apiBasePath: '/api',
+  projectId: TEST_PROJECT,
+  projectLabel: 'Contract test project',
+  schemaIssue: '1.1' as const,
 };
 const values: OrganizationValue[] = [
   {
@@ -86,35 +78,47 @@ const values: OrganizationValue[] = [
   { orgId: [{ id: '009906' }], name: null },
   { orgId: [{ id: '000007' }] },
 ];
-export function seedSnapshot(): Snapshot {
+
+export function fixtureRecords(): ApiEntityRecord<OrganizationValue>[] {
+  return structuredClone(values).map((value, index) => ({
+    id: String(index + 1),
+    uid: 'org' + (index + 1),
+    crud: 'R',
+    pendingExport: false,
+    _createdAt: '2026-09-01T09:00:00.000Z',
+    _updatedAt: '2026-10-' + String(15 - index).padStart(2, '0') + 'T09:00:00.000Z',
+    _deletedAt: null,
+    value,
+  }));
+}
+function reference(uid: string, value: JsonObject): ApiEntityRecord<JsonObject> {
+  return { ...fixtureRecords()[0], id: uid, uid, value };
+}
+export function fixtureCatalogs(): Record<string, ApiEntityRecord<JsonObject>[]> {
   return {
-    version: 1,
-    issue: '1.1',
-    projectId: PROJECT,
-    revision: 8,
-    nextId: 9,
-    nextUid: 1000,
-    establishedUids: [
-      'docasg101',
-      'rmk102',
-      'docasg103',
-      'docasg104',
-      'rmk105',
-      'docasg106',
-      'rmk107',
+    externalDocument: [
+      reference('doc1', {
+        docId: [{ id: 'DOC-001' }],
+        docTitle: { descr: 'Supplier quality guide' },
+      }),
+      reference('doc2', {
+        docId: [{ id: 'DOC-002' }],
+        docTitle: { descr: 'Workshop capability register' },
+      }),
     ],
-    records: structuredClone(values).map((value, index) => ({
-      id: index + 1,
-      revision: index + 1,
-      uid: `org${index + 1}`,
-      crud: 'R',
-      baseline: true,
-      pendingExport: false,
-      createdAt: '2026-09-01T09:00:00.000Z',
-      updatedAt: `2026-10-${String(8 + index).padStart(2, '0')}T09:00:00.000Z`,
-      deletedAt: null,
-      value,
-      deletedNested: [],
-    })),
+    externalDocumentIssue: [
+      reference('dociss1', { docIssId: { id: 'DOC-001 · Issue 02' } }),
+      reference('dociss2', { docIssId: { id: 'DOC-002 · Issue 01' } }),
+    ],
+    applicabilityStatement: [
+      reference('applst1', {
+        applicId: { id: 'ALL-AURORA' },
+        applicDescr: { descr: 'All demonstration variants' },
+      }),
+      reference('applst2', {
+        applicId: { id: 'COLD-WEATHER' },
+        applicDescr: { descr: 'Cold weather configuration' },
+      }),
+    ],
   };
 }

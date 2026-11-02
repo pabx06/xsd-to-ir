@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { FieldNode } from '../src/app/field-node';
 import { organizationFields, shapeOf, type Field, initialValue } from '../src/app/metadata';
-import { seedSnapshot } from '../src/app/seeds';
+import { fixtureRecords } from './fixtures/records';
 
 const field = (name: string) => organizationFields.find((item) => item.name === name)!;
 describe('generated recursive forms', () => {
@@ -17,7 +17,7 @@ describe('generated recursive forms', () => {
     node.dispose();
   });
   it('preserves untouched nested data without creating recursive controls', () => {
-    const value = seedSnapshot().records[0].value.docs;
+    const value = fixtureRecords()[0].value.docs;
     const node = new FieldNode(field('docs'), value);
     expect(node.children).toBeUndefined();
     expect(node.read()).toEqual(value);
@@ -95,5 +95,25 @@ describe('generated recursive forms', () => {
     // Cycles must remain optional until the user expands them.
     const applic = shapeOf('organizationIdentifier').fields.find((f) => f.name === 'applic')!;
     expect(JSON.stringify(initialValue(applic)).length).toBeLessThan(1000);
+  });
+  it('retains existing nested tracking and does not generate it for new controls', () => {
+    const value = fixtureRecords()[0].value.docs;
+    const docs = new FieldNode(field('docs'), value);
+    docs.materialize();
+    const list = docs.children!.find((child) => child.field.name === 'doc')!;
+    list.materialize();
+    const first = list.items![0];
+    first.materialize();
+    for (const name of ['uid', 'crud']) {
+      const child = first.children!.find((node) => node.field.name === name)!;
+      expect(child.field.system).toBe(true);
+      child.form.controls.scalar.setValue('forged');
+      child.form.controls.presence.setValue('absent');
+    }
+    expect(first.read()).toEqual(value!.doc[0]);
+    list.add();
+    expect(list.items![1].read()).not.toHaveProperty('uid');
+    expect(list.items![1].read()).not.toHaveProperty('crud');
+    docs.dispose();
   });
 });

@@ -18,7 +18,12 @@
             "index": "src/index.html",
             "tsConfig": "tsconfig.app.json",
             "styles": ["src/styles.css"],
-            "assets": [],
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
             "statsJson": true,
             "allowedCommonJsDependencies": ["ajv", "ajv-formats"]
           },
@@ -58,7 +63,10 @@
               "buildTarget": "organizations:build:production"
             }
           },
-          "defaultConfiguration": "development"
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "proxy.conf.cjs"
+          }
         }
       }
     }

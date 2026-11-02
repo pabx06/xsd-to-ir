@@ -17,7 +17,7 @@
         ><i class="pi pi-compass text-[32px] compact:text-[24px]" aria-hidden="true"></i
       ></span>
       <div>
-        AURORA<span
+        LSA<span
           class="block text-[8px] font-medium tracking-[1.7px] text-[#9ab4bc] mt-[7px] compact:hidden"
           >LOGISTICS WORKSPACE</span
         >
@@ -28,12 +28,12 @@
     >
       <span
         class="project-avatar rounded-[5px] w-[31px] h-8.5 bg-[#36545e] text-[#d4efea] grid place-items-center text-[15px] font-semibold compact:hidden"
-        >A</span
+        >{{ projectLabel.slice(0, 1) }}</span
       >
       <div>
         <strong
           class="block text-[12px] font-semibold text-[#edf4f5] tablet:text-[11px] compact:text-[10px]"
-          >Aurora demonstrator</strong
+          >{{ projectLabel }}</strong
         ><span class="block text-[10px] mt-[5px] compact:text-[9px] compact:mt-[3px]"
           >LSA project · Issue 1.1</span
         >
@@ -82,7 +82,7 @@
         ></span
         >Organizations<span
           class="nav-count px-1.5 py-0.5 ml-auto text-[10px] text-[#b6e3dc] bg-[#315952] rounded-[4px]"
-          >{{ stats().total }}</span
+          >{{ ready() ? stats().total : '—' }}</span
         ></a
       >
       <span class="nav-soon px-[13px] py-[17px] block text-[#8ba0aa] text-[10px] compact:hidden"
@@ -96,17 +96,21 @@
         class="flex items-center gap-2 text-[11px] font-medium text-[#e0ebee] compact:text-[9px]"
       >
         <span class="offline-dot inline-block w-1.5 h-1.5 bg-[#4ebc9b] rounded-full"></span
-        ><strong>Offline workspace</strong>
+        ><strong
+          >{{ ready() ? 'Backend connected' : connecting() ? 'Connecting…' : 'Not connected'
+          }}</strong
+        >
       </div>
-      <p class="mx-0 text-[#8da4ae] text-[11px] leading-[1.8] mt-2.5 mb-[17px] compact:hidden">
-        Saved in this browser.<br />No server connection needed.
+      <p class="text-[#8da4ae] text-[11px] leading-relaxed compact:hidden">
+        Changes are saved to the selected project.
       </p>
       <button
         type="button"
-        (click)="reset()"
-        class="p-0 border-0 bg-transparent text-[#adc2cb] text-[11px] compact:text-[10px] hover:text-white"
+        (click)="connect()"
+        [disabled]="busy() || connecting() || !configuration.config"
+        class="bg-transparent border-0 text-inherit text-[11px]"
       >
-        <i class="pi pi-refresh mr-2 text-[10px]" aria-hidden="true"></i>Reset demo data
+        Refresh connection
       </button>
     </div>
   </aside>
@@ -115,7 +119,7 @@
       class="topbar px-9.5 py-0 h-[79px] flex items-center justify-between border-b border-b-line bg-white text-[#8a969d] text-[11px] gap-[15px] tablet:px-6 compact:px-4.5 compact:py-3.5 compact:h-auto compact:gap-[5px] compact:text-[10px]"
     >
       <div>
-        <span class="breadcrumb text-[#4d626c] font-medium compact:hidden">Aurora demonstrator</span
+        <span class="breadcrumb text-[#4d626c] font-medium compact:hidden">{{ projectLabel }}</span
         ><span class="crumb-divider mx-[13px] my-0 text-[#c8d0d4] compact:hidden">/</span
         ><span>Shared records</span>
       </div>
@@ -123,14 +127,6 @@
         <span
           class="issue-chip px-[9px] py-1.5 border border-[#e0e7ea] rounded-[5px] text-[#57707a] text-[10px] compact:text-[9px]"
           >S3000L Issue 1.1</span
-        ><span
-          class="local-chip flex items-center gap-1.5 text-[#657b83] text-[10px] tablet:hidden compact:hidden"
-          ><span class="offline-dot inline-block w-1.5 h-1.5 bg-[#4ebc9b] rounded-full"></span>Local
-          demo</span
-        ><span
-          class="user-avatar border-2 border-white w-7.5 h-7.5 grid place-items-center font-semibold text-[10px] text-[#47626b] shadow-[0_0_0_1px_#d7e2e5] bg-[#edf3f4] rounded-full compact:hidden"
-          aria-label="Demo user"
-          >JD</span
         >
       </div>
     </header>
@@ -160,6 +156,7 @@
           ariaLabel="New organization"
           icon="pi pi-plus"
           (onClick)="open()"
+          [disabled]="!ready() || busy() || opening()"
         />
       </div>
       @if (feedback()) {
@@ -170,7 +167,8 @@
       <div class="error-banner" role="alert">
         <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ error() }}<button
           type="button"
-          (click)="refresh()"
+          (click)="ready() ? refresh() : connect()"
+          [disabled]="connecting() || !configuration.config"
         >
           Try again
         </button>
@@ -181,7 +179,7 @@
       >
         <div class="stat-card">
           <div>
-            <span>Organizations</span><strong>{{ stats().total }}</strong
+            <span>Organizations</span><strong>{{ ready() ? stats().total : '—' }}</strong
             ><small>In this project</small>
           </div>
           <span class="stat-icon bg-primary-50 text-primary"
@@ -190,9 +188,9 @@
         </div>
         <div class="stat-card">
           <div>
-            <span>Pending changes</span><strong>{{ stats().pending }}</strong
+            <span>Pending changes</span><strong>{{ ready() ? stats().pending : '—' }}</strong
             ><small
-              >{{ stats().deleted ? stats().deleted + ' deletion(s) included' : 'Ready for a future
+              >{{ stats().deleted ? stats().deleted + ' deletion(s) included' : 'Awaiting XML
               export' }}</small
             >
           </div>
@@ -202,7 +200,7 @@
         </div>
         <div class="stat-card">
           <div>
-            <span>Document assignments</span><strong>{{ stats().documents }}</strong
+            <span>Document assignments</span><strong>{{ ready() ? stats().documents : '—' }}</strong
             ><small>Linked to active organizations</small>
           </div>
           <span class="stat-icon blue bg-[#ecf1fa] text-[#6886b6]"
@@ -241,37 +239,30 @@
             ><select id="status-filter" [formControl]="status" class="compact:text-[10px]">
               <option value="">All records</option>
               <option value="pending">Pending export</option>
-              <option value="R">Baseline</option>
+              <option value="R">Replaced</option>
               <option value="I">New</option>
               <option value="U">Updated</option>
             </select>
           </div>
         </div>
-        <p-table [value]="rows()" dataKey="id" [tableStyle]="{ 'min-width': '720px' }">
+        <p-table
+          [loading]="loading() || connecting() || opening()"
+          [value]="rows()"
+          dataKey="id"
+          [tableStyle]="{ 'min-width': '720px' }"
+        >
           <ng-template #header
             ><tr>
-              <th [attr.aria-sort]="ariaSort('name')">
-                <button class="sort-button" type="button" (click)="sort('name')">
-                  Organization<i class="pi pi-sort-alt" aria-hidden="true"></i>
-                </button>
-              </th>
-              <th [attr.aria-sort]="ariaSort('identifiers')">
-                <button class="sort-button" type="button" (click)="sort('identifiers')">
-                  Identifiers<i class="pi pi-sort-alt" aria-hidden="true"></i>
-                </button>
-              </th>
-              <th [attr.aria-sort]="ariaSort('documents')">
-                <button class="sort-button" type="button" (click)="sort('documents')">
-                  Documents<i class="pi pi-sort-alt" aria-hidden="true"></i>
-                </button>
-              </th>
+              <th>Organization</th>
+              <th>Identifiers</th>
+              <th>Documents</th>
               <th [attr.aria-sort]="ariaSort('crud')">
                 <button class="sort-button" type="button" (click)="sort('crud')">
                   Change status<i class="pi pi-sort-alt" aria-hidden="true"></i>
                 </button>
               </th>
-              <th [attr.aria-sort]="ariaSort('updatedAt')">
-                <button class="sort-button" type="button" (click)="sort('updatedAt')">
+              <th [attr.aria-sort]="ariaSort('_updatedAt')">
+                <button class="sort-button" type="button" (click)="sort('_updatedAt')">
                   Last update<i class="pi pi-sort-alt" aria-hidden="true"></i>
                 </button>
               </th>
@@ -288,6 +279,7 @@
                       class="record-name p-0 border-0 bg-transparent text-left text-[11px] font-semibold text-[#2a4652] leading-[1.5] hover:text-primary hover:underline"
                       type="button"
                       (click)="open(row)"
+                      [disabled]="!ready() || busy() || loading()"
                     >
                       {{ title(row.value) }}</button
                     ><span class="record-subtitle block text-[9px] text-[#8c9ba2] mt-1"
@@ -318,7 +310,7 @@
                   class="status-badge"
                   [class.updated]="row.crud === 'U'"
                   [class.inserted]="row.crud === 'I'"
-                  ><span></span>{{ row.crud === 'R' ? 'Baseline' : row.crud === 'I' ? 'New' :
+                  ><span></span>{{ row.crud === 'R' ? 'Replaced' : row.crud === 'I' ? 'New' :
                   'Updated' }}</span
                 >
               </td>
@@ -331,6 +323,7 @@
                   type="button"
                   [attr.aria-label]="'Edit ' + title(row.value)"
                   (click)="open(row)"
+                  [disabled]="!ready() || busy() || loading()"
                 >
                   <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
                 </button>
@@ -341,17 +334,22 @@
               <td colspan="6">
                 <div class="empty-state p-10 grid justify-items-center text-center text-muted">
                   <i class="pi pi-building text-[30px] text-[#a1bab7]" aria-hidden="true"></i>
-                  <h2 class="mx-0 text-[16px] mt-4.5 mb-0">No organizations found</h2>
+                  <h2 class="mx-0 text-[16px] mt-4.5 mb-0">
+                    {{ loading() || connecting() ? 'Loading organizations…' : error() || !ready() ?
+                    'Organizations unavailable' : 'No organizations found' }}
+                  </h2>
                   <p class="text-[12px]">
-                    {{ search.value || status.value ? 'Try another search or change the filter.' :
-                    'Add the first organization to this project.' }}
+                    {{ loading() || connecting() ? 'Please wait.' : error() || !ready() ? 'Check the
+                    connection message above.' : search.value || status.value ? 'Try another search
+                    or change the filter.' : 'Add the first organization to this project.' }}
                   </p>
-                  @if (!search.value && !status.value && !error()) {
+                  @if (ready() && !loading() && !search.value && !status.value && !error()) {
                   <p-button
                     label="Add organization"
                     ariaLabel="Add organization"
                     icon="pi pi-plus"
                     (onClick)="open()"
+                    [disabled]="!ready() || busy() || opening()"
                   />
                   }
                 </div>
@@ -383,7 +381,7 @@
               class="icon-action"
               type="button"
               aria-label="Previous page"
-              [disabled]="pageInfo().page <= 1"
+              [disabled]="!ready() || loading() || pageInfo().page <= 1"
               (click)="refresh(pageInfo().page - 1)"
             >
               <i class="pi pi-chevron-left" aria-hidden="true"></i></button
@@ -391,7 +389,7 @@
               class="icon-action"
               type="button"
               aria-label="Next page"
-              [disabled]="pageInfo().page >= pageInfo().pageCount"
+              [disabled]="!ready() || loading() || pageInfo().page >= pageInfo().pageCount"
               (click)="refresh(pageInfo().page + 1)"
             >
               <i class="pi pi-chevron-right" aria-hidden="true"></i>
@@ -402,14 +400,14 @@
       <div class="demo-note mx-0.5 my-[21px] flex gap-2.5 text-[#8a9da5] items-start">
         <i class="pi pi-info-circle text-[12px] mt-[1px]" aria-hidden="true"></i>
         <p class="m-0 text-[10px] leading-[1.7]">
-          Fictional records for exploring Issue 1.1. Changes stay in this browser. XML export is not
-          part of this example.
+          Records belong to {{ projectLabel }}. The backend manages identities and change tracking.
+          XML export is handled outside this editor.
         </p>
       </div>
       <footer
         class="workspace-footer mt-12 border-t border-t-[#e5ebed] pt-5 flex justify-between text-[#98a8af] text-[9px] compact:mt-7 compact:gap-3 compact:text-[8px]"
       >
-        <span class="tracking-[1.6px] text-[8px]">AURORA / ORGANIZATIONS</span
+        <span class="tracking-[1.6px] text-[8px]">LSA / ORGANIZATIONS</span
         ><span class="compact:max-w-32.5 compact:text-right"
           >One project. One source of shared records.</span
         >
@@ -446,6 +444,7 @@
         class="icon-action"
         aria-label="Close editor"
         (click)="close()"
+        [disabled]="busy()"
       >
         <i class="pi pi-times" aria-hidden="true"></i>
       </button></div
@@ -461,8 +460,8 @@
           >{{ selected() ? title(selected()!.value) : 'A new shared record' }}</strong
         >
         <p class="mx-0 text-[10px] text-[#8a9ba3] mt-1.5 mb-0">
-          {{ selected() ? 'Record ' + selected()!.id + ' · Revision ' + selected()!.revision :
-          'Identifiers and tracking are assigned on save.' }}
+          {{ selected() ? 'Record ' + selected()!.id : 'Identifiers and tracking are assigned on
+          save.' }}
         </p>
       </div>
     </div>
@@ -513,35 +512,44 @@
       }
     </ul>
   </div>
+  } @if (referencesLoading()) {
+  <p role="status" class="text-muted text-[11px]">Loading reference choices…</p>
+  } @if (referenceError()) {
+  <div role="alert" class="error-banner">
+    Reference choices could not be loaded. {{ referenceError() }}
+    <button type="button" (click)="loadReferences()" [disabled]="busy()">Retry references</button>
+  </div>
   }
   <form id="organization-form" (submit)="$event.preventDefault(); save()">
-    <div
-      class="editor-panel"
-      role="tabpanel"
-      [id]="'panel-' + tab()"
-      [attr.aria-labelledby]="'tab-' + tab()"
-    >
-      <div class="section-intro">
-        <h3 class="text-[15px] font-semibold mb-2">
-          {{ tab() === 'Details' ? 'Organization details' : tab() }}
-        </h3>
-        <p class="text-[#7b9098] text-[11px] leading-[1.8] mb-5 max-w-132.5">
-          {{ tab() === 'Details' ? 'Give this record a clear name. Add language, date, or
-          applicability when needed.' : tab() === 'Identifiers' ? 'At least one identifier is
-          required. Leading zeroes are preserved.' : tab() === 'Documents' ? 'Link a document or a
-          specific document issue. Expand an assignment for its full details.' : 'Add remarks, their
-          source, and any supporting documents or applicability.' }}
-        </p>
+    <fieldset [disabled]="busy()" class="m-0 p-0 border-0 min-w-0">
+      <div
+        class="editor-panel"
+        role="tabpanel"
+        [id]="'panel-' + tab()"
+        [attr.aria-labelledby]="'tab-' + tab()"
+      >
+        <div class="section-intro">
+          <h3 class="text-[15px] font-semibold mb-2">
+            {{ tab() === 'Details' ? 'Organization details' : tab() }}
+          </h3>
+          <p class="text-[#7b9098] text-[11px] leading-[1.8] mb-5 max-w-132.5">
+            {{ tab() === 'Details' ? 'Give this record a clear name. Add language, date, or
+            applicability when needed.' : tab() === 'Identifiers' ? 'At least one identifier is
+            required. Leading zeroes are preserved.' : tab() === 'Documents' ? 'Link a document or a
+            specific document issue. Expand an assignment for its full details.' : 'Add remarks,
+            their source, and any supporting documents or applicability.' }}
+          </p>
+        </div>
+        @for (field of visibleFields(); track field) {
+        <app-field-editor
+          [node]="field"
+          [path]="'/' + field.field.name"
+          [references]="references()"
+          [issues]="issues()"
+        />
+        }
       </div>
-      @for (field of visibleFields(); track field) {
-      <app-field-editor
-        [node]="field"
-        [path]="'/' + field.field.name"
-        [references]="references()"
-        [issues]="issues()"
-      />
-      }
-    </div>
+    </fieldset>
   </form>
   @if (selected(); as row) {
   <details class="record-details border-t border-t-line mt-7 pt-[17px] text-[#69818b] text-[11px]">
@@ -562,10 +570,6 @@
         <dd>{{ row.crud }}</dd>
       </div>
       <div>
-        <dt>Revision</dt>
-        <dd>{{ row.revision }}</dd>
-      </div>
-      <div>
         <dt>Created</dt>
         <dd>{{ row.createdAt | date:'medium' }}</dd>
       </div>
@@ -576,10 +580,6 @@
       <div>
         <dt>Pending export</dt>
         <dd>{{ row.pendingExport ? 'Yes' : 'No' }}</dd>
-      </div>
-      <div>
-        <dt>Nested deletions</dt>
-        <dd>{{ row.deletedNested.length }}</dd>
       </div>
     </dl>
   </details>
@@ -595,6 +595,7 @@
           severity="danger"
           [text]="true"
           (onClick)="deleteSelected()"
+          [disabled]="busy() || !ready()"
         />
         }
       </div>
@@ -604,11 +605,13 @@
           severity="secondary"
           [outlined]="true"
           (onClick)="close()"
+          [disabled]="busy()"
         /><p-button
           label="Save organization"
           ariaLabel="Save organization"
           icon="pi pi-check"
           [loading]="busy()"
+          [disabled]="busy() || !ready()"
           (onClick)="save()"
         />
       </div></div
