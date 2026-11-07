@@ -28,8 +28,27 @@ function parseJsonCell(value, location) {
   }
 }
 
+function isExplicitlyNil(value) {
+  const nil = String(value?.['@_xsi:nil']).trim();
+  return nil === 'true' || nil === '1';
+}
+
+function nilNode(value, key, schemaType, label) {
+  return {
+    key,
+    kind: 'nil',
+    source: 'json-column',
+    schemaType,
+    uid: value['@_uid'] ? String(value['@_uid']) : null,
+    label: `${label} [nil]`,
+    nil: true,
+    attributes: Object.fromEntries(Object.entries(value).filter(([name]) => name.startsWith('@_'))),
+    children: [],
+  };
+}
+
 function firstScalar(value, preferredKeys = []) {
-  if (value === undefined || value === null) return null;
+  if (value === undefined || value === null || isExplicitlyNil(value)) return null;
   if (Array.isArray(value)) {
     for (const item of value) {
       const found = firstScalar(item, preferredKeys);
@@ -138,8 +157,10 @@ async function loadBreakdownElementIndex(ir, db) {
         };
 
         if (revisionRow.uid) byRevisionUid.set(String(revisionRow.uid), descriptor);
-        const key = naturalRevisionKey(elementIdentifier, revisionIdentifier);
-        if (key) byNaturalKey.set(key, descriptor);
+        for (const elementId of asArray(elementIdentifier)) {
+          const key = naturalRevisionKey(elementId, revisionIdentifier);
+          if (key) byNaturalKey.set(key, descriptor);
+        }
       }
     }
   }
@@ -174,7 +195,19 @@ function quantityLabel(quantity) {
   return value || unit;
 }
 
-function usageNode(usage, usageByUid, index, pathUids, edge = {}) {
+function usageNode(usage, context, pathUids, edge = {}) {
+  const {
+    usageByUid, index, visitedUsages, usageKeys,
+  } = context;
+  visitedUsages.add(usage);
+
+  if (isExplicitlyNil(usage)) {
+    return {
+      ...nilNode(usage, usageKeys.get(usage), 'breakdownElementUsageInBreakdown', 'Breakdown element usage'),
+      ...edge,
+    };
+  }
+
   const usageUid = usage?.['@_uid'] ? String(usage['@_uid']) : null;
   const reference = usage?.beRef;
   const resolved = resolveBreakdownElement(reference, index);
@@ -186,6 +219,7 @@ function usageNode(usage, usageByUid, index, pathUids, edge = {}) {
     uid: usageUid,
     label: resolved?.label || referenceLabel(reference),
     quantity: edge.quantity || null,
+    referenceDesignators: edge.referenceDesignators || [],
     referenceDesignator: edge.referenceDesignator || null,
     resolvedEntity: resolved,
     children: [],
@@ -200,10 +234,26 @@ function usageNode(usage, usageByUid, index, pathUids, edge = {}) {
   const nextPath = new Set(pathUids);
   if (usageUid) nextPath.add(usageUid);
 
-  for (const structure of asArray(usage?.beChild)) {
+  for (const [position, structure] of asArray(usage?.beChild).entries()) {
+    if (isExplicitlyNil(structure)) {
+      node.children.push(nilNode(
+        structure,
+        `${usageKeys.get(usage)}:child:${position}`,
+        'breakdownElementStructure',
+        'Child structure',
+      ));
+      continue;
+    }
+
     const childUid = structure?.beChildRef?.['@_uidRef'];
-    const quantity = quantityLabel(structure?.qty);
-    const referenceDesignator = firstScalar(structure?.rfd, ['id', 'descr', '#text']);
+    const referenceDesignators = asArray(structure?.rfd)
+      .map((designator) => firstScalar(designator, ['id', 'descr', '#text']))
+      .filter((designator) => designator !== null);
+    const childEdge = {
+      quantity: quantityLabel(structure?.qty),
+      referenceDesignators,
+      referenceDesignator: referenceDesignators.join(', ') || null,
+    };
     const childUsage = childUid === undefined || childUid === null
       ? null
       : usageByUid.get(String(childUid));
@@ -215,26 +265,32 @@ function usageNode(usage, usageByUid, index, pathUids, edge = {}) {
         source: 'json-reference',
         uid: childUid ? String(childUid) : null,
         label: `Unresolved usage ${childUid || 'reference'}`,
-        quantity,
-        referenceDesignator,
+        ...childEdge,
         children: [],
       });
       continue;
     }
 
-    node.children.push(usageNode(childUsage, usageByUid, index, nextPath, {
-      quantity,
-      referenceDesignator,
-    }));
+    node.children.push(usageNode(childUsage, context, nextPath, childEdge));
   }
 
   return node;
 }
 
 function revisionNode(revision, index, ownerKey, revisionPosition) {
+  const revisionUid = revision?.['@_uid'] ? String(revision['@_uid']) : null;
+  const key = `${ownerKey}:revision:${revisionUid || revisionPosition}`;
+  if (isExplicitlyNil(revision)) return nilNode(revision, key, 'breakdownRevision', 'Revision');
+
   const usages = asArray(revision?.beUsage);
   const usageByUid = new Map();
   const childUids = new Set();
+  const context = {
+    usageByUid,
+    index,
+    visitedUsages: new Set(),
+    usageKeys: new Map(usages.map((usage, position) => [usage, `${key}:usage:${position}`])),
+  };
 
   for (const usage of usages) {
     if (usage?.['@_uid']) usageByUid.set(String(usage['@_uid']), usage);
@@ -242,7 +298,9 @@ function revisionNode(revision, index, ownerKey, revisionPosition) {
 
   // References may point forward, so index every usage before collecting child UIDs.
   for (const usage of usages) {
+    if (isExplicitlyNil(usage)) continue;
     for (const structure of asArray(usage?.beChild)) {
+      if (isExplicitlyNil(structure)) continue;
       const childUid = structure?.beChildRef?.['@_uidRef'];
       if (childUid !== undefined && childUid !== null && usageByUid.has(String(childUid))) {
         childUids.add(String(childUid));
@@ -250,19 +308,24 @@ function revisionNode(revision, index, ownerKey, revisionPosition) {
     }
   }
 
-  let roots = usages.filter((usage) => !usage?.['@_uid'] || !childUids.has(String(usage['@_uid'])));
-  if (roots.length === 0 && usages.length > 0) roots = usages;
+  const roots = usages.filter((usage) => !usage?.['@_uid'] || !childUids.has(String(usage['@_uid'])));
+  const children = roots.map((usage) => usageNode(usage, context, new Set()));
 
-  const revisionUid = revision?.['@_uid'] ? String(revision['@_uid']) : null;
+  // A disconnected cycle has no root. Render every component, while allowing shared
+  // children to appear on each path: visitedUsages only controls extra root selection.
+  for (const usage of usages) {
+    if (!context.visitedUsages.has(usage)) children.push(usageNode(usage, context, new Set()));
+  }
+
   const revisionIdentifier = firstScalar(revision?.bkdnRevId, ['id']);
   return {
-    key: `${ownerKey}:revision:${revisionUid || revisionPosition}`,
+    key,
     kind: 'breakdown-revision',
     source: 'json-column',
     schemaType: 'breakdownRevision',
     uid: revisionUid,
     label: `Revision ${revisionIdentifier || revisionUid || revisionPosition + 1}`,
-    children: roots.map((usage) => usageNode(usage, usageByUid, index, new Set())),
+    children,
   };
 }
 

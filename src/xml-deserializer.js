@@ -25,6 +25,7 @@
 
 const { XMLParser } = require('fast-xml-parser');
 const { validateValueAssertions } = require('./assertion-validator');
+const { XMLValueNormalizer, normalizeWhitespace } = require('./xml-value-normalizer');
 const {
   IRREGULAR_SINGULAR,
   PRIMARY_COLLECTIONS,
@@ -42,7 +43,7 @@ const {
  * Coerce an XML string value into the correct JS type for a DB column.
  */
 function _coerce(value, sqlType) {
-  if (value === undefined || value === null || value === '') return null;
+  if (value === undefined || value === null) return null;
 
   const v = String(value).trim();
   const sql = (sqlType || '').toUpperCase();
@@ -53,8 +54,8 @@ function _coerce(value, sqlType) {
   if (sql === 'DECIMAL' || sql === 'FLOAT' || sql.startsWith('DOUBLE')) return parseFloat(v);
   if (sql === 'JSONB') return typeof value === 'object' ? value : _tryParseJson(v);
   if (sql === 'BYTEA') return Buffer.from(v, 'base64');
-  // TEXT, VARCHAR, CHAR, DATE, TIMESTAMP, etc. → keep as string
-  return v;
+  // Text whitespace has already been normalized according to its XSD type.
+  return String(value);
 }
 
 function _tryParseJson(str) {
@@ -67,42 +68,44 @@ function _valueType(value) {
   return typeof value;
 }
 
-function _metadataValue(value, wrapperKeys = []) {
+function _metadataValue(value, wrapperKeys = [], whiteSpace = null) {
   if (value === undefined || value === null || Array.isArray(value)) return null;
 
   if (typeof value === 'object') {
     for (const key of wrapperKeys) {
-      if (value[key] !== undefined) return _metadataValue(value[key]);
+      if (value[key] !== undefined) return _metadataValue(value[key], [], whiteSpace);
     }
-    return value['#text'] !== undefined ? String(value['#text']) : null;
+    return value['#text'] !== undefined ? normalizeWhitespace(String(value['#text']), whiteSpace) : null;
   }
 
-  return String(value);
+  return normalizeWhitespace(String(value), whiteSpace);
 }
 
 function _messageDateValue(value, version) {
-  if (version === '1.1') return _metadataValue(value, ['dateTime']);
+  // Envelope metadata is extracted separately from entity columns. XML date/time
+  // and reference types still require collapse, including with an older/empty IR.
+  if (version === '1.1') return _metadataValue(value, ['dateTime'], 'collapse');
 
   if (value && typeof value === 'object' && !Array.isArray(value)
       && value.date !== undefined) {
-    const date = _metadataValue(value.date);
-    const time = _metadataValue(value.time);
+    const date = _metadataValue(value.date, [], 'collapse');
+    const time = _metadataValue(value.time, [], 'collapse');
     if (date === null) return null;
     return time === null ? date : `${date}T${time}`;
   }
 
   // Preserve the scalar shorthand accepted by the existing public API.
-  return _metadataValue(value);
+  return _metadataValue(value, [], 'collapse');
 }
 
 function _messageReferenceValue(value) {
   if (value === undefined || value === null || Array.isArray(value)) return null;
-  if (typeof value !== 'object') return String(value);
+  if (typeof value !== 'object') return _metadataValue(value, [], 'collapse');
 
-  if (value.msgId !== undefined) return _metadataValue(value.msgId, ['id']);
-  if (value['@_uidRef'] !== undefined) return String(value['@_uidRef']);
-  if (value['@_uriRef'] !== undefined) return String(value['@_uriRef']);
-  return _metadataValue(value);
+  if (value.msgId !== undefined) return _metadataValue(value.msgId, ['id'], 'collapse');
+  if (value['@_uidRef'] !== undefined) return _metadataValue(value['@_uidRef'], [], 'collapse');
+  if (value['@_uriRef'] !== undefined) return _metadataValue(value['@_uriRef'], [], 'collapse');
+  return _metadataValue(value, [], 'collapse');
 }
 
 function _relatedMessageIds(value) {
@@ -216,6 +219,7 @@ class XMLDeserializer {
    */
   constructor(ir) {
     this.ir = ir;
+    this._valueNormalizer = new XMLValueNormalizer(ir);
     this._collectionRecords = this._buildCollectionRecordMap();
     // Build a quick lookup: collectionKey → entityName
     this._collectionMap = this._buildCollectionMap();
@@ -324,13 +328,13 @@ class XMLDeserializer {
   // ── msg metadata ──────────────────────────────────────────────────────────
 
   _extractMsgMeta(root, version) {
-    const get = (key, wrappers = []) => _metadataValue(root[key], wrappers);
+    const get = (key, wrappers = [], whiteSpace = null) => _metadataValue(root[key], wrappers, whiteSpace);
     const statusWrappers = version === '2.0'
       ? ['state', 'code']
       : ['code', 'state'];
 
     return {
-      msgId: get('msgId', ['id']),
+      msgId: get('msgId', ['id'], 'collapse'),
       msgType: get('msgType', ['code']), // 'B' or 'U'
       msgStatus: get('msgStatus', statusWrappers), // 'D','P','F'
       msgDate: _messageDateValue(root.msgDate, version),
@@ -383,7 +387,7 @@ class XMLDeserializer {
       }
 
       const crud = (xmlRecord['@_crud'] ?? 'I').toUpperCase();
-      const uid = xmlRecord['@_uid'] ?? xmlRecord['@_id'] ?? null;
+      const uid = this._recordUid(entity, xmlRecord);
       if (explicitlyNil) {
         if (_hasElementContent(xmlRecord)) {
           throw new Error(
@@ -476,6 +480,12 @@ class XMLDeserializer {
     }
   }
 
+  _recordUid(entity, record) {
+    const column = entity?.columns.find((col) => col.columnName === 'uid');
+    const raw = record['@_uid'] ?? record['@_id'] ?? null;
+    return normalizeWhitespace(raw, column?.constraints?.whiteSpace);
+  }
+
   _attachOneToOneRelationRefs(entity, xmlRecord, row, batches) {
     let hasDeleteOnlyRelation = false;
     for (const relation of (entity.relations || [])) {
@@ -485,7 +495,7 @@ class XMLDeserializer {
       if (childRecords.length === 0) continue;
 
       const childRecord = childRecords[0];
-      const childUid = childRecord['@_uid'] ?? childRecord['@_id'] ?? null;
+      const childUid = this._recordUid(this.ir.entities.get(relation.targetEntity), childRecord);
       if (!childUid) {
         throw new Error(
           `Cannot persist nested ${entity.name}.${relation.fieldName}: `
@@ -671,12 +681,13 @@ class XMLDeserializer {
         continue;
       }
 
-      if (col.sqlType === 'LONGTEXT' && typeof raw === 'object') {
-        this._validateColumnAssertions(entity, col, raw);
+      if (col.sqlType === 'LONGTEXT' && (col.valueTypeRef || typeof raw === 'object')) {
+        const value = col.valueTypeRef ? this._valueNormalizer.complex(raw, col.valueTypeRef) : raw;
+        this._validateColumnAssertions(entity, col, value);
         // Store the nested XML subtree as JSON string (LONGTEXT column)
-        row[col.columnName] = JSON.stringify(raw);
+        row[col.columnName] = JSON.stringify(value);
       } else {
-        row[col.columnName] = _coerce(raw, col.sqlType);
+        row[col.columnName] = _coerce(normalizeWhitespace(raw, col.constraints?.whiteSpace), col.sqlType);
       }
     }
 
@@ -684,13 +695,14 @@ class XMLDeserializer {
   }
 
   _validateColumnAssertions(entity, col, raw) {
-    if (!col.xsdType) return;
-    const result = validateValueAssertions(this.ir, col.xsdType, raw);
+    const typeName = col.valueTypeRef || col.xsdType;
+    if (!typeName) return;
+    const result = validateValueAssertions(this.ir, typeName, raw);
     if (!result.valid) {
       const err = result.errors[0];
       throw new Error(
         `XSD assertion failed while deserializing ${entity.name}.${col.name} `
-        + `as ${col.xsdType}: ${err.message}`,
+        + `as ${typeName}: ${err.message}`,
       );
     }
   }
@@ -784,7 +796,8 @@ const _xmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   parseAttributeValue: false,
-  trimValues: true,
+  parseTagValue: false,
+  trimValues: false,
   isArray: (tag) => {
     // Collections and their records should always be arrays
     const bare = tag.includes(':') ? tag.split(':').pop() : tag;

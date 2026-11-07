@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:vendor="urn:vendor">
+  <xs:element name="lsaDataset">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="msgId" type="xs:string"/>
+        <xs:element name="msgDate" type="xs:date"/>
+        <xs:element name="msgType">
+          <xs:complexType>
+            <xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="logisticsSupportAnalysisData" type="logisticsSupportAnalysisMessageContent"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="logisticsSupportAnalysisMessageContent">
+    <xs:sequence>
+      <xs:element name="lsaPrimaryData">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="products">
+              <xs:complexType>
+                <xs:sequence><xs:element name="prod" type="product" maxOccurs="unbounded"/></xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:simpleType name="CollapsedString">
+    <xs:restriction base="xs:string"><xs:whiteSpace value="collapse"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="InheritedCollapsedString">
+    <xs:restriction base="CollapsedString"><xs:minLength value="1"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="CodeOrCount">
+    <xs:union memberTypes="xs:integer">
+      <xs:simpleType>
+        <xs:restriction base="xs:string"><xs:enumeration value="AUTO"/></xs:restriction>
+      </xs:simpleType>
+    </xs:union>
+  </xs:simpleType>
+  <xs:simpleType name="NumberList"><xs:list itemType="xs:integer"/></xs:simpleType>
+
+  <xs:complexType name="Note">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="count" type="xs:integer"/>
+        <xs:attribute name="label" type="xs:token"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedNote">
+    <xs:simpleContent>
+      <xs:restriction base="Note"><xs:whiteSpace value="collapse"/></xs:restriction>
+    </xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="Node">
+    <xs:sequence>
+      <xs:element name="value" type="xs:string"/>
+      <xs:element name="child" type="Node" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="PayloadBase">
+    <xs:sequence>
+      <xs:element name="preserved" type="xs:string"/>
+      <xs:element name="replaced" type="xs:normalizedString"/>
+      <xs:element name="collapsed" type="xs:token"/>
+      <xs:element name="restricted" type="InheritedCollapsedString"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Payload">
+    <xs:complexContent>
+      <xs:extension base="PayloadBase">
+        <xs:sequence>
+          <xs:element name="node" type="Node"/>
+          <xs:element name="note" type="Note"/>
+          <xs:element name="mystery" type="vendor:opaque"/>
+          <xs:element name="choice" type="CodeOrCount"/>
+          <xs:element name="numbers" type="NumberList"/>
+          <xs:element name="integer" type="xs:integer"/>
+          <xs:element name="decimal" type="xs:decimal"/>
+          <xs:element name="flag" type="xs:boolean"/>
+        </xs:sequence>
+        <xs:attribute name="raw" type="xs:string"/>
+        <xs:attribute name="count" type="xs:integer"/>
+        <xs:attribute name="label" type="xs:token"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="Mixed" mixed="true">
+    <xs:sequence><xs:element name="em" type="xs:string"/></xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="product">
+    <xs:sequence>
+      <xs:element name="directText" type="xs:string" minOccurs="0"/>
+      <xs:element name="directToken" type="xs:token" minOccurs="0"/>
+      <xs:element name="payload" type="Payload" minOccurs="0"/>
+      <xs:element name="mixed" type="Mixed" minOccurs="0"/>
+      <xs:element name="note" type="Note" minOccurs="0"/>
+      <xs:element name="restrictedNote" type="RestrictedNote" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uid" type="xs:ID" use="required"/>
+    <xs:attribute name="crud" type="xs:string" use="required"/>
+  </xs:complexType>
+</xs:schema>

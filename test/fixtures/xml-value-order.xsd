@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="lsaDataset">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="msgId" type="xs:string"/>
+        <xs:element name="msgDate" type="xs:date"/>
+        <xs:element name="msgType">
+          <xs:complexType>
+            <xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="msgStatus" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="logisticsSupportAnalysisData" type="logisticsSupportAnalysisMessageContent"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- A global declaration also lets fragment validators check an exported record directly. -->
+  <xs:element name="prod" type="product"/>
+
+  <xs:complexType name="logisticsSupportAnalysisMessageContent">
+    <xs:sequence>
+      <xs:element name="lsaPrimaryData" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="products" minOccurs="0">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="prod" type="product" maxOccurs="unbounded"/>
+                </xs:sequence>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="lsaSupportingData" minOccurs="0">
+        <xs:complexType><xs:sequence/></xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="product">
+    <xs:sequence>
+      <xs:element name="payload" type="DerivedPayload" minOccurs="0"/>
+      <xs:element name="restricted" type="RestrictedPayload" minOccurs="0"/>
+      <xs:element name="mixed" type="MixedPayload" minOccurs="0"/>
+      <xs:element name="repeated" type="RepeatedPayload" minOccurs="0"/>
+      <xs:element name="interleaved" type="InterleavedPayload" minOccurs="0"/>
+      <xs:element name="reusedName" type="ReusedNamePayload" minOccurs="0"/>
+      <xs:element name="optionalRepeated" type="OptionalRepeatedPayload" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uid" type="xs:ID" use="required"/>
+    <xs:attribute name="crud" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:group name="orderedPair">
+    <xs:sequence>
+      <xs:element name="groupFirst" type="xs:string"/>
+      <xs:element name="groupSecond" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:group name="repeatedBundle">
+    <xs:sequence>
+      <xs:element name="entry" type="Nested"/>
+      <xs:element name="tag" type="xs:string"/>
+    </xs:sequence>
+  </xs:group>
+
+  <xs:group name="repeatedAlternative">
+    <xs:choice>
+      <xs:element name="entry" type="Nested"/>
+      <xs:element name="tag" type="xs:string"/>
+    </xs:choice>
+  </xs:group>
+
+  <xs:complexType name="PayloadBase">
+    <xs:sequence>
+      <xs:element name="baseFirst" type="xs:string"/>
+      <xs:element name="baseOptional" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="baseCode" type="xs:string"/>
+  </xs:complexType>
+
+  <xs:complexType name="DerivedPayload">
+    <xs:complexContent>
+      <xs:extension base="PayloadBase">
+        <xs:sequence>
+          <xs:group ref="orderedPair"/>
+          <xs:choice minOccurs="0">
+            <xs:sequence>
+              <xs:element name="a" type="xs:string"/>
+              <xs:element name="c" type="xs:string"/>
+            </xs:sequence>
+            <xs:sequence>
+              <xs:element name="b" type="xs:string"/>
+              <xs:element name="a" type="xs:string"/>
+            </xs:sequence>
+          </xs:choice>
+          <xs:element name="optionalBefore" type="xs:string" minOccurs="0"/>
+          <xs:element name="items" type="Nested" minOccurs="0" maxOccurs="unbounded"/>
+          <xs:element name="recursive" type="Node" minOccurs="0"/>
+          <xs:element name="measure" type="Measure" minOccurs="0"/>
+          <xs:element name="nilValue" type="xs:string" minOccurs="0" nillable="true"/>
+          <xs:element name="scalar" type="xs:string" minOccurs="0"/>
+          <xs:element name="derivedLast" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+        <xs:attribute name="state" type="xs:string"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="Nested">
+    <xs:sequence>
+      <xs:element name="first" type="xs:string"/>
+      <xs:element name="second" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Node">
+    <xs:sequence>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="child" type="Node" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="Measure">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="unit" type="xs:string"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+  <xs:complexType name="RestrictionBase">
+    <xs:sequence>
+      <xs:element name="removed" type="xs:string" minOccurs="0"/>
+      <xs:element name="keptFirst" type="xs:string" minOccurs="0"/>
+      <xs:element name="keptSecond" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="RestrictedPayload">
+    <xs:complexContent>
+      <xs:restriction base="RestrictionBase">
+        <xs:sequence>
+          <xs:element name="keptFirst" type="xs:string" minOccurs="0"/>
+          <xs:element name="keptSecond" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+      </xs:restriction>
+    </xs:complexContent>
+  </xs:complexType>
+
+  <xs:complexType name="MixedPayload" mixed="true">
+    <xs:sequence>
+      <xs:element name="knownFirst" type="xs:string" minOccurs="0"/>
+      <xs:element name="nested" type="Nested" minOccurs="0"/>
+      <xs:element name="knownLast" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="RepeatedPayload">
+    <xs:sequence>
+      <xs:group ref="repeatedBundle" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="InterleavedPayload">
+    <xs:sequence>
+      <xs:sequence/>
+      <xs:element name="first" type="xs:string"/>
+      <xs:choice>
+        <xs:element name="pickA" type="xs:string"/>
+        <xs:sequence>
+          <xs:element name="pickB" type="xs:string"/>
+          <xs:element name="pickC" type="xs:string"/>
+        </xs:sequence>
+      </xs:choice>
+      <xs:element name="middle" type="xs:string"/>
+      <xs:group ref="orderedPair"/>
+      <xs:element name="last" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="ReusedNamePayload">
+    <xs:sequence>
+      <xs:element name="a" type="Nested" minOccurs="0"/>
+      <xs:element name="b" type="xs:string"/>
+      <xs:element name="a" type="Nested"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="OptionalRepeatedPayload">
+    <xs:sequence>
+      <xs:element name="before" type="xs:string"/>
+      <xs:group ref="repeatedAlternative" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="after" type="xs:string"/>
+    </xs:sequence>
+  </xs:complexType>
+</xs:schema>

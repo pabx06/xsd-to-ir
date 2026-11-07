@@ -6,6 +6,8 @@
  * evolve, and makes the model useful to other read-only tooling.
  */
 
+const { effectiveValueContent } = require('./value-type-inheritance');
+
 function entries(value) {
   if (value instanceof Map) return [...value.entries()];
   if (!value || typeof value !== 'object') return [];
@@ -31,6 +33,62 @@ function isSyntheticEntity(entity) {
 
 function relationId(source, relation, index) {
   return [source, relation.fieldName, relation.targetEntity || 'unresolved', index].join('::');
+}
+
+function findGroup(particle, ref) {
+  if (!particle) return null;
+  if (particle.kind === 'group' && particle.ref === ref) return particle;
+  for (const child of (particle.children || [])) {
+    const group = findGroup(child, ref);
+    if (group) return group;
+  }
+  return null;
+}
+
+function entityContentLookup(entityEntries, valueTypes) {
+  const types = new Map(entries(valueTypes));
+  const parents = new Map();
+  const cache = new Map();
+  for (const [name, entity] of entityEntries) {
+    for (const relation of (entity?.relations || [])) {
+      if (relation.flattened) {
+        parents.set(relation.targetEntity, { name: entity.name || name, group: relation.fieldName });
+      }
+    }
+  }
+  return function content(name, seen = new Set()) {
+    if (cache.has(name)) return cache.get(name);
+    if (seen.has(name)) return null;
+    let particle = null;
+    if (types.has(name)) particle = effectiveValueContent(types, name);
+    else if (parents.has(name)) {
+      // Repeating groups become synthetic entities without their own value type.
+      // Recover their declaration order from the owning type's group particle.
+      const parent = parents.get(name);
+      particle = findGroup(content(parent.name, new Set([...seen, name])), parent.group);
+    }
+    cache.set(name, particle);
+    return particle;
+  };
+}
+
+function orderElementColumns(columns, content) {
+  const ranks = new Map();
+  function visit(particle) {
+    if (!particle) return;
+    if (particle.kind === 'element') {
+      const name = particle.xmlName || particle.name;
+      if (!ranks.has(name)) ranks.set(name, ranks.size);
+    } else (particle.children || []).forEach(visit);
+  }
+  visit(content);
+  const known = (column) => ['element', 'relation'].includes(column.xmlKind) && ranks.has(column.xmlName);
+  const ordered = columns.filter(known)
+    .sort((left, right) => ranks.get(left.xmlName) - ranks.get(right.xmlName));
+  // Only XML element columns have sequence positions. Keep attributes, internal
+  // columns and fields without retained XSD metadata in their existing slots.
+  let index = 0;
+  return columns.map((column) => (known(column) ? ordered[index++] : column));
 }
 
 function buildIslands(entities, edges) {
@@ -96,6 +154,7 @@ function buildVisualizationModel(ir, options = {}) {
   }
 
   const entityEntries = entries(ir.entities);
+  const entityContent = entityContentLookup(entityEntries, ir.valueTypes);
   const entityNames = new Set(entityEntries.map(([name]) => name));
   const collectionEntries = entries(ir.s3000lCollections);
   const collections = Object.fromEntries(collectionEntries.map(([name, mapping]) => [name, clone(mapping)]));
@@ -137,7 +196,7 @@ function buildVisualizationModel(ir, options = {}) {
       ...clone(entity),
       name,
       tableName: entity.tableName || null,
-      columns: clone(entity.columns || []),
+      columns: clone(orderElementColumns(entity.columns || [], entityContent(name))),
       relations,
       collection: collectionByEntity.has(name) ? clone(collectionByEntity.get(name)) : null,
       recordEntity: isRecordEntity(entity),
@@ -148,6 +207,9 @@ function buildVisualizationModel(ir, options = {}) {
   const assertions = Object.fromEntries(entries(ir.assertions).map(([name, assertion]) => [name, clone(assertion)]));
   const assertionPaths = Object.fromEntries(
     entries(ir.assertionPaths).map(([name, assertionPath]) => [name, clone(assertionPath)]),
+  );
+  const valueTypes = Object.fromEntries(
+    entries(ir.valueTypes).map(([name, valueType]) => [name, clone(valueType)]),
   );
 
   const relationCount = edges.length;
@@ -175,6 +237,7 @@ function buildVisualizationModel(ir, options = {}) {
       joinTables: entries(ir.joinTables).length,
       enums: entries(ir.enums).length,
       simpleTypes: entries(ir.simpleTypes).length,
+      valueTypes: Object.keys(valueTypes).length,
       assertions: Object.keys(assertions).length,
       assertionPaths: Object.keys(assertionPaths).length,
     },
@@ -184,6 +247,7 @@ function buildVisualizationModel(ir, options = {}) {
     collections,
     enums: Object.fromEntries(entries(ir.enums).map(([name, value]) => [name, clone(value)])),
     simpleTypes: Object.fromEntries(entries(ir.simpleTypes).map(([name, value]) => [name, clone(value)])),
+    valueTypes,
     assertions,
     assertionPaths,
     outgoingByEntity: Object.fromEntries(outgoingByEntity),
