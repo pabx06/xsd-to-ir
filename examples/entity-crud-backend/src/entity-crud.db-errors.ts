@@ -1,5 +1,3 @@
-import { UIAdapterValidationError } from "@sliwave/xsd-to-ir";
-
 export interface DatabaseDriverError extends Error {
   code?: string;
   errno?: number;
@@ -29,7 +27,6 @@ export class UniqueConstraintViolationError extends Error {
 }
 
 export function translateDatabaseError(error: unknown): Error {
-  if (error instanceof UIAdapterValidationError) return error;
   if (!isDatabaseDriverError(error)) {
     return error instanceof Error ? error : new Error("Unknown database error");
   }
@@ -47,11 +44,14 @@ export function translateDatabaseError(error: unknown): Error {
 }
 
 function isDatabaseDriverError(error: unknown): error is DatabaseDriverError {
-  return error instanceof Error && ("errno" in error || "code" in error || "sqlState" in error);
+  return (
+    error instanceof Error &&
+    ("errno" in error || "code" in error || "sqlState" in error)
+  );
 }
 
 function extractConstraintName(error: DatabaseDriverError): string | undefined {
   const message = error.sqlMessage ?? error.message;
-  const match = message.match(/CONSTRAINT\s+(['"`])([^'"`]+)\1/i);
+  const match = message.match(/(?:CONSTRAINT|for key)\s+(['"`])([^'"`]+)\1/i);
   return match?.[2];
 }

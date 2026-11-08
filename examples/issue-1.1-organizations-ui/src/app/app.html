@@ -240,6 +240,7 @@
               <option value="">All records</option>
               <option value="pending">Pending export</option>
               <option value="R">Replaced</option>
+              <option value="N">Unchanged</option>
               <option value="I">New</option>
               <option value="U">Updated</option>
             </select>
@@ -310,8 +311,8 @@
                   class="status-badge"
                   [class.updated]="row.crud === 'U'"
                   [class.inserted]="row.crud === 'I'"
-                  ><span></span>{{ row.crud === 'R' ? 'Replaced' : row.crud === 'I' ? 'New' :
-                  'Updated' }}</span
+                  ><span></span>{{ row.crud === 'R' ? 'Replaced' : row.crud === 'N' ? 'Unchanged' :
+                  row.crud === 'I' ? 'New' : 'Updated' }}</span
                 >
               </td>
               <td class="date-cell text-[10px] text-[#7a8e98] whitespace-nowrap">

@@ -17,6 +17,19 @@ test.beforeEach(async ({ page, backend }) => {
   void backend;
   await page.goto('/');
 });
+test('displays and filters the N unchanged status without rejecting catalog records', async ({
+  page,
+  backend,
+}) => {
+  backend.records[0].crud = 'N';
+  backend.catalogs['externalDocument'][0].crud = 'N';
+  await page.reload();
+  await page.locator('#status-filter').selectOption('N');
+  await expect(page.locator('tbody tr')).toHaveCount(1);
+  await expect(page.locator('tbody tr').first()).toContainText('Unchanged');
+  await page.getByRole('button', { name: 'Aurora Aerospace', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit organization' })).toBeVisible();
+});
 test('complete HTTP CRUD, reload, leading zeroes, null/removal, and summaries', async ({
   page,
   backend,

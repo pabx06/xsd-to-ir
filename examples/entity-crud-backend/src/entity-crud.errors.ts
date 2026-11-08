@@ -1,20 +1,47 @@
-export class CrudEntityNotFoundError extends Error {
-  constructor(entity: string) { super(`CRUD entity "${entity}" is not registered`);
-    this.name = "CrudEntityNotFoundError"; }
+export interface FieldIssue {
+  path: string;
+  message: string;
 }
-export class CrudRecordNotFoundError extends Error {
-  constructor(entity: string, id: string) {
-    super(`Record "${id}" was not found in entity "${entity}"`); this.name = "CrudRecordNotFoundError";
+export class CrudError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly httpStatus = 400,
+    public readonly details?: { issues: FieldIssue[] },
+    public readonly status?: string,
+    public readonly constraint?: string,
+  ) {
+    super(message);
+    this.name = "CrudError";
   }
 }
-export class CrudForbiddenError extends Error {
-  constructor() { super("The current actor is not allowed to perform this operation");
-    this.name = "CrudForbiddenError"; }
+export class CrudValidationError extends CrudError {
+  constructor(issues: FieldIssue[], message = "Check the marked fields.") {
+    super("invalid_request", message, 400, { issues });
+  }
 }
-export class CrudInvalidQueryError extends Error {
-  constructor(message: string) { super(message); this.name = "CrudInvalidQueryError"; }
+export class CrudEntityNotFoundError extends CrudError {
+  constructor(name: string) {
+    super("entity_not_found", `Unknown entity "${name}".`, 404);
+  }
 }
-export class CrudSummaryNotSupportedError extends Error {
-  constructor(entity: string) { super(`Entity "${entity}" does not provide a summary`);
-    this.name = "CrudSummaryNotSupportedError"; }
+export class CrudRecordNotFoundError extends CrudError {
+  constructor(name: string, id: string) {
+    super("record_not_found", `No active ${name} record "${id}".`, 404);
+  }
+}
+export class CrudInvalidQueryError extends CrudError {
+  constructor(message: string) {
+    super("invalid_query", message);
+  }
+}
+export class CrudForbiddenError extends CrudError {
+  constructor() {
+    super("forbidden", "This operation is not permitted.", 403);
+  }
+}
+export class CrudSummaryNotSupportedError extends CrudError {
+  constructor(name: string) {
+    super("summary_not_supported", `No summary for "${name}".`, 404);
+  }
 }

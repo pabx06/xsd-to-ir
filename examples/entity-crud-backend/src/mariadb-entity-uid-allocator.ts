@@ -1,23 +1,36 @@
 import type { Knex } from "knex";
 import type { EntityUidAllocator } from "./entity-change-preparation.types";
-interface SequenceRow { identity_type: string; next_value: string | number; }
+import type { EntityDefinition } from "./entity-crud.types";
 export class MariaDbEntityUidAllocator implements EntityUidAllocator {
-  public async allocate(trx: Knex.Transaction, input: {
-    projectId: string; schemaIssue: string; entityName: string; identityType: string;
-    prefix: string; maxLength: number; pattern: RegExp;
-  }): Promise<string> {
-    const sequenceKey = [input.schemaIssue, input.identityType].join(":");
-    await trx("_entity_uid_sequence").insert({ identity_type: sequenceKey, next_value: 1 })
-      .onConflict("identity_type").ignore();
-    const row = await trx<SequenceRow>("_entity_uid_sequence").where("identity_type", sequenceKey).forUpdate().first();
-    if (!row) throw new Error(`Unable to lock UID sequence "${sequenceKey}"`);
-    const nextValue = BigInt(row.next_value);
-    const uid = `${input.prefix}${nextValue.toString()}`;
-    if (uid.length > input.maxLength || !input.pattern.test(uid)) {
-      throw new Error(`Generated UID "${uid}" does not satisfy the ${input.identityType} constraints`);
+  async allocate(
+    trx: Knex.Transaction,
+    entity: EntityDefinition,
+    type: string,
+  ): Promise<string> {
+    const rule = entity.metadata.uidRule(type);
+    // Types that share an XML prefix share the same allocation space.
+    await trx("_entity_uid_sequence")
+      .insert({ prefix: rule.prefix, next_value: "1" })
+      .onConflict("prefix")
+      .ignore();
+    const row = await trx("_entity_uid_sequence")
+      .where({ prefix: rule.prefix })
+      .forUpdate()
+      .first();
+    let next = BigInt(row.next_value);
+    for (;;) {
+      const uid = `${rule.prefix}${next++}`;
+      if (
+        uid.length > rule.maxLength ||
+        !rule.patterns.every((pattern) => pattern.test(uid))
+      )
+        throw new Error(`UID space exhausted for ${type}.`);
+      if (await trx("_entity_identity_history").where({ uid }).first())
+        continue;
+      await trx("_entity_uid_sequence")
+        .where({ prefix: rule.prefix })
+        .update({ next_value: next.toString() });
+      return uid;
     }
-    await trx("_entity_uid_sequence").where("identity_type", sequenceKey)
-      .update({ next_value: (nextValue + 1n).toString(), _updated_at: trx.fn.now() });
-    return uid;
   }
 }

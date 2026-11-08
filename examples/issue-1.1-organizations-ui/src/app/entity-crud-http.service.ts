@@ -33,7 +33,7 @@ export function mapRecord<T>(raw: ApiEntityRecord<T>): EntityRecord<T> {
     !((typeof raw.id === 'string' && raw.id.length > 0) || count(raw.id)) ||
     typeof raw.uid !== 'string' ||
     !raw.uid ||
-    !['I', 'U', 'R', 'D'].includes(raw.crud) ||
+    !['I', 'U', 'R', 'D', 'N'].includes(raw.crud) ||
     typeof raw.pendingExport !== 'boolean' ||
     ![raw._createdAt, raw._updatedAt].every(
       (value) => typeof value === 'string' && Number.isFinite(Date.parse(value)),

@@ -5,7 +5,7 @@ export type Organization = Entities['organization'];
 export type OrganizationValue = Omit<Organization, 'uid' | 'crud'>;
 export type JsonObject = Record<string, unknown>;
 export type EntityId = string | number;
-export type CrudMarker = 'I' | 'U' | 'R' | 'D';
+export type CrudMarker = 'I' | 'U' | 'R' | 'D' | 'N';
 export interface EntityRecord<T> {
   id: EntityId;
   uid: string;

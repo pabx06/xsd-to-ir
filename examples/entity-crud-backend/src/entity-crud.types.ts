@@ -1,41 +1,88 @@
-import { S3000LVersion } from "@sliwave/xsd-to-ir";
 import type { Knex } from "knex";
 import type { z } from "zod";
-import type { EntityIdentityPolicy } from "./entity-change-preparation.types";
+import type { EntityMetadata } from "./entity-metadata";
+import type { Adapter, IR, Value } from "./xsd-runtime";
 export type CrudOperation = "list" | "read" | "create" | "update" | "delete";
-export interface CrudActor { id: string; }
+export type CrudMarker = "I" | "U" | "R" | "D" | "N";
+export interface CrudActor {
+  id: string;
+}
 export interface EntitySummaryResult {
-  schemaIssue: S3000LVersion; total: number; pending: number; documents: number; deleted: number;
+  schemaIssue: string;
+  total: number;
+  pending: number;
+  documents: number;
+  deleted: number;
 }
-export type EntitySummaryImplementation = (knex: Knex, entity: EntityDefinition) => Promise<EntitySummaryResult>;
-export interface EntityRelationDefinition {
-  column: string; referencedEntity: string; referencedColumn: string; displayColumn?: string;
-  nullable?: boolean; onDelete?: "restrict" | "cascade" | "set-null"; kind?: string;
-  fieldName?: string; ownsForeignKey: boolean;
+export type EntitySummaryImplementation = (
+  knex: Knex,
+  entity: EntityDefinition,
+) => Promise<EntitySummaryResult>;
+export interface EntityDefinition {
+  dialectVersion: string;
+  name: string;
+  tableName: string;
+  primaryKey: string;
+  readableColumns: string[];
+  fieldColumns: Record<string, string>;
+  filterableColumns: string[];
+  sortableColumns: string[];
+  createSchema: z.ZodType<Value>;
+  updateSchema: z.ZodType<Value>;
+  replaceSchema: z.ZodType<Value>;
+  preparedCreateSchema: z.ZodType<Value>;
+  preparedReplaceSchema: z.ZodType<Value>;
+  metadata: EntityMetadata;
+  ir: IR;
+  createAdapter(): Adapter;
+  summary?: EntitySummaryImplementation;
+  validationWarnings(): readonly string[];
 }
-export interface EntityDefinition<
-  TCreate extends Record<string, unknown> = Record<string, unknown>,
-  TUpdate extends Record<string, unknown> = Record<string, unknown>,
-  TReplace extends Record<string, unknown> = Record<string, unknown>,
-> {
-  dialectVersion: S3000LVersion; name: string; tableName: string; primaryKey: string;
-  readableColumns: readonly string[]; fieldColumns: Readonly<Record<string, string>>;
-  filterableColumns: readonly string[]; sortableColumns: readonly string[];
-  defaultSort?: { column: string; direction: "asc" | "desc" };
-  createSchema: z.ZodType<TCreate>; updateSchema: z.ZodType<TUpdate>; replaceSchema: z.ZodType<TReplace>;
-  preparedCreateSchema: z.ZodType<Record<string, unknown>>;
-  preparedReplaceSchema: z.ZodType<Record<string, unknown>>;
-  relations?: readonly EntityRelationDefinition[]; summary?: EntitySummaryImplementation;
-  beforeCreate?: (data: TCreate, context: CrudContext) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  beforeUpdate?: (entityValue: Record<string, unknown>, context: CrudContext) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  beforeReplace?: (replacement: TReplace, previousValue: Readonly<Record<string, unknown>>, context: CrudContext) => Promise<Record<string, unknown>> | Record<string, unknown>;
-  identityPolicy?: EntityIdentityPolicy;
+export interface CrudContext {
+  actor: CrudActor;
+  projectId: string;
+  databaseName: string;
+  entity: EntityDefinition;
+  knex: Knex;
 }
-export interface CrudContext { actor: CrudActor; projectId: string; databaseName: string; entity: EntityDefinition; knex: Knex; }
 export interface CrudAuthorizationRequest {
-  actor: CrudActor; projectId: string; databaseName: string; entity: string; operation: CrudOperation; recordId?: string;
+  actor: CrudActor;
+  projectId: string;
+  databaseName: string;
+  entity: string;
+  operation: CrudOperation;
+  recordId?: string;
 }
+export type Authorizer = (
+  request: CrudAuthorizationRequest,
+) => boolean | Promise<boolean>;
 export interface ListEntitiesInput {
-  page: number; pageSize: number; sortBy?: string; sortDirection: "asc" | "desc";
+  page: number;
+  pageSize: number;
+  sortBy?: string;
+  sortDirection: "asc" | "desc";
   filters: Record<string, string | number | boolean>;
+}
+export interface EntityRecordResult {
+  id: string | number;
+  uid: string;
+  crud: CrudMarker;
+  pendingExport: boolean;
+  _createdAt: string;
+  _updatedAt: string;
+  _deletedAt: string | null;
+  value: Value;
+}
+export interface ListResult {
+  data: EntityRecordResult[];
+  metadata: {
+    page: number;
+    pageSize: number;
+    total: number;
+    pageCount: number;
+  };
+}
+/** The host owns schema loading/caching and chooses the issue from the project, never from request data. */
+export interface SchemaProvider {
+  getIRRAW(issue: string): unknown;
 }

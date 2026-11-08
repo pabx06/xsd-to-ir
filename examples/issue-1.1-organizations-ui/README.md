@@ -7,8 +7,10 @@ bundled locally. Other work areas remain visible and disabled.
 
 The editor uses the backend API. It has no local storage database, runtime seeds,
 reset action, revision counter, or frontend UID allocator. The backend handoff is
-in [BACKEND-CONTRACT.md](BACKEND-CONTRACT.md). **The supplied backend needs the
-changes in that document before live CRUD can work.**
+in [BACKEND-CONTRACT.md](BACKEND-CONTRACT.md). The repaired
+[backend example](../entity-crud-backend/README.md) includes the services,
+migrations, and tests. Integrate it with the host's session, permissions, and
+import/export history before live use. CRUD `N` is displayed as **Unchanged**.
 
 ## Install and configure
 

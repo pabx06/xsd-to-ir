@@ -64,6 +64,11 @@ describe('configuration before initialization', () => {
   });
 });
 describe('generic HTTP transport', () => {
+  it('preserves the schema N marker on records and rejects unknown markers', () => {
+    const row = { ...fixtureRecords()[0], crud: 'N' as const };
+    expect(mapRecord(row).crud).toBe('N');
+    expect(() => mapRecord({ ...row, crud: 'unknown' } as never)).toThrow();
+  });
   it('encodes queries and maps mixed ID types and timestamp names', async () => {
     const { http, backend } = transport();
     const result = firstValueFrom(

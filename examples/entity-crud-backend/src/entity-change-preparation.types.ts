@@ -1,82 +1,54 @@
 import type { Knex } from "knex";
-import type { CrudContext, EntityDefinition } from "./entity-crud.types";
-
-export type NestedCrudMarker = "I" | "U" | "R" | "D" | "N";
-
-export interface IdentityBearingValue extends Record<string, unknown> {
-  uid?: string;
-  crud?: NestedCrudMarker;
+import type { EntityDefinition, CrudMarker } from "./entity-crud.types";
+import type { Value } from "./xsd-runtime";
+export interface IdentityOwner {
+  uid: string;
+  entity_name: string;
+  root_uid: string;
+  identity_type: string;
+  established: number | boolean;
+  active: number | boolean;
 }
-
-export interface IdentityPathDefinition {
+export interface IdentityInput {
+  entityName: string;
+  rootUid: string;
   identityType: string;
-  path: readonly string[];
-  uid: { prefix: string; maxLength: number; pattern: RegExp };
+  uid: string;
 }
-
-export interface EntityIdentityPolicy {
-  root: {
-    identityType: string;
-    uid: { prefix: string; maxLength: number; pattern: RegExp };
-  };
-  nested: readonly IdentityPathDefinition[];
-}
-
 export interface EntityIdentityHistory {
-  isEstablished(
-    trx: Knex.Transaction,
-    input: { projectId: string; entityName: string; identityType: string; uid: string },
-  ): Promise<boolean>;
   findOwner(
     trx: Knex.Transaction,
-    input: { projectId: string; entityName: string; identityType: string; uid: string },
-  ): Promise<{ rootUid: string; identityType: string } | undefined>;
+    uid: string,
+  ): Promise<IdentityOwner | undefined>;
+  register(
+    trx: Knex.Transaction,
+    input: IdentityInput,
+    established: boolean,
+    active?: boolean,
+  ): Promise<void>;
+  isEstablished(trx: Knex.Transaction, input: IdentityInput): Promise<boolean>;
   recordNestedDeletion(
     trx: Knex.Transaction,
-    input: {
-      projectId: string;
-      entityName: string;
-      entityId: string;
-      rootUid: string;
-      identityType: string;
-      uid: string;
-      path: readonly string[];
-      previousValue: Record<string, unknown>;
-    },
+    input: IdentityInput & { path: string; previousValue: Value },
   ): Promise<void>;
 }
-
 export interface EntityUidAllocator {
   allocate(
     trx: Knex.Transaction,
-    input: {
-      projectId: string;
-      schemaIssue: string;
-      entityName: string;
-      identityType: string;
-      prefix: string;
-      maxLength: number;
-      pattern: RegExp;
-    },
+    entity: EntityDefinition,
+    type: string,
   ): Promise<string>;
 }
-
 export interface PrepareCreateInput {
   trx: Knex.Transaction;
-  context: CrudContext;
   entity: EntityDefinition;
-  submittedValue: Record<string, unknown>;
-  policy: EntityIdentityPolicy;
+  submittedValue: Value;
 }
-
 export interface PrepareReplacementInput extends PrepareCreateInput {
-  entityId: string;
-  rootUid: string;
-  previousValue: Record<string, unknown>;
+  previousValue: Value;
 }
-
 export interface PreparedTrackedValue {
-  value: Record<string, unknown>;
-  rootCrud: "I" | "U";
+  value: Value;
+  rootCrud: CrudMarker;
   changed: boolean;
 }
