@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   business,
   editable,
@@ -98,9 +98,13 @@ describe("metadata-based identity preparation", () => {
         previousValue,
         submittedValue,
       }),
-    ).rejects.toMatchObject({ code: "invalid_request" });
+    ).rejects.toMatchObject({
+      name: "EntityIdentityValidationError",
+      code: "invalid_request",
+      path: `/rmks/rmk/0/${field}`,
+    });
   });
-  it("rejects duplicate and incompatible nested identities", async () => {
+  it("rejects duplicate nested identities at the second occurrence", async () => {
     const previousValue = tracked();
     const state = memoryPreparation(previousValue);
     const submittedValue = editable(previousValue);
@@ -113,9 +117,20 @@ describe("metadata-based identity preparation", () => {
         previousValue,
         submittedValue,
       }),
-    ).rejects.toMatchObject({ code: "invalid_request" });
-    remarks.pop();
-    remarks[0].uid = "docasg30";
+    ).rejects.toMatchObject({
+      name: "EntityIdentityValidationError",
+      code: "invalid_request",
+      path: "/rmks/rmk/1/uid",
+    });
+  });
+  it("rejects an existing UID used for an incompatible type without a duplicate in the submission", async () => {
+    const previousValue = tracked();
+    const state = memoryPreparation(previousValue);
+    const submittedValue = editable(previousValue);
+    // Keep the old document in previousValue so its UID has a known type,
+    // but remove it from the submission to isolate type checking from duplicates.
+    delete submittedValue.docs;
+    (submittedValue.rmks as { rmk: Value[] }).rmk[0].uid = "docasg30";
     await expect(
       state.service.prepareReplacement({
         trx: state.trx,
@@ -123,7 +138,11 @@ describe("metadata-based identity preparation", () => {
         previousValue,
         submittedValue,
       }),
-    ).rejects.toMatchObject({ code: "invalid_request" });
+    ).rejects.toMatchObject({
+      name: "EntityIdentityValidationError",
+      code: "invalid_request",
+      path: "/rmks/rmk/0/uid",
+    });
   });
   it("recognizes unchanged data regardless of property order without changing tracking", async () => {
     const previousValue = tracked();
@@ -188,19 +207,42 @@ describe("metadata-based identity preparation", () => {
     });
     expect(removed.value.docs).toBeNull();
   });
-  it("rejects managed fields on new roots and nested values", async () => {
-    const state = memoryPreparation();
-    for (const submittedValue of [
-      { ...business(), uid: "org999" },
-      { ...business(), rmks: { rmk: [{ text: { descr: "New" }, crud: "I" }] } },
-    ]) {
+  it.each([
+    { submittedValue: { ...business(), uid: "org999" }, path: "/uid" },
+    { submittedValue: { ...business(), crud: "I" }, path: "/crud" },
+    {
+      submittedValue: {
+        ...business(),
+        rmks: { rmk: [{ text: { descr: "New" }, uid: "rmk999" }] },
+      },
+      path: "/rmks/rmk/0/uid",
+    },
+    {
+      submittedValue: {
+        ...business(),
+        rmks: { rmk: [{ text: { descr: "New" }, crud: "I" }] },
+      },
+      path: "/rmks/rmk/0/crud",
+    },
+  ])(
+    "rejects managed field $path on creation before allocating",
+    async ({ submittedValue, path }) => {
+      const state = memoryPreparation();
+      const allocate = vi.spyOn(state.allocator, "allocate");
+      const register = vi.spyOn(state.history, "register");
       await expect(
         state.service.prepareCreate({
           trx: state.trx,
           entity: organization,
           submittedValue,
         }),
-      ).rejects.toMatchObject({ code: "invalid_request" });
-    }
-  });
+      ).rejects.toMatchObject({
+        name: "EntityIdentityValidationError",
+        code: "invalid_request",
+        path,
+      });
+      expect(allocate).not.toHaveBeenCalled();
+      expect(register).not.toHaveBeenCalled();
+    },
+  );
 });

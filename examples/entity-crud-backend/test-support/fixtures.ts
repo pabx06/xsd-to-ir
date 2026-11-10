@@ -85,6 +85,7 @@ export function memoryPreparation(previous?: Value, established = true) {
   return {
     service: new EntityChangePreparationService(allocator, history),
     history,
+    allocator,
     owners,
     deletions,
     trx: {} as Knex.Transaction,
