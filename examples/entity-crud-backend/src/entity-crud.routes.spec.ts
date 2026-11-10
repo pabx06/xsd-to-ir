@@ -245,7 +245,7 @@ describe("HTTP context and authorization", () => {
   it.each(routes)(
     "denies $method $suffix before database or service access",
     async (route) => {
-      const state = fixture({ authorize: () => false });
+      const state = fixture({ authorize: async () => false });
       const response = await send(state.app, route).expect(403);
       const recordId = route.suffix === `/${record.id}` ? record.id : undefined;
       expect(state.authorize).toHaveBeenCalledExactlyOnceWith(
@@ -300,6 +300,24 @@ describe("HTTP context and authorization", () => {
 });
 
 describe("HTTP query and error mapping", () => {
+  it("forwards a rejected authorization lookup to the error handler exactly once", async () => {
+    const error = new Error("Permission backend unavailable");
+    const state = fixture({
+      authorize: async () => {
+        throw error;
+      },
+    });
+    const response = await request(state.app).get(endpoint).expect(500);
+    expect(response.body).toEqual({
+      error: "internal_error",
+      message: "The operation could not be completed.",
+    });
+    expect(state.authorize).toHaveBeenCalledExactlyOnceWith(scope("list"));
+    expect(state.onError).toHaveBeenCalledExactlyOnceWith(error);
+    expect(state.database).not.toHaveBeenCalled();
+    expectNoServiceCalls(state);
+  });
+
   it("converts paging and filters before forwarding a list query", async () => {
     const state = fixture();
     await request(state.app)

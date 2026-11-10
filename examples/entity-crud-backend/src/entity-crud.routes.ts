@@ -1,6 +1,7 @@
 import {
   Router,
   type Request,
+  type RequestHandler,
   type Response,
   type NextFunction,
 } from "express";
@@ -53,6 +54,16 @@ const listQuerySchema = z
     sortDirection: z.enum(["asc", "desc"]).default("asc"),
   })
   .catchall(z.string());
+
+function asyncRoute(
+  handler: (request: Request, response: Response) => Promise<void>,
+): RequestHandler {
+  // Express 4 ignores returned promises. Forward rejections explicitly so the
+  // same error middleware handles them on both Express 4 and Express 5.
+  return (request, response, next) => {
+    void handler(request, response).catch(next);
+  };
+}
 
 export function createEntityCrudRouter(
   dependencies: EntityCrudRouterDependencies,
@@ -122,64 +133,89 @@ export function createEntityCrudRouter(
       knex: dependencies.getProjectDatabase(project.databaseName),
     };
   };
-  router.get("/:entity", async (request, response) => {
-    const ctx = await context(request, "list");
-    const { page, pageSize, sortBy, sortDirection, ...raw } =
-      listQuerySchema.parse(request.query);
-    if (
-      Object.keys(raw).some(
-        (key) => !key.startsWith("filter.") || key.length === 7,
+  router.get(
+    "/:entity",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "list");
+      const { page, pageSize, sortBy, sortDirection, ...raw } =
+        listQuerySchema.parse(request.query);
+      if (
+        Object.keys(raw).some(
+          (key) => !key.startsWith("filter.") || key.length === 7,
+        )
       )
-    )
-      throw new CrudInvalidQueryError("Unknown query parameter.");
-    const filters = Object.fromEntries(
-      Object.entries(raw)
-        .filter(([, value]) => value !== "")
-        .map(([key, value]) => [key.slice(7), value]),
-    );
-    response.json(
-      await service.list(ctx.knex, ctx.entity, {
-        page,
-        pageSize,
-        sortBy,
-        sortDirection,
-        filters,
-      }),
-    );
-  });
-  router.get("/:entity/summary", async (request, response) => {
-    const ctx = await context(request, "list");
-    response.json({ data: await service.summary(ctx.knex, ctx.entity) });
-  });
-  router.get("/:entity/:id", async (request, response) => {
-    const ctx = await context(request, "read");
-    response.json({
-      data: await service.findById(ctx.knex, ctx.entity, param(request, "id")),
-    });
-  });
-  router.post("/:entity", async (request, response) => {
-    const ctx = await context(request, "create");
-    response
-      .status(201)
-      .json({ data: await service.create(ctx, request.body) });
-  });
-  router.put("/:entity/:id", async (request, response) => {
-    const ctx = await context(request, "update");
-    response.json({
-      data: await service.replace(ctx, param(request, "id"), request.body),
-    });
-  });
-  router.patch("/:entity/:id", async (request, response) => {
-    const ctx = await context(request, "update");
-    response.json({
-      data: await service.update(ctx, param(request, "id"), request.body),
-    });
-  });
-  router.delete("/:entity/:id", async (request, response) => {
-    const ctx = await context(request, "delete");
-    await service.delete(ctx, param(request, "id"));
-    response.status(204).send();
-  });
+        throw new CrudInvalidQueryError("Unknown query parameter.");
+      const filters = Object.fromEntries(
+        Object.entries(raw)
+          .filter(([, value]) => value !== "")
+          .map(([key, value]) => [key.slice(7), value]),
+      );
+      response.json(
+        await service.list(ctx.knex, ctx.entity, {
+          page,
+          pageSize,
+          sortBy,
+          sortDirection,
+          filters,
+        }),
+      );
+    }),
+  );
+  router.get(
+    "/:entity/summary",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "list");
+      response.json({ data: await service.summary(ctx.knex, ctx.entity) });
+    }),
+  );
+  router.get(
+    "/:entity/:id",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "read");
+      response.json({
+        data: await service.findById(
+          ctx.knex,
+          ctx.entity,
+          param(request, "id"),
+        ),
+      });
+    }),
+  );
+  router.post(
+    "/:entity",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "create");
+      response
+        .status(201)
+        .json({ data: await service.create(ctx, request.body) });
+    }),
+  );
+  router.put(
+    "/:entity/:id",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "update");
+      response.json({
+        data: await service.replace(ctx, param(request, "id"), request.body),
+      });
+    }),
+  );
+  router.patch(
+    "/:entity/:id",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "update");
+      response.json({
+        data: await service.update(ctx, param(request, "id"), request.body),
+      });
+    }),
+  );
+  router.delete(
+    "/:entity/:id",
+    asyncRoute(async (request, response) => {
+      const ctx = await context(request, "delete");
+      await service.delete(ctx, param(request, "id"));
+      response.status(204).send();
+    }),
+  );
   router.use(
     (
       error: unknown,

@@ -13,8 +13,8 @@
     "check": "tsc --noEmit",
     "test": "vitest run --exclude '**/*.integration.spec.ts'",
     "test:integration": "vitest run src/entity-crud.integration.spec.ts",
-    "format": "prettier --write src test-support *.json *.md",
-    "format:check": "prettier --check src test-support *.json *.md"
+    "format": "prettier --write src test-support vitest.config.mts *.json *.md",
+    "format:check": "prettier --check src test-support vitest.config.mts *.json *.md"
   },
   "dependencies": {
     "ajv": "^8.17.1",
@@ -29,6 +29,7 @@
     "@types/express": "^5.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^6.0.0",
+    "express4": "npm:express@^4.22.3",
     "prettier": "3.9.10",
     "supertest": "^7.1.0",
     "typescript": "5.9.3",
