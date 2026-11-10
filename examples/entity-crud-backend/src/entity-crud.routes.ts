@@ -58,8 +58,8 @@ const listQuerySchema = z
 function asyncRoute(
   handler: (request: Request, response: Response) => Promise<void>,
 ): RequestHandler {
-  // Express 4 ignores returned promises. Forward rejections explicitly so the
-  // same error middleware handles them on both Express 4 and Express 5.
+  // Express 4 ignores returned promises. Forward rejections explicitly to the
+  // error middleware.
   return (request, response, next) => {
     void handler(request, response).catch(next);
   };

@@ -40,18 +40,16 @@ repository through `file:../..`. The build emits the reusable module at
 `dist/index.js`; it does not start an HTTP server. Tests load the repository's
 Issue 1.1 XSD and use its real IR, generated JSON Schema, and DDL.
 
-The example uses Express 5. Route tests also run against Express 4 through a
-development-only `express4` alias. Every async route forwards rejected promises
-to `next(error)`, so copied routes work with either major version. Without this
-forwarding, Express 4 leaves requests pending and Vitest reports unhandled
+The example uses Express 4 with the corresponding TypeScript types. Every async
+route forwards rejected promises to `next(error)`. Without this forwarding,
+Express 4 leaves requests pending and Vitest reports unhandled
 rejections when authentication, authorization, validation, or a service fails.
 Keep the error middleware's four parameters so Express recognizes it.
 
-To run just the route tests for either version from this directory:
+To run just the route tests from this directory:
 
 ```sh
-npm test -- --project express4 src/entity-crud.routes.spec.ts
-npm test -- --project express5 src/entity-crud.routes.spec.ts
+npm test -- src/entity-crud.routes.spec.ts
 ```
 
 The integration suite requires a **dedicated MariaDB test server**. It creates a
