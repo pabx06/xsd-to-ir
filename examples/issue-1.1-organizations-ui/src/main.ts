@@ -4,7 +4,7 @@ import { provideOptimus } from '@openng/optimus-ui/config';
 import { definePreset } from '@openng/optimus-ui-themes';
 import Aura from '@openng/optimus-ui-themes/aura';
 import { App } from './app/app';
-import { ENTITY_CRUD } from './app/models';
+import { ORGANIZATION_CRUD } from './app/models';
 import { OrganizationService } from './app/organization.service';
 import { RUNTIME_CONFIG, loadRuntimeConfig } from './app/runtime-config';
 
@@ -53,7 +53,7 @@ loadRuntimeConfig()
             },
           },
         }),
-        { provide: ENTITY_CRUD, useExisting: OrganizationService },
+        { provide: ORGANIZATION_CRUD, useExisting: OrganizationService },
       ],
     }),
   )

@@ -17,7 +17,7 @@ import { EntityCrudHttpService } from './entity-crud-http.service';
 import {
   CrudError,
   ENTITY,
-  type EntityCrudService,
+  type OrganizationCrudService,
   type EntityId,
   type EntityRecord,
   type JsonObject,
@@ -44,7 +44,7 @@ function labelText(value: unknown): string {
   return '';
 }
 @Injectable({ providedIn: 'root' })
-export class OrganizationService implements EntityCrudService {
+export class OrganizationService implements OrganizationCrudService {
   private readonly http = inject(EntityCrudHttpService);
   private readonly catalogs = new Map<string, Observable<ReferenceCatalog>>();
   list(project: string, entity: string, query: ListQuery = {}) {

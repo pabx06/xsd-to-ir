@@ -235,9 +235,12 @@ by the XSD are excluded, including `orgId.setBy` and `name.providedBy`.
 
 `EntityCrudHttpService` is a generic HTTP transport. It keeps project/entity
 arguments, Observable results, and the existing list/record envelopes.
-`OrganizationService` provides Organization operations, validates the summary
-issue, and manages reference catalogs. `ENTITY_CRUD` binds the screen to that
-service. The runtime config is injected through `RUNTIME_CONFIG`.
+`OrganizationService` implements the `OrganizationCrudService` screen interface,
+validates the summary issue, and manages reference catalogs. `ORGANIZATION_CRUD`
+binds the screen to that service. Its `summary(project)` method supplies the
+`organization` entity when calling the transport's `summary(project, entity)`;
+`references(project, refresh?)` builds catalogs from multiple transport list
+requests. The runtime config is injected through `RUNTIME_CONFIG`.
 
 The wire record contains `id` (string or number), `uid`, `crud`,
 `pendingExport`, `_createdAt`, `_updatedAt`, `_deletedAt`, and `value`.

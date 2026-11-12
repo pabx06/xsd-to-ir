@@ -15,7 +15,7 @@ import { validateOrganization } from './validation';
 import {
   CrudError,
   ENTITY,
-  ENTITY_CRUD,
+  ORGANIZATION_CRUD,
   displayName,
   type FieldIssue,
   type ListQuery,
@@ -40,7 +40,7 @@ import {
   templateUrl: './app.html',
 })
 export class App implements OnDestroy {
-  readonly api = inject(ENTITY_CRUD);
+  readonly api = inject(ORGANIZATION_CRUD);
   readonly configuration = inject(RUNTIME_CONFIG);
   readonly projectLabel = this.configuration.config?.projectLabel || 'Project not configured';
   private readonly project = this.configuration.config?.projectId || '';

@@ -4,6 +4,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "dom"],
+    "types": ["node"],
     "strict": true,
     "experimentalDecorators": true,
     "isolatedModules": true,

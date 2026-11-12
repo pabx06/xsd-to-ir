@@ -56,7 +56,8 @@ export interface OrganizationSummary {
   documents: number;
   deleted: number;
 }
-export interface EntityCrudService {
+/** Organization screen API implemented by OrganizationService. */
+export interface OrganizationCrudService {
   list(
     project: string,
     entity: string,
@@ -74,7 +75,9 @@ export interface EntityCrudService {
   summary(project: string): Observable<OrganizationSummary>;
   references(project: string, refresh?: boolean): Observable<ReferenceCatalog>;
 }
-export const ENTITY_CRUD = new InjectionToken<EntityCrudService>('EntityCrudService');
+export const ORGANIZATION_CRUD = new InjectionToken<OrganizationCrudService>(
+  'OrganizationCrudService',
+);
 export const ENTITY = 'organization';
 export interface FieldIssue {
   path: string;

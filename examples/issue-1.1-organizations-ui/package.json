@@ -41,6 +41,7 @@
     "@openng/optimus-ui-tailwindcss": "^2.0.2",
     "@playwright/test": "^1.58.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.19.2",
     "postcss": "^8.5.31",
     "prettier": "3.9.10",
     "tailwindcss": "^4.3.3",
