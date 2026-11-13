@@ -203,11 +203,12 @@ Import and export operations must take the same lock with
 **`MariaDbEntityIdentityHistory.lock(trx)`**. Otherwise they can bypass UID and
 reference checks while an editor write is in progress.
 
-After storing an imported row, call **`recordImportedRow(trx, entity, row,
-establishmentResolver)`** in that transaction. Synchronize removed identities and
-history with the importer's own deletion rules. This helper registers identities
-in the supplied row; it does not implement XML import or infer deletions from an
-earlier import snapshot.
+After storing an imported row, call **`reconcileImportedRemovals()`** with its
+original and final SQL rows to queue removed identities for a later export.
+Then call **`recordImportedRow(trx, entity, row, establishmentResolver)`** in
+that transaction to register the identities retained in the final row. Both
+helpers are implemented in [identity-lifecycle.ts](src/identity-lifecycle.ts)
+and exported by `src/index.ts`.
 
 `DBAdapter.persistMessage(batches, msgMeta, hooks)` provides two optional hooks
 for this integration. Both run inside its transaction and are awaited:
@@ -252,7 +253,7 @@ const statistics = await dbAdapter.persistMessage(batches, msgMeta, {
 
       if (!row) throw new Error("Imported row is missing.");
 
-      // Host implementation: apply this import's deletion rules.
+      // Supplied helper: queue imported removals for a later export.
       await reconcileImportedRemovals({
         trx,
         entity,
@@ -276,12 +277,22 @@ const statistics = await dbAdapter.persistMessage(batches, msgMeta, {
 `dbAdapter` uses the same project database and schema issue as the registry;
 `batches` and `msgMeta` come from the accepted XML import. One `recordImportedRow`
 call handles the row's root UID and all retained nested UIDs in its JSON columns.
-`reconcileImportedRemovals` and `resolveImportedEstablished` are host functions
-you must implement, not helpers supplied by this package. The former compares
-the previous and final rows and applies your rules for removed nested identities
-and root deletions. The latter answers whether each imported identity is
-established under your accepted import policy; the `() => false` callback used
-for an empty project's initialization is not a general import policy.
+`reconcileImportedRemovals` compares stored XML identities by UID. It queues
+removed nested identities in `_entity_nested_deletion`, preserving their original
+stored XML JSON and paths, and marks their history entries inactive without
+releasing UID ownership. A root soft-delete queues the original root and all its
+nested identities, even though the SQL row still contains their JSON. Retained
+identities, including those hidden by a clean UI `null`, are not removals.
+Inserts have no previous snapshot to reconcile; already-deleted previous rows
+produce no new deletion snapshots. The helper rejects a changed root UID or
+missing/mismatched ownership for a removed identity. It preserves imported CRUD
+markers and does not acknowledge an export. This example's policy is to queue
+imported removals for export, so the host exporter must consume those snapshots.
+
+`resolveImportedEstablished` remains a host callback: it answers whether each
+imported identity is established under your accepted import policy. The
+`() => false` callback used for an empty project's initialization is not a general
+import policy.
 
 If either hook throws or rejects, the transaction rolls back both the imported
 rows and history writes made through `trx`. Await all hook work and use the

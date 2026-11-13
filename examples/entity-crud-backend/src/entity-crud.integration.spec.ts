@@ -1,19 +1,26 @@
 import { beforeAll, afterAll, beforeEach, describe, it, expect } from "vitest";
+import type { Knex } from "knex";
 import request from "supertest";
 import { database } from "../test-support/mariadb";
 import {
   business,
   editable,
+  ir,
   organization,
   recursiveApplicability,
   registry,
+  tracked,
 } from "../test-support/fixtures";
 import { EntityCrudService } from "./entity-crud.service";
 import {
   acknowledgeExport,
   initializeProjectHistory,
+  reconcileImportedRemovals,
+  recordImportedRow,
 } from "./identity-lifecycle";
+import { MariaDbEntityIdentityHistory } from "./mariadb-entity-identity-history";
 import type { Value } from "./xsd-runtime";
+const { DBAdapter } = require("xsd-to-ir");
 const endpoint = "/api/projects/p1/entities/organization";
 let db: Awaited<ReturnType<typeof database>>;
 beforeAll(async () => {
@@ -26,7 +33,205 @@ beforeEach(async () => {
   await db.reset();
 }, 30000);
 
+async function importOrganization(batch: {
+  insert: Value[];
+  update: Value[];
+  delete: string[];
+}) {
+  const adapter = new DBAdapter(db.knex, ir);
+  const history = new MariaDbEntityIdentityHistory();
+  return adapter.persistMessage(
+    new Map([["organization", batch]]),
+    {},
+    {
+      beforeImport: ({ trx }: { trx: Knex.Transaction }) => history.lock(trx),
+      afterImport: async ({
+        trx,
+        changes,
+      }: {
+        trx: Knex.Transaction;
+        changes: {
+          entityName: string;
+          id: string | number;
+          previousRow: Value | null;
+        }[];
+      }) => {
+        for (const change of changes) {
+          if (!registry.hasEntity("1.1", change.entityName)) continue;
+          const entity = registry.getEntityDefinition("1.1", change.entityName);
+          const row = await trx(entity.tableName)
+            .where(entity.primaryKey, change.id)
+            .first();
+          if (!row) throw new Error("Imported row is missing.");
+          await reconcileImportedRemovals({
+            trx,
+            entity,
+            before: change.previousRow,
+            after: row,
+            history,
+          });
+          await recordImportedRow(trx, entity, row, () => true, history);
+        }
+      },
+    },
+  );
+}
+
 describe("HTTP CRUD with the generated Issue 1.1 DDL and MariaDB", () => {
+  it("queues imported removals and root deletion until a successful export acknowledges them", async () => {
+    const id = await db.seed("organization", tracked());
+    await initializeProjectHistory(db.knex, registry, "1.1", () => true);
+
+    await importOrganization({
+      insert: [],
+      update: [{ _xmlUid: "org50", docs: null }],
+      delete: [],
+    });
+    const removed = await db
+      .knex("_entity_nested_deletion")
+      .where("root_uid", "org50");
+    expect(removed).toHaveLength(1);
+    expect(removed[0]).toMatchObject({
+      uid: "docasg30",
+      path: "/docs/doc/0",
+      export_sequence: null,
+    });
+    expect(JSON.parse(removed[0].previous_value)).toMatchObject({
+      "@_uid": "docasg30",
+      "@_crud": "R",
+      docRef: { "@_uidRef": "doc1" },
+    });
+    expect(
+      await db
+        .knex("_entity_identity_history")
+        .where("uid", "docasg30")
+        .first(),
+    ).toMatchObject({
+      root_uid: "org50",
+      active: 0,
+      established: 1,
+    });
+    expect(
+      await db.knex("_entity_identity_history").where("uid", "rmk20").first(),
+    ).toMatchObject({ active: 1 });
+
+    await importOrganization({ insert: [], update: [], delete: ["org50"] });
+    // Replaying the root deletion must not duplicate its queued snapshots.
+    await importOrganization({ insert: [], update: [], delete: ["org50"] });
+    const queued = await db
+      .knex("_entity_nested_deletion")
+      .where("root_uid", "org50")
+      .orderBy("uid");
+    expect(queued.map((row) => row.uid)).toEqual([
+      "docasg30",
+      "org50",
+      "rmk20",
+    ]);
+    expect(queued.every((row) => row.export_sequence === null)).toBe(true);
+    const owners = await db
+      .knex("_entity_identity_history")
+      .where("root_uid", "org50");
+    expect(owners).toHaveLength(3);
+    expect(
+      owners.every((owner) => owner.active === 0 && owner.established === 1),
+    ).toBe(true);
+    const deleted = await db.knex("organization").where("id", id).first();
+    expect(deleted._deleted_at).not.toBeNull();
+    expect(Number(deleted._msg_seq)).toBe(0);
+
+    await db.knex.transaction((trx) =>
+      acknowledgeExport(
+        trx,
+        registry,
+        "1.1",
+        [{ entityName: "organization", id }],
+        "8",
+      ),
+    );
+    const exported = await db
+      .knex("_entity_nested_deletion")
+      .where("root_uid", "org50");
+    expect(exported.every((row) => String(row.export_sequence) === "8")).toBe(
+      true,
+    );
+  });
+
+  it("rolls back imported removals when registering a later identity detects another owner", async () => {
+    const id = await db.seed("organization", tracked());
+    await db.seed("organization", {
+      ...business("OTHER"),
+      uid: "org51",
+      crud: "R",
+      rmks: {
+        rmk: [{ uid: "rmk21", crud: "R", text: { descr: "Other owner" } }],
+      },
+    });
+    await initializeProjectHistory(db.knex, registry, "1.1", () => true);
+    const original = await db.knex("organization").where("id", id).first();
+    const owners = await db.knex("_entity_identity_history").orderBy("uid");
+    const value = tracked();
+    delete value.docs;
+    (value.rmks as { rmk: Value[] }).rmk.push({
+      uid: "rmk21",
+      crud: "I",
+      text: { descr: "Conflicting owner" },
+    });
+    const encoded = organization
+      .createAdapter()
+      .encodeRow("organization", value);
+
+    await expect(
+      importOrganization({
+        insert: [],
+        update: [{ _xmlUid: "org50", docs: null, rmks: encoded.rmks }],
+        delete: [],
+      }),
+    ).rejects.toMatchObject({
+      code: "duplicate_uid",
+      message: 'UID "rmk21" is already owned by another value.',
+      httpStatus: 409,
+    });
+
+    expect(await db.knex("organization").where("id", id).first()).toEqual(
+      original,
+    );
+    expect(await db.knex("_entity_identity_history").orderBy("uid")).toEqual(
+      owners,
+    );
+    expect(await db.knex("_entity_nested_deletion").select()).toEqual([]);
+  });
+
+  it.each(["missing", "another root"])(
+    "rejects removal when identity history has %s ownership",
+    async (state) => {
+      const id = await db.seed("organization", tracked());
+      await initializeProjectHistory(db.knex, registry, "1.1", () => true);
+      const original = await db.knex("organization").where("id", id).first();
+      const owner = db
+        .knex("_entity_identity_history")
+        .where("uid", "docasg30");
+      if (state === "missing") await owner.delete();
+      else await owner.update({ root_uid: "org999" });
+
+      await expect(
+        importOrganization({
+          insert: [],
+          update: [{ _xmlUid: "org50", docs: null }],
+          delete: [],
+        }),
+      ).rejects.toMatchObject({
+        code: "identity_history_missing",
+        message:
+          'Identity history must be populated for "docasg30" before editing.',
+        httpStatus: 409,
+      });
+      expect(await db.knex("organization").where("id", id).first()).toEqual(
+        original,
+      );
+      expect(await db.knex("_entity_nested_deletion").select()).toEqual([]);
+    },
+  );
+
   it("reserves nil XML identities hidden by UI null and retains them until removal", async () => {
     const nil = {
       "@_uid": "applst2",
