@@ -209,6 +209,85 @@ history with the importer's own deletion rules. This helper registers identities
 in the supplied row; it does not implement XML import or infer deletions from an
 earlier import snapshot.
 
+`DBAdapter.persistMessage(batches, msgMeta, hooks)` provides two optional hooks
+for this integration. Both run inside its transaction and are awaited:
+
+- `beforeImport({ trx, msgMeta })` runs before import writes. Acquire the project
+  lock here.
+- `afterImport({ trx, msgMeta, changes })` runs after all row writes and pending
+  relation resolution, **before commit**. Register imported identities here.
+
+Each `changes` entry is `{ entityName, id, previousRow }`. It identifies a database
+row, including helper-table rows. `previousRow` is the full SQL row before its
+first update/delete, or `null` if this import inserted it. Repeated writes to the
+same row produce one entry and preserve that original snapshot. Missing update
+or delete targets and unsupported helper-table soft deletes produce no entry.
+Read the final row through `trx`; include soft-deleted rows so their identities
+can be marked inactive. Existing calls without hooks keep their behavior and
+`{ inserted, updated, deleted }` result; these operation counts are not a count of
+unique `changes` entries.
+
+For example, wire the generic adapter to this backend in the host importer:
+
+```ts
+const history = new MariaDbEntityIdentityHistory();
+
+const statistics = await dbAdapter.persistMessage(batches, msgMeta, {
+  beforeImport: async ({ trx }) => {
+    await history.lock(trx);
+  },
+
+  afterImport: async ({ trx, changes }) => {
+    for (const change of changes) {
+      // Internal helper tables are not CRUD entity records.
+      if (!registry.hasEntity(project.schemaIssue, change.entityName)) continue;
+
+      const entity = registry.getEntityDefinition(
+        project.schemaIssue,
+        change.entityName,
+      );
+      const row = await trx(entity.tableName)
+        .where(entity.primaryKey, change.id)
+        .first();
+
+      if (!row) throw new Error("Imported row is missing.");
+
+      // Host implementation: apply this import's deletion rules.
+      await reconcileImportedRemovals({
+        trx,
+        entity,
+        before: change.previousRow,
+        after: row,
+        history,
+      });
+
+      await recordImportedRow(
+        trx,
+        entity,
+        row,
+        resolveImportedEstablished,
+        history,
+      );
+    }
+  },
+});
+```
+
+`dbAdapter` uses the same project database and schema issue as the registry;
+`batches` and `msgMeta` come from the accepted XML import. One `recordImportedRow`
+call handles the row's root UID and all retained nested UIDs in its JSON columns.
+`reconcileImportedRemovals` and `resolveImportedEstablished` are host functions
+you must implement, not helpers supplied by this package. The former compares
+the previous and final rows and applies your rules for removed nested identities
+and root deletions. The latter answers whether each imported identity is
+established under your accepted import policy; the `() => false` callback used
+for an empty project's initialization is not a general import policy.
+
+If either hook throws or rejects, the transaction rolls back both the imported
+rows and history writes made through `trx`. Await all hook work and use the
+provided transaction for database access; do not start a separate transaction or
+defer identity registration until after `persistMessage()` returns.
+
 After successful export of a stable snapshot, call **`acknowledgeExport()`** with
 the exact exported root records and the sequence allocated by the host:
 

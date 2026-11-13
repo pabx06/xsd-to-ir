@@ -37,6 +37,14 @@ const TECH_COLS = new Set([
 
 const { DBRelationResolver } = require('./db-relation-resolver');
 
+/**
+ * @typedef {object} ImportedRowChange
+ * @property {string} entityName IR entity name, including helper entities.
+ * @property {number|string} id Database primary key.
+ * @property {object|null} previousRow Full SQL row before its first import write,
+ * or null when the row was inserted by this import.
+ */
+
 function _isIgnorableDDLExistsError(err) {
   const msg = String(err?.message || '').toLowerCase();
   const code = err?.code;
@@ -180,12 +188,20 @@ class DBAdapter {
 
   /**
    * Persist a full deserialized message in a single DB transaction.
+   * Both hooks are awaited inside that transaction. afterImport runs after
+   * relation resolution and before commit; a hook rejection rolls everything back.
+   * Changes contain each matched row once, preserving its first previousRow even
+   * when the message updates or deletes it again. Unmatched writes are omitted.
+   * Read final rows through trx in afterImport, including soft-deleted rows.
    *
    * @param {Map}    batches   Output of XMLDeserializer.deserialize().batches
    * @param {object} msgMeta   Output of XMLDeserializer.deserialize().msgMeta
-   * @returns {{ inserted: number, updated: number, deleted: number }}
+   * @param {object} [hooks]
+   * @param {(context: {trx: import('knex').Knex.Transaction, msgMeta: object}) => (void|Promise<void>)} [hooks.beforeImport]
+   * @param {(context: {trx: import('knex').Knex.Transaction, msgMeta: object, changes: ImportedRowChange[]}) => (void|Promise<void>)} [hooks.afterImport]
+   * @returns {Promise<{ inserted: number, updated: number, deleted: number }>}
    */
-  async persistMessage(batches, _msgMeta) {
+  async persistMessage(batches, msgMeta, hooks = {}) {
     let inserted = 0;
     let updated = 0;
     let deleted = 0;
@@ -193,9 +209,18 @@ class DBAdapter {
     this._preflightRequiredUids(batches);
 
     await this.knex.transaction(async (trx) => {
+      await hooks.beforeImport?.({ trx, msgMeta });
+
       const pendingRelations = [];
-      // Optionally log the message header itself
-      // (you could persist msgMeta to a messages_log table here)
+      const changes = new Map();
+      const rememberChange = (entityName, id, previousRow) => {
+        if (!hooks.afterImport) return;
+        if (id === undefined || id === null) {
+          throw new Error(`Cannot track imported ${entityName}: database id is missing`);
+        }
+        const key = JSON.stringify([entityName, String(id)]);
+        if (!changes.has(key)) changes.set(key, { entityName, id, previousRow });
+      };
 
       for (const [entityName, batch] of batches) {
         // INSERT
@@ -203,6 +228,7 @@ class DBAdapter {
           const relationRefs = row._xmlRelations || [];
           const resolved = await this.relationResolver.resolveParentRef(row, trx);
           const insertedRow = await this.insert(entityName, resolved, { trx });
+          rememberChange(entityName, insertedRow.id, null);
           this.relationResolver.queueRelationRefs(
             pendingRelations,
             entityName,
@@ -219,7 +245,11 @@ class DBAdapter {
           const relationRefs = row._xmlRelations || [];
           const { _xmlUid, ...clean } = row; // eslint-disable-line no-unused-vars
           const resolved = await this.relationResolver.resolveParentRef(clean, trx);
+          const previousRow = hooks.afterImport
+            ? await this._activeByUid(this._entity(entityName), uid, trx, '*')
+            : null;
           await this.update(entityName, uid, resolved, { trx });
+          if (previousRow) rememberChange(entityName, previousRow.id, previousRow);
           if (relationRefs.length > 0) {
             const source = await this._activeByUid(this._entity(entityName), uid, trx);
             if (source) {
@@ -231,12 +261,18 @@ class DBAdapter {
 
         // SOFT DELETE
         for (const uid of batch.delete) {
+          const entity = this._entity(entityName);
+          const previousRow = hooks.afterImport && this._hasColumn(entity, '_deleted_at')
+            ? await this._activeByUid(entity, uid, trx, '*')
+            : null;
           await this.softDelete(entityName, uid, { trx });
+          if (previousRow) rememberChange(entityName, previousRow.id, previousRow);
           deleted++;
         }
       }
 
       await this.relationResolver.applyPendingRelationRefs(pendingRelations, trx);
+      await hooks.afterImport?.({ trx, msgMeta, changes: [...changes.values()] });
     });
 
     return { inserted, updated, deleted };
@@ -441,12 +477,12 @@ class DBAdapter {
     return out;
   }
 
-  async _activeByUid(entity, uid, trx) {
+  async _activeByUid(entity, uid, trx, columns = 'id') {
     let query = trx(entity.tableName).where('uid', uid);
     if (this._hasColumn(entity, '_deleted_at')) {
       query = query.whereNull('_deleted_at');
     }
-    const [row] = await query.select('id');
+    const [row] = await query.select(columns);
     return row || null;
   }
 }
