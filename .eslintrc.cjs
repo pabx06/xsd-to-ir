@@ -12,6 +12,12 @@ module.exports = {
   ignorePatterns: [
     'node_modules/',
     'output/',
+    'examples/entity-crud-backend/dist/',
+    'examples/issue-1.1-ui-showcase/dist/',
+    'examples/issue-1.1-organizations-ui/dist/',
+    'examples/issue-1.1-organizations-ui/.angular/',
+    'examples/issue-1.1-organizations-ui/src/generated/',
+    'examples/issue-1.1-organizations-ui/playwright-report/',
   ],
   rules: {
     camelcase: 'off',
@@ -21,6 +27,7 @@ module.exports = {
       devDependencies: [
         'test/**/*.js',
         'scripts/**/*.js',
+        'examples/**/*.cjs',
       ],
     }],
     'max-len': ['error', {

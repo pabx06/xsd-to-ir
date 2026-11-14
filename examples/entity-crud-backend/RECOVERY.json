@@ -1,0 +1,117 @@
+{
+  "source": "entity-crud2-code-reconstitue.md",
+  "sourceSha256": "ef1577108aa89f5e7e1312e247033ab6bdae37a0103a24feccdf69dbc58c8143",
+  "recoveredOn": "2026-11-08",
+  "files": [
+    {
+      "name": "entity-change-preparation.errors.ts",
+      "sourceStatus": "source",
+      "sha256": "83b8035d508d2817f562ad808d847e58f9dcf265dcfef61fd392a7550b18b4c9"
+    },
+    {
+      "name": "entity-change-preparation.service.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "21ab159ebf19f37677df6c9babf20ba37232e5370d0740b436f55642afb9f74e"
+    },
+    {
+      "name": "entity-change-preparation.service.ts",
+      "sourceStatus": "source_reconstitue",
+      "sha256": "fd0d102275e320409edaefe4b6fe45a0ab280709553ab47b656ebe92d1f9a822"
+    },
+    {
+      "name": "entity-change-preparation.types.ts",
+      "sourceStatus": "source_reconstitue",
+      "sha256": "1357edf3bd4c08543be99a649bbb4826833fc7419e783973d091a8c725d0b1d0"
+    },
+    {
+      "name": "entity-crud.authorization.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "57c0b245e788b5d71ac71c2e60b65a04730a7d6a3e1e47cd3a5a282e3890028d"
+    },
+    {
+      "name": "entity-crud.authorization.ts",
+      "sourceStatus": "source",
+      "sha256": "7b5f98058420a0a9215be2da250b15dbf893667aa4e54346dfc20a23520c134a"
+    },
+    {
+      "name": "entity-crud.db-errors.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "62b2e6f9c847b6e559f710cada013f9b73e7728098de622652b01f3ed2f37a06"
+    },
+    {
+      "name": "entity-crud.db-errors.ts",
+      "sourceStatus": "source_reconstitue",
+      "sha256": "fa76112c653ba4cc2daf8470f54aac1ed76c6b375f4f9510ba18b12faba88121"
+    },
+    {
+      "name": "entity-crud.e2e.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "48c35058da870c1700be851fc0deac58217be5267b61652214784ec415fb1b08"
+    },
+    {
+      "name": "entity-crud.errors.ts",
+      "sourceStatus": "source",
+      "sha256": "3d3dcd2b368f12ee9d4484e6b8cf8206f90739c7d5db3774c8e2ca20901ebdfc"
+    },
+    {
+      "name": "entity-crud.registry.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "eeaad638e92839c5be3f72c4b8b7f5bde6b6d2e8daeab99e0e6de5688463ccec"
+    },
+    {
+      "name": "entity-crud.registry.ts",
+      "sourceStatus": "source",
+      "sha256": "d453f3457538a9315aa1e0b97b441d47c2b306f44d7a6c30c34ffd838cc12ab0"
+    },
+    {
+      "name": "entity-crud.routes.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "884efe5b40f4049f0eb1203ef58526e5a1bb67e97824c5d3500e1d02456748de"
+    },
+    {
+      "name": "entity-crud.routes.ts",
+      "sourceStatus": "source",
+      "sha256": "8122078498410fec18009e33a7f58b5bb17b99e87b125cc14cf4daaec23a3e37"
+    },
+    {
+      "name": "entity-crud.service.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "151057fe304ad6e24d0d56c7b9a728d83f9037c457c9f3c9d8cf82ad664f5506"
+    },
+    {
+      "name": "entity-crud.service.ts",
+      "sourceStatus": "source",
+      "sha256": "0315227f72d53a9337c74d9f72b61e632ae962b358108b2564cdeaa24e648a57"
+    },
+    {
+      "name": "entity-crud.types.ts",
+      "sourceStatus": "source",
+      "sha256": "5ce53daae169835babb7753bb164e5d8e1e6ad8a8498cc19afeeec3cc893fbb1"
+    },
+    {
+      "name": "mariadb-entity-identity-history.ts",
+      "sourceStatus": "source",
+      "sha256": "b144b42cfd8dfd1c67cca2009945eb597daf9f22b8086aba6fe54a7df8622f95"
+    },
+    {
+      "name": "mariadb-entity-uid-allocator.ts",
+      "sourceStatus": "source",
+      "sha256": "af4f4caf1cab87d3752bf3c8ebcd27b1b2f21e575ed0df7c1c7ae16e87f9155c"
+    },
+    {
+      "name": "organization-identity.policy.ts",
+      "sourceStatus": "source",
+      "sha256": "89cea2bbaa53e147763d59e9bdc190ffc1938994c4f51f8f30af2d9647602429"
+    },
+    {
+      "name": "organization-summary.spec.ts",
+      "sourceStatus": "test_reconstitue",
+      "sha256": "f476dc9b375e8d4525580ebe3f039a5d04ff2cfb691cd52c26ef11b08cdb0956"
+    },
+    {
+      "name": "organization-summary.ts",
+      "sourceStatus": "source",
+      "sha256": "a35096ddd16565c863d0d602c052157681f52291b8d6ee3ece8da15be33326a1"
+    }
+  ]
+}

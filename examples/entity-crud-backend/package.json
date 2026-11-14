@@ -1,0 +1,37 @@
+{
+  "name": "xsd-to-ir-entity-crud-backend-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Portable MariaDB CRUD example for clean xsd-to-ir UI values",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=22.22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "test": "vitest run --exclude '**/*.integration.spec.ts'",
+    "test:integration": "vitest run src/entity-crud.integration.spec.ts",
+    "format": "prettier --write src test-support *.json *.md",
+    "format:check": "prettier --check src test-support *.json *.md"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "express": "^4.22.3",
+    "knex": "^3.2.0",
+    "mysql2": "^3.15.3",
+    "xsd-to-ir": "file:../..",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^6.0.0",
+    "prettier": "3.9.10",
+    "supertest": "^7.1.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.8"
+  }
+}

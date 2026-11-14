@@ -1,0 +1,84 @@
+/* Keep this order aligned with provideOptimus in main.ts. */
+@layer theme, base, optimus, components, utilities;
+
+/* Keep the existing base styles; omit Tailwind Preflight's global reset. */
+@import 'tailwindcss/theme.css' layer(theme);
+/* Scan application templates and code, excluding the generated XSD contracts. */
+@import 'tailwindcss/utilities.css' layer(utilities) source('./app');
+@import '@openng/optimus-ui-tailwindcss';
+@import '@openng/icons/openng-icons.css' layer(optimus);
+@import './app.css' layer(components);
+
+/* Use a 4px spacing unit with the example's 14px base font. */
+@theme {
+  --spacing: 4px;
+  --font-mono: ui-monospace, 'Cascadia Code', monospace;
+}
+@theme inline {
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+}
+
+/* Match the existing layout boundaries without overlapping size variants. */
+@custom-variant compact {
+  @media (width <= 760px) {
+    @slot;
+  }
+}
+@custom-variant tablet {
+  @media (760px < width <= 1150px) {
+    @slot;
+  }
+}
+@custom-variant wide {
+  @media (width >= 1500px) {
+    @slot;
+  }
+}
+
+@layer base {
+  :root {
+    font-family: Inter, 'Segoe UI', Arial, sans-serif;
+    color: #253846;
+    font-size: 14px;
+    font-synthesis: none;
+    --ink: #203341;
+    --muted: #667982;
+    --line: #e3e9eb;
+    --teal: var(--p-primary-color);
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: #f5f7f8;
+  }
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+  button,
+  select {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  button,
+  a,
+  select,
+  input,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 3px solid #2aaca0;
+    outline-offset: 3px;
+  }
+  button {
+    color: inherit;
+  }
+}

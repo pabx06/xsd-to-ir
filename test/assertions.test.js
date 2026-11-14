@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 
 const { parseXSD } = require('../src/xsd-parser');
 const { IRBuilder } = require('../src/ir-builder');
@@ -10,8 +11,77 @@ const {
 } = require('../src/assertion-validator');
 const { deserializeXML } = require('../src/xml-deserializer');
 const { XMLSerializer } = require('../src/xml-serializer');
+const { classifyAssert } = require('../src/xsd-assertion-metadata');
+const { s3000lEnvelope } = require('./helpers/s3000l-fixtures');
 
 let cachedIr = null;
+
+test('grouped presence classification retains alternatives and tolerates whitespace and member order', () => {
+  const rule = classifyAssert(' ( @uidRef and not ( id or code ) ) or\n( not ( @uidRef ) and ( code or id ) ) ');
+  assert.equal(rule.kind, 'exactlyOneGroup');
+  assert.equal(rule.enforceable, true);
+  assert.deepEqual(rule.groups.map((group) => group.map((field) => field.xmlName)), [['@_uidRef'], ['code', 'id']]);
+  assert.deepEqual(rule.fields, rule.groups.flat());
+});
+
+test('grouped classification leaves unsupported and non-equivalent XPath raw', () => {
+  for (const xpath of [
+    '(@uidRef and not(id or code)) or (not(@other) and (id or code))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or other))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id and code))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or code or other))',
+    '(@uidRef and not(id or @uidRef)) or (not(@uidRef) and (id or @uidRef))',
+    '(@uidRef and not(id or id)) or (not(@uidRef) and (id or id))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or id))',
+    '(@uidRef and not(id/value or code)) or (not(@uidRef) and (id/value or code))',
+    '(@uidRef and not(s:id or code)) or (not(@uidRef) and (s:id or code))',
+    '(@uidRef and not(id or code)) or (not(@uidRef) and (id or code)) or other',
+    'lower le upper',
+  ]) {
+    assert.equal(classifyAssert(xpath).kind, 'rawXPath', xpath);
+  }
+});
+
+test('grouped assertion metadata survives JSON serialization and counts XML nodes independently of text', () => {
+  const rule = {
+    id: 'Reference#assert1', ...classifyAssert(
+      '(@uidRef and not(id or code)) or (not(@uidRef) and (id or code))',
+    ),
+  };
+  const ir = JSON.parse(JSON.stringify({ assertions: { Reference: { rules: [rule] } } }));
+  for (const [node, expected] of [
+    [{}, false], [{ id: '' }, true], [{ id: null }, true], [{ id: [] }, false],
+    [{ id: [''] }, true], [{ id: 'A', code: 'B' }, true], [{ '@_uidRef': '' }, true],
+    [{ '@_uidRef': 'R', id: '' }, false], [{ uidRef: 'R' }, false], [{ '@_uidRef': null }, false],
+  ]) {
+    const result = validateNodeAssertions(ir, 'Reference', node);
+    assert.equal(result.valid, expected, JSON.stringify(node));
+    assert.deepEqual(result.skipped, []);
+  }
+  assert.throws(() => validateNodeAssertions(ir, 'Reference', {}, { throw: true }), AssertionValidationError);
+});
+
+test('exactly-one assertions use XML node names and presence in serialized IR', () => {
+  const rule = {
+    id: 'Reference#assert1',
+    ...classifyAssert('(@uidRef and not(id)) or (not(@uidRef) and id)'),
+  };
+  const ir = JSON.parse(JSON.stringify({ assertions: { Reference: { rules: [rule] } } }));
+  for (const [node, expected] of [
+    [{ id: '' }, true], [{ '@_uidRef': '' }, true], [{ id: 0 }, true], [{ id: false }, true],
+    [{ id: { '@_xsi:nil': 'true' } }, true], [{ id: null }, true],
+    [{ id: [] }, false], [{ id: [''] }, true], [{ id: undefined }, false],
+    [{ '@_uidRef': null }, false], [{ uidRef: 'R' }, false],
+    [Object.create({ id: '' }), false],
+  ]) {
+    assert.equal(validateNodeAssertions(ir, 'Reference', node).valid, expected, JSON.stringify(node));
+  }
+  const invalid = { '@_uidRef': '', id: '' };
+  const result = validateNodeAssertions(ir, 'Reference', invalid);
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors[0].presentFields, ['@uidRef', 'id']);
+  assert.throws(() => validateNodeAssertions(ir, 'Reference', invalid, { throw: true }), AssertionValidationError);
+});
 
 function buildIr() {
   if (!cachedIr) {
@@ -19,6 +89,96 @@ function buildIr() {
   }
   return cachedIr;
 }
+
+test('value assertions validate each root occurrence and retain its index in diagnostics', () => {
+  const ir = buildIr();
+  const valid = { '@_uidRef': 'org1' };
+  assert.equal(validateValueAssertions(ir, 'organizationRef', [valid]).valid, true);
+  assert.equal(validateValueAssertions(ir, 'organizationRef', [valid, valid]).valid, true);
+  const invalid = validateValueAssertions(ir, 'organizationRef', [valid, {}, valid]);
+  assert.equal(invalid.valid, false);
+  assert.deepEqual(invalid.errors.map((error) => error.path), [[1]]);
+  assert.throws(
+    () => validateValueAssertions(ir, 'organizationRef', [valid, {}], { throw: true }),
+    AssertionValidationError,
+  );
+});
+
+test('root arrays also traverse nested assertions within every occurrence', () => {
+  const ir = buildIr();
+  const valid = { providedBy: { '@_uidRef': 'org1' } };
+  const invalid = { providedBy: { '@_uidRef': 'org1', orgId: { id: 'ORG-1' } } };
+  assert.equal(validateValueAssertions(ir, 'breakdownElementName', [valid, valid]).valid, true);
+  const result = validateValueAssertions(ir, 'breakdownElementName', [valid, invalid]);
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.errors.map((error) => error.path), [[1, 'providedBy']]);
+});
+
+test('root arrays retain skipped rules per occurrence; cardinality stays a schema responsibility', () => {
+  const ir = { assertions: { Window: { rules: [{ id: 'Window#assert1', kind: 'rawXPath', test: 'lower le upper' }] } } };
+  const result = validateValueAssertions(ir, 'Window', [{ lower: 1 }, { lower: 2 }]);
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.skipped.map((skip) => skip.path), [[0], [1]]);
+  assert.deepEqual(validateValueAssertions(buildIr(), 'organizationRef', []), { valid: true, errors: [], skipped: [] });
+});
+
+test('Issue 1.1 repeatable document references accept valid arrays and reject an invalid member', () => {
+  const ir = new IRBuilder(parseXSD('s3000l/1_1/s3000l_1-1_lsa_dataset.xsd')).build();
+  const col = ir.entities.get('subtaskByExternalReference').columns.find((item) => item.name === 'docRef');
+  assert.equal(col.maxOccurs, 'unbounded');
+  const refs = [{ '@_uidRef': 'doc1' }, { docId: { id: 'DOC-2' } }];
+  assert.equal(validateValueAssertions(ir, col.xsdType, refs).valid, true);
+  const invalid = validateValueAssertions(ir, col.xsdType, [...refs, { '@_uidRef': 'doc3', docId: { id: 'DOC-3' } }]);
+  assert.equal(invalid.valid, false);
+  assert.deepEqual(invalid.errors.map((error) => error.path), [[2]]);
+});
+
+test('Issue 1.1 import and export validate references inside anonymous applicability wrappers', async () => {
+  const ir = new IRBuilder(parseXSD('s3000l/1_1/s3000l_1-1_lsa_dataset.xsd')).build();
+  const template = fs.readFileSync('test/fixtures/rev-004-issue-1-valid.xml', 'utf8');
+  const product = ir.entities.get('product');
+  const col = product.columns.find((item) => item.name === 'name');
+  const wrap = (ref) => template.replace('</prod>', `<name><descr>Product</descr><applic>${ref}</applic></name></prod>`);
+  const row = deserializeXML(wrap('<applicRef uidRef="applst1"/>'), ir).batches.get('product').insert[0];
+  const value = JSON.parse(row[col.columnName]);
+  assert.deepEqual(value.applic.applicRef, { '@_uidRef': 'applst1' });
+  const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
+  const exported = await new XMLSerializer(ir, db).serialize({ collections: ['product'] });
+  assert.match(exported, /<applicRef uidRef="applst1"/);
+  assert.throws(
+    () => deserializeXML(wrap('<applicRef/>'), ir),
+    /XSD assertion failed while deserializing product\.name/,
+  );
+  row[col.columnName] = JSON.stringify({ ...value, applic: { applicRef: {} } });
+  await assert.rejects(
+    () => new XMLSerializer(ir, db).serialize({ collections: ['product'] }),
+    /XSD assertion failed while serializing product\.name/,
+  );
+});
+
+test('named asserted columns retain the xsdType fallback for older IRs', async () => {
+  const source = buildIr();
+  const entity = source.entities.get('maintenanceFacility');
+  const ir = { ...source, entities: new Map(source.entities) };
+  ir.entities.set(entity.name, {
+    ...entity,
+    columns: entity.columns.map((col) => (col.name === 'maintCap' ? { ...col, valueTypeRef: undefined } : col)),
+  });
+  const xml = s3000lEnvelope({
+    supporting: '<facilities><maintFclty uid="fclty1" crud="I">'
+      + '<maintCap uidRef="mlv1"><mlvId><id>MLV-1</id></mlvId></maintCap></maintFclty></facilities>',
+  });
+  assert.throws(
+    () => deserializeXML(xml, ir),
+    /XSD assertion failed while deserializing maintenanceFacility\.maintCap/,
+  );
+  const row = { uid: 'fclty1', maint_cap: JSON.stringify({ '@_uidRef': 'mlv1', mlvId: { id: 'MLV-1' } }) };
+  const db = { queryEntity: async (name) => (name === entity.name ? [row] : []) };
+  await assert.rejects(
+    () => new XMLSerializer(ir, db).serialize({ collections: [entity.name] }),
+    /XSD assertion failed while serializing maintenanceFacility\.maintCap/,
+  );
+});
 
 test('IR extracts and classifies S3000L xsd:assert rules', () => {
   const ir = buildIr();
@@ -64,6 +224,40 @@ test('assertion validator accepts exactly one present reference field', () => {
     validateNodeAssertions(ir, 'aggregatedElementRef', { '@_uriRef': 'urn:test' }).valid,
     true,
   );
+});
+
+test('Issue 2.0 empty URI references survive XML import, stored JSON, export and reimport', async () => {
+  const ir = buildIr();
+  const xml = s3000lEnvelope({
+    primary: '<products><prod uid="prod1" crud="I">'
+      + '<prodId><id>PROD-1</id><setBy uriRef=""/></prodId></prod></products>',
+  });
+  const row = deserializeXML(xml, ir).batches.get('product').insert[0];
+  assert.deepEqual(JSON.parse(row.prod_id), { id: 'PROD-1', setBy: { '@_uriRef': '' } });
+  const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
+  const exported = await new XMLSerializer(ir, db).serialize({ collections: ['product'] });
+  assert.match(exported, /<setBy uriRef=""/);
+  const again = deserializeXML(exported, ir).batches.get('product').insert[0];
+  assert.deepEqual(JSON.parse(again.prod_id), JSON.parse(row.prod_id));
+});
+
+test('Issue 2.0 import and export reject an empty URI combined with another reference', async () => {
+  const ir = buildIr();
+  for (const [xml, reference] of [
+    ['<setBy uidRef="org1" uriRef=""/>', { '@_uidRef': 'org1', '@_uriRef': '' }],
+    ['<setBy uriRef=""><orgId><id>ORG-1</id></orgId></setBy>', { '@_uriRef': '', orgId: { id: 'ORG-1' } }],
+  ]) {
+    const source = s3000lEnvelope({
+      primary: `<products><prod uid="prod1" crud="I"><prodId><id>PROD-1</id>${xml}</prodId></prod></products>`,
+    });
+    assert.throws(() => deserializeXML(source, ir), /XSD assertion failed while deserializing product\.prodId/);
+    const row = { uid: 'prod1', prod_id: JSON.stringify({ id: 'PROD-1', setBy: reference }) };
+    const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
+    await assert.rejects(
+      () => new XMLSerializer(ir, db).serialize({ collections: ['product'] }),
+      /XSD assertion failed while serializing product\.prodId/,
+    );
+  }
 });
 
 test('assertion validator walks nested asserted reference paths', () => {
