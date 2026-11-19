@@ -22,6 +22,16 @@ function deferred() {
   return { promise, resolve };
 }
 
+function batch(operations) {
+  return {
+    insert: [], update: [], delete: [], ...operations,
+  };
+}
+
+function productParent(uid) {
+  return { entityName: 'product', uid, fkColumn: 'product_parent_id' };
+}
+
 async function setup(t) {
   const knex = knexFactory({
     client: 'better-sqlite3',
@@ -176,6 +186,127 @@ test('persistMessage retains the first snapshot across repeated writes and omits
   assert.deepEqual(await knex('product').where('uid', 'P3').first(), untouched);
   assert.equal((await knex('product').where('uid', 'P4').first()).name, 'already deleted');
   assert.equal((await knex('helper_child').select('*')).length, 1);
+});
+
+test('persistMessage pulls forward the parents needed by nested inserts and updates', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  const previous = await db.insert('helperChild', { uid: 'EXISTING' });
+  let changes;
+  const stats = await db.persistMessage(new Map([
+    ['helperChild', batch({
+      insert: [{ uid: 'H1', _xmlParent: productParent('P2') }],
+      update: [{ _xmlUid: 'EXISTING', _xmlParent: productParent('P3') }],
+    })],
+    ['product', batch({
+      insert: [{ uid: 'P2', _xmlParent: productParent('P1') }, { uid: 'P1' }, { uid: 'P3' }],
+      update: [{ _xmlUid: 'P2', name: 'edited after insert' }],
+    })],
+  ]), {}, { afterImport: (ctx) => { changes = ctx.changes; } });
+
+  assert.deepEqual(stats, { inserted: 4, updated: 2, deleted: 0 });
+  const products = await knex('product').orderBy('uid');
+  const [root, nested, other] = products;
+  assert.deepEqual(products.map((row) => row.uid), ['P1', 'P2', 'P3']);
+  assert.equal(nested.product_parent_id, root.id);
+  assert.equal(nested.name, 'edited after insert');
+  const helpers = await knex('helper_child').orderBy('uid');
+  assert.deepEqual(helpers.map((row) => [row.uid, row.product_parent_id]), [
+    ['EXISTING', other.id], ['H1', nested.id],
+  ]);
+  assert.equal(changes.length, 5);
+  assert.deepEqual(changes.filter((change) => change.previousRow !== null), [
+    { entityName: 'helperChild', id: previous.id, previousRow: previous },
+  ]);
+});
+
+test('persistMessage rolls back a cycle among pending parent inserts', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  await assert.rejects(db.persistMessage(new Map([
+    ['product', batch({
+      insert: [
+        { uid: 'INDEPENDENT' },
+        { uid: 'A', _xmlParent: productParent('B') },
+        { uid: 'B', _xmlParent: productParent('A') },
+      ],
+    })],
+  ]), {}), /parent cycle at product uid "A"/);
+  assert.deepEqual(await knex('product').select('id'), []);
+});
+
+test('fetching a parent early still attempts duplicate input inserts', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  const repeated = { uid: 'P1' };
+  await assert.rejects(db.persistMessage(new Map([
+    ['helperChild', batch({ insert: [{ uid: 'H1', _xmlParent: productParent('P1') }] })],
+    ['product', batch({ insert: [repeated, repeated] })],
+  ]), {}), /UNIQUE constraint failed: product.uid/);
+  assert.deepEqual(await knex('helper_child').select('id'), []);
+  assert.deepEqual(await knex('product').select('id'), []);
+});
+
+test('persistMessage rejects a forward parent soft-deleted by the same import', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  await assert.rejects(db.persistMessage(new Map([
+    ['helperChild', batch({ insert: [{ uid: 'H1', _xmlParent: productParent('P1') }] })],
+    ['product', batch({ insert: [{ uid: 'P1' }], delete: ['P1'] })],
+  ]), {}), /product uid "P1" was deleted by this message/);
+  assert.deepEqual(await knex('helper_child').select('id'), []);
+  assert.deepEqual(await knex('product').select('id'), []);
+});
+
+test('an updated row must retain a live forward parent even when its uid changes', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  const original = await db.insert('helperChild', { uid: 'EXISTING' });
+  await assert.rejects(db.persistMessage(new Map([
+    ['helperChild', batch({
+      update: [{ _xmlUid: 'EXISTING', uid: 'RENAMED', _xmlParent: productParent('P1') }],
+    })],
+    ['product', batch({ insert: [{ uid: 'P1' }], delete: ['P1'] })],
+  ]), {}), /product uid "P1" was deleted by this message/);
+  assert.deepEqual(await knex('helper_child').first(), original);
+  assert.deepEqual(await knex('product').select('id'), []);
+});
+
+test('a forward parent can be deleted after its child is reassigned or deleted', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  const stats = await db.persistMessage(new Map([
+    ['branch', batch({
+      insert: [
+        { uid: 'MOVED', _xmlParent: productParent('OLD') },
+        { uid: 'REMOVED', _xmlParent: productParent('OLD') },
+      ],
+      update: [{ _xmlUid: 'MOVED', _xmlParent: productParent('NEW') }],
+      delete: ['REMOVED'],
+    })],
+    ['product', batch({ insert: [{ uid: 'OLD' }, { uid: 'NEW' }], delete: ['OLD'] })],
+  ]), {});
+  assert.deepEqual(stats, { inserted: 4, updated: 1, deleted: 2 });
+  const newParent = await knex('product').where('uid', 'NEW').first();
+  assert.equal((await knex('branch').where('uid', 'MOVED').first()).product_parent_id, newParent.id);
+  assert.notEqual((await knex('branch').where('uid', 'REMOVED').first())._deleted_at, null);
+  assert.notEqual((await knex('product').where('uid', 'OLD').first())._deleted_at, null);
+});
+
+test('a queued relation to a deleted target rolls back an import with a forward parent', { skip }, async (t) => {
+  const { knex, db } = await setup(t);
+  await db.insert('branch', { uid: 'B1' });
+  await assert.rejects(
+    db.persistMessage(new Map([
+      ['helperChild', batch({
+        insert: [{
+          uid: 'H1',
+          _xmlParent: productParent('P1'),
+          _xmlRelations: [{ entityName: 'branch', uid: 'B1', fkColumn: 'branch_id' }],
+        }],
+      })],
+      ['product', batch({ insert: [{ uid: 'P1' }] })],
+      ['branch', batch({ delete: ['B1'] })],
+    ]), {}, { afterImport: () => assert.fail('afterImport ran with an unresolved relation') }),
+    /Cannot resolve relation FK helperChild.branch_id: branch uid "B1" was not found/,
+  );
+  assert.deepEqual(await knex('helper_child').select('id'), []);
+  assert.deepEqual(await knex('product').select('id'), []);
+  assert.equal((await knex('branch').first())._deleted_at, null);
 });
 
 for (const failingHook of ['beforeImport', 'afterImport']) {
