@@ -7,3 +7,4 @@ export * from "./entity-references";
 export * from "./migrations";
 export * from "./identity-lifecycle";
 export { MariaDbEntityIdentityHistory } from "./mariadb-entity-identity-history";
+export * from "./xml-files-dump";

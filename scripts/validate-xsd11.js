@@ -95,6 +95,7 @@ function run(command, args, opts = {}) {
     env: process.env,
   });
   if (result.error) throw result.error;
+  if (result.signal) throw new Error(`${command} was terminated by ${result.signal}`);
   return result;
 }
 
@@ -259,7 +260,7 @@ async function main() {
   if (!args.skipSelfTest) runSelfTest(classesDir, jars);
 
   const result = runJavaValidator(classesDir, jars, xsd, xml);
-  return result.status || 0;
+  return result.status;
 }
 
 main()

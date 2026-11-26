@@ -42,42 +42,6 @@ Required resolution:
 2. Add tests for the preferred-name collision, an existing `_relation_id`, numbered fallback, and
    case-insensitive collisions.
 
-### REV-005 — S3000L Issue 1 section normalization loses the information required for serialization
-
-- Status: `Open`
-- Severity: `P1`
-- Locations:
-  [`src/s3000l-ir-metadata.js`](src/s3000l-ir-metadata.js#L6),
-  [`src/xml-serializer.js`](src/xml-serializer.js#L257)
-
-REV-017 now preserves the source dialect as `s3000lDialect`, but the collection metadata still converts
-Issue 1 section names to Issue 2 names and the serializer does not consume the dialect. It always emits the
-Issue 2 `lsaDataset` / `logisticsSupportAnalysisData` envelope, so an IR built from Issue 1 cannot be
-serialized back as a schema-valid Issue 1 document.
-
-Required resolution:
-
-1. Extend the preserved S3000L dialect metadata with the actual section/envelope names needed for export.
-2. Make serialization dialect-aware and validate generated Issue 1 XML against its schema.
-
-### REV-006 — S3000L Issue 1 compatibility paths lack complete regression coverage
-
-- Status: `In progress`
-- Severity: `P2`
-- Locations:
-  [`test/rev-004-regressions.test.js`](test/rev-004-regressions.test.js),
-  [`test/s3000l-ir-metadata.test.js`](test/s3000l-ir-metadata.test.js#L11)
-
-The focused REV-004 suite now exercises Issue 1 real-IR construction, schema-valid product import,
-`messageContentItems`/`supportingContentItems`, structural validation, metadata extraction, and the public
-`version` result. Issue 1 export and a complete round trip remain uncovered and depend on REV-005's
-dialect-preserving serializer work.
-
-Required resolution:
-
-1. Add Issue 1 XML export and round-trip coverage after REV-005 is resolved.
-2. Keep the Issue 1 fixtures in the automated XSD 1.1 validation matrix.
-
 ### REV-007 — Configured dependency-audit gates currently fail
 
 - Status: `Open`
@@ -213,6 +177,15 @@ Required resolution:
 - Evidence: `npm run test:rev-004` passes all 27 focused cases after validating all six fixtures against their
   actual XSD 1.1 schemas.
 
+### REV-005 and REV-006 — Issue 1.1 serialization and round-trip coverage
+
+- Status: `Resolved`
+- Evidence: `npm run test:xsd11:export` validates generated documents for both issues. `npm --prefix examples/entity-crud-backend run test:integration` exercises the full Issue 1.1 dump and restores it in MariaDB.
+
+The serializer consumes the IR dialect, emits the required Issue 1.1 wrappers and
+checks a conflicting explicit version. The representation baseline reimports
+complete generated documents for both issues.
+
 ### REV-008 — XML deserializer contained invalid JavaScript and blocked CI
 
 - Status: `Resolved`
@@ -278,8 +251,8 @@ Required resolution:
 - Evidence: `npm run test:rev-017` passes all seven focused cases after strict validation of both fixtures.
   Both same-dialect imports succeed, both mismatch directions fail before `_processCollection`, generic and
   legacy IR behavior remains compatible, and the CLI persistence check covers both generated dialects.
-- Scope note: schema-selection checks in structural validation remain open under REV-009, and dialect-aware
-  Issue 1 serialization remains open under REV-005.
+- Scope note: schema-selection checks in structural validation are tracked under REV-009.
+  Dialect-aware Issue 1.1 serialization is covered by REV-005.
 
 ### REV-018 — Anonymous S3000L wrappers become dangling UID-backed relations
 
@@ -301,8 +274,8 @@ Required resolution:
   Both bundled dialect IRs have zero absent relation targets; product and product-variant `bkdns` payloads
   retain their nested `bkdn` UIDs and genuine parentage. The existing genuine-relation missing-child-UID
   regression also passes.
-- Scope note: Issue 1 serialization remains open under REV-005, the stale manifest under REV-014, and
-  dependency audits under REV-007. The separate empty/nil phantom-record and genuine UID-less entity cases
+- Scope note: Issue 1.1 serialization is covered by REV-005, the stale manifest by REV-014, and
+  dependency audits by REV-007. The separate empty/nil phantom-record and genuine UID-less entity cases
   are tracked and resolved under REV-019 and REV-020.
 
 ### REV-019 — Empty mapped collections and explicitly nil relations create phantom records

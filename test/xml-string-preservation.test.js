@@ -80,7 +80,7 @@ test('simple-content columns without attributes store JSON strings and preserve 
     assert.equal(JSON.parse(row.note), text);
     const db = { queryEntity: async (name) => (name === 'product' ? [row] : []) };
     const xml = await new XMLSerializer(schema(), db).serialize({ msgId: 'STRINGS', collections: ['product'] });
-    assert.equal(parser.parse(xml).lsaDataset.logisticsSupportAnalysisData.lsaPrimaryData.products.prod.note, text);
+    assert.equal(parser.parse(xml)['s:lsaDataset'].logisticsSupportAnalysisData.lsaPrimaryData.products.prod.note, text);
   }
 });
 

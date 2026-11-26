@@ -218,26 +218,13 @@ const baselineXml = await serializeToXML(ir, db, {
 });
 ```
 
-The current serializer emits the Issue 2.0 envelope. Do not use it to deliver
-Issue 1.1 XML. Issue 1.1 import and the database-backed read example are
-supported; dialect-aware Issue 1.1 serialization remains open as `REV-005` in
-`Review.md`.
-
-Serialize a net-change XML message and mark rows exported after delivery is
-confirmed:
-
-```javascript
-const deltaXml = await serializeToXML(ir, db, {
-  msgId: 'MSG-DELTA-001',
-  msgType: 'U',
-  msgStatus: 'P',
-  relatedMsgId: 'MSG-BASELINE-001',
-  since: 5,
-});
-
-const nextSeq = (await db.currentMaxSeq()) + 1;
-await db.markExported([...ir.entities.keys()], nextSeq);
-```
+The serializer selects the Issue 1.1 or 2.0 envelope from `ir.s3000lDialect`.
+Pass `version` to assert the intended issue and `includeExportedRecords: true`
+to receive `{ xml, exportedRecords }`. The manifest contains SQL primary keys for
+emitted records, including related records. The default return value is a string.
+The [full dump route](../examples/entity-crud-backend/README.md#5-mount-the-full-xml-dump-route)
+shows snapshot locking, sequence allocation, strict validation, exclusive file
+publication, retry recovery and baseline acknowledgment.
 
 ## Generated Outputs
 
@@ -559,13 +546,9 @@ pretty-print indentation in containers with child elements. Leaf text and simple
 content remain exact. Array checks distinguish XML equivalence from JSON shape
 equality; they do not promise byte-identical original XML.
 
-These tests use the public importer and serializer with in-memory database rows;
-they do not assess MariaDB driver conversions. Issue 1.1 tests inspect exported
-record fragments and explicitly put them back into the matching input fixture
-envelope for reimport. **They do not certify Issue 1.1 whole-document export**:
-the serializer still emits the Issue 2.0 envelope (`REV-005`). The Issue 2.0
-whole-envelope test proves current importer/serializer compatibility, not full
-XSD acceptance. Existing Java/Xerces acceptance checks remain necessary.
+These tests use the public importer and serializer with in-memory rows and
+reimport the generated Issue 1.1 and 2.0 documents. The full dump integration
+test also restores an exported Issue 1.1 baseline into a fresh MariaDB database.
 
 The importer reads XML text without automatic number/boolean conversion or
 trimming. It then uses `ir.valueTypes` and scalar column constraints to normalize
@@ -792,8 +775,8 @@ Real cases use wrapper schemas importing the bundled issue schema and apply
 `xsi:type` to a probe. An ID anchor resolves UIDREFs so unrelated identity errors
 cannot disguise an assertion failure. Synthetic cases exercise public
 import/export with in-memory rows. The oracle checks the independently authored
-input fragments; it does not certify complete S3000L messages, every assertion
-path, MariaDB conversions, or Issue 1.1 whole-document export (`REV-005`).
+input fragments. The dedicated `npm run test:xsd11:export` suite validates
+complete generated baseline messages for both bundled issues.
 
 The TypeScript generator consumes the same assertion-aware value schemas.
 Supported presence rules become unions with excluded fields; arbitrary XPath

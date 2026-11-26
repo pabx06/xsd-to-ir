@@ -305,7 +305,7 @@ Each record inside a collection carries `crud="I|U|D"` and `uid="..."` as XML at
 | Which rows | All active (non-deleted) | Dirty active/deleted rows where `_msg_seq = 0` |
 | Per-row `crud` | Always `I` | `I` if new, `U` if modified, `D` if deleted |
 | `relatedMsgId` | Not required | Should reference the prior Baseline `msgId` |
-| After export | `markExported(entities, newSeq)` | Same |
+| After delivery | Acknowledge the emitted SQL records in baseline mode | Acknowledge delivered records and removals |
 
 ### DB Technical Columns
 
@@ -441,7 +441,7 @@ xsd-to-ir/
 │   │                             # queryById (one-to-one branch relation reconstruction)
 │   │                             # queryDeleted (for net-change crud=D records)
 │   │                             # markExported (stamp _msg_seq after export)
-│   │                             # currentMaxSeq (next export sequence number)
+│   │                             # currentMaxSeq (largest current row marker)
 │   │
 │   └── xml-serializer.js         # DB rows → S3000L XML string
 │                                 # Reconstructs all envelope nodes from scratch
@@ -563,23 +563,24 @@ const { msgMeta, batches } = deserializeXML(xmlString, ir);
 const stats = await db.persistMessage(batches, msgMeta);
 console.log(`Persisted: ${stats.inserted} inserted, ${stats.updated} updated, ${stats.deleted} deleted`);
 
-// 3. Export full Baseline
-const baseline = await serializeToXML(ir, db, {
-  msgType  : 'B',
-  msgStatus: 'F',
-  msgId    : 'MSG-BASELINE-001',
+// 3. Publish a full baseline using the backend example's dumpProjectXml.
+// projectDb is the project Knex pool; registry is the initialized EntityCrudRegistry.
+const baseline = await dumpProjectXml({
+  projectDb, registry, issue: project.dialect, projectId: project.id,
+  directory: exportDirectory, fileName: 'baseline.xml',
 });
 
-// 4. Export Net-Change dirty rows after baseline sequence 5
+// 4. Preview the net-change XML after that baseline.
 const delta = await serializeToXML(ir, db, {
   msgType      : 'U',
   msgStatus    : 'P',
-  since        : 5,
-  relatedMsgId : 'MSG-BASELINE-001',
+  since        : baseline.sequence,
+  relatedMsgId : `MSG-${baseline.sequence}`,
   msgId        : 'MSG-DELTA-002',
 });
-
-// 5. Mark rows as exported (call after file is confirmed written)
-const newSeq = (await db.currentMaxSeq()) + 1;
-await db.markExported([...ir.entities.keys()], newSeq);
 ```
+
+The [full dump route](examples/entity-crud-backend/README.md#5-mount-the-full-xml-dump-route)
+allocates the project sequence, validates the baseline, and acknowledges the SQL records
+actually written. A net-change publisher must include the queued deletion snapshots
+before acknowledging their delivery.

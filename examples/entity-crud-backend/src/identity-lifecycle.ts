@@ -4,7 +4,7 @@ import type { EntityDefinition } from "./entity-crud.types";
 import type { EntityIdentityHistory } from "./entity-change-preparation.types";
 import { MariaDbEntityIdentityHistory } from "./mariadb-entity-identity-history";
 import { CrudError, CrudValidationError } from "./entity-crud.errors";
-import { pointer, type Value } from "./xsd-runtime";
+import { pointer, type Value, type ExportedRecord } from "./xsd-runtime";
 import { StoredIdentities } from "./stored-identities";
 
 /** Host must answer from authoritative import/export history, not from the current CRUD marker. */
@@ -133,35 +133,84 @@ export async function initializeProjectHistory(
       .update({ history_ready: true });
   });
 }
-/** Call after successful export while holding the project lock and the exact export snapshot stable. */
+/** Reserve a sequence in the caller's project transaction. Rollback returns the number. */
+export async function allocateExportSequence(
+  trx: Knex.Transaction,
+): Promise<string> {
+  const updated = await trx("_entity_crud_state")
+    .where({ id: 1, history_ready: true })
+    .whereNotNull("last_exported_sequence")
+    .increment("last_exported_sequence", 1);
+  if (updated !== 1)
+    throw new Error("Migrate and initialize the project before exporting.");
+  const state = await trx("_entity_crud_state")
+    .where({ id: 1 })
+    .select(trx.raw("CAST(last_exported_sequence AS CHAR) AS sequence"))
+    .first();
+  return state.sequence;
+}
+
+/** The default acknowledges a host export that included the roots' pending removals. */
 export async function acknowledgeExport(
   trx: Knex.Transaction,
   registry: EntityCrudRegistry,
   issue: string,
-  records: readonly { entityName: string; id: string | number }[],
+  records: readonly ExportedRecord[],
   sequence: string,
+  mode: "includingRemovals" | "baseline" = "includingRemovals",
 ): Promise<void> {
-  if (!/^[1-9][0-9]*$/.test(sequence))
+  if (
+    !/^[1-9][0-9]*$/.test(sequence) ||
+    BigInt(sequence) > 9223372036854775807n
+  )
     throw new Error(
       "Export sequence must be a positive integer string allocated by the host.",
     );
   const history = new MariaDbEntityIdentityHistory();
   await history.lock(trx);
+  // Older host integrations can still supply their own sequence.
+  await trx("_entity_crud_state")
+    .where({ id: 1 })
+    .update({
+      last_exported_sequence: trx.raw(
+        "GREATEST(last_exported_sequence, CAST(? AS SIGNED))",
+        [sequence],
+      ),
+    });
   for (const record of records) {
     const entity = registry.getEntityDefinition(issue, record.entityName);
     const row = await trx(entity.tableName)
       .where(entity.primaryKey, record.id)
       .first();
     if (!row) throw new Error("Exported row is missing.");
-    await trx("_entity_identity_history")
-      .where({ entity_name: entity.name, root_uid: row.uid })
-      .update({ established: true });
-    for (const table of ["_entity_nested_deletion", "_entity_change_log"]) {
-      await trx(table)
-        .where({ entity_name: entity.name, root_uid: row.uid })
-        .whereNull("export_sequence")
-        .update({ export_sequence: sequence });
+    const owner = { entity_name: entity.name, root_uid: row.uid };
+    const identities = trx("_entity_identity_history").where(owner);
+    if (mode === "baseline") {
+      if (row._deleted_at != null)
+        throw new Error("A baseline cannot acknowledge a deleted row.");
+      identities.where({ active: true });
+      if (record.omittedDeletionUids?.length)
+        identities.whereNotIn("uid", record.omittedDeletionUids);
     }
+    await identities.update({ established: true });
+    const pendingRemovals = () =>
+      trx("_entity_nested_deletion").where(owner).whereNull("export_sequence");
+    if (
+      mode === "baseline" &&
+      (record.omittedDeletionUids || (await pendingRemovals().first("id")))
+    ) {
+      // A baseline contains active values only. Keep this root and its logs discoverable for a delta.
+      await trx(entity.tableName)
+        .where(entity.primaryKey, record.id)
+        .update({ _msg_seq: 0, _updated_at: row._updated_at });
+      continue;
+    }
+    if (mode === "includingRemovals")
+      await pendingRemovals().update({ export_sequence: sequence });
+    await trx("_entity_change_log")
+      .where(owner)
+      .whereNull("export_sequence")
+      .update({ export_sequence: sequence });
     await trx(entity.tableName)
       .where(entity.primaryKey, record.id)
       .update({ _msg_seq: sequence, _updated_at: row._updated_at });

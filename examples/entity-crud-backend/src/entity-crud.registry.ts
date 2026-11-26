@@ -13,29 +13,36 @@ import {
   isObject,
   pointer,
   type Value,
+  type IR,
 } from "./xsd-runtime";
 import type { EntityDefinition, SchemaProvider } from "./entity-crud.types";
 import { getOrganizationSummary } from "./organization-summary";
 
 export class EntityCrudRegistry {
-  private readonly versions = new Map<string, Map<string, EntityDefinition>>();
+  private readonly versions = new Map<
+    string,
+    { ir: IR; entities: Map<string, EntityDefinition> }
+  >();
   constructor(private readonly schemas: SchemaProvider) {}
   clearCache(issue?: string): void {
     if (issue) this.versions.delete(issue);
     else this.versions.clear();
   }
   getEntityDefinition(issue: string, name: string): EntityDefinition {
-    const definition = this.definitions(issue).get(name);
+    const definition = this.definitions(issue).entities.get(name);
     if (!definition) throw new CrudEntityNotFoundError(name);
     return definition;
   }
   getEntityDefinitions(issue: string): EntityDefinition[] {
-    return [...this.definitions(issue).values()];
+    return [...this.definitions(issue).entities.values()];
   }
   hasEntity(issue: string, name: string): boolean {
-    return this.definitions(issue).has(name);
+    return this.definitions(issue).entities.has(name);
   }
-  private definitions(issue: string): Map<string, EntityDefinition> {
+  getIR(issue: string): IR {
+    return this.definitions(issue).ir;
+  }
+  private definitions(issue: string) {
     const cached = this.versions.get(issue);
     if (cached) return cached;
     const model = new UIModel(this.schemas.getIRRAW(issue));
@@ -167,7 +174,8 @@ export class EntityCrudRegistry {
         },
       });
     }
-    this.versions.set(issue, definitions);
-    return definitions;
+    const version = { ir: model.ir, entities: definitions };
+    this.versions.set(issue, version);
+    return version;
   }
 }

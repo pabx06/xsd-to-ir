@@ -76,8 +76,13 @@ class XMLValueOrder {
     return shape;
   }
 
-  complex(value, name) {
-    if (Array.isArray(value)) return value.map((item) => this.complex(item, name));
+  allowsEmpty(name) {
+    const content = this.shape(name)?.content;
+    return Boolean(content && hasRequiredFields(content, new Set()));
+  }
+
+  complex(value, name, recursive = true) {
+    if (Array.isArray(value)) return value.map((item) => this.complex(item, name, recursive));
     if (value === null || typeof value !== 'object') return value;
     const shape = this.shape(name);
     if (!shape) return value; // Older IRs need not have value-type metadata.
@@ -99,7 +104,7 @@ class XMLValueOrder {
     });
     const children = entries.map(([key, child]) => {
       const use = elements.get(childName(key));
-      return [key, use?.valueTypeRef ? this.complex(child, use.valueTypeRef) : child];
+      return [key, recursive && use?.valueTypeRef ? this.complex(child, use.valueTypeRef) : child];
     });
 
     // Only move known child entries. Attributes, #text and unknown extensions

@@ -1,4 +1,9 @@
 /** Keep package-specific imports aligned with the host's installed xsd-to-ir package. */
+export interface ExportedRecord {
+  entityName: string;
+  id: string | number;
+  omittedDeletionUids?: string[];
+}
 export type Value = Record<string, unknown>;
 export interface TypeUse {
   valueTypeRef?: string | null;
@@ -65,6 +70,19 @@ export interface Adapter {
 }
 // The repository publishes JavaScript. These narrow interfaces cover the APIs used here.
 const library = require("xsd-to-ir") as {
+  DBAdapter: new (db: import("knex").Knex, ir: IR) => object;
+  getAssetPath(...segments: string[]): string;
+  getS3000LSchemaPath(issue: string): string;
+  serializeToXML(
+    ir: IR,
+    db: object,
+    options: {
+      version: string;
+      msgType: "B";
+      msgId: string;
+      includeExportedRecords: true;
+    },
+  ): Promise<{ xml: string; exportedRecords: ExportedRecord[] }>;
   UIAdapter: new (ir: unknown) => Adapter;
   generateUIJSONSchema(ir: unknown, options: { rootEntity: string }): Value;
   IRBuilder: new (parsed: unknown) => { build(): IR };
@@ -73,7 +91,16 @@ const library = require("xsd-to-ir") as {
 const contract = require("xsd-to-ir/src/ui-contract") as {
   UIModel: new (ir: unknown) => Model;
 };
-export const { UIAdapter, generateUIJSONSchema, IRBuilder, parseXSD } = library;
+export const {
+  UIAdapter,
+  DBAdapter,
+  serializeToXML,
+  getAssetPath,
+  getS3000LSchemaPath,
+  generateUIJSONSchema,
+  IRBuilder,
+  parseXSD,
+} = library;
 export const { UIModel } = contract;
 export const generateSQL = (
   require("xsd-to-ir/src/sql-generator") as { generateSQL(ir: IR): string }

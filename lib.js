@@ -7,7 +7,9 @@ const { parseXSD } = require('./src/xsd-parser');
 const { generateTypeScript } = require('./src/typescript-generator');
 const { generateUIJSONSchema } = require('./src/ui-json-schema');
 const { UIAdapter } = require('./src/ui-adapter');
-const { ASSETS_DIRECTORY, getAssetPath, getS30001SchemaPath } = require('./assets');
+const {
+  ASSETS_DIRECTORY, getAssetPath, getS3000LSchemaPath, getS30001SchemaPath,
+} = require('./assets');
 
 module.exports = {
   deserializeXML,
@@ -20,5 +22,5 @@ module.exports = {
   generateTypeScript,
   generateUIJSONSchema,
   UIAdapter,
-  ASSETS_DIRECTORY, getAssetPath, getS30001SchemaPath, parseXSD,
+  ASSETS_DIRECTORY, getAssetPath, getS3000LSchemaPath, getS30001SchemaPath, parseXSD,
 };

@@ -74,7 +74,7 @@ function expectValid(key, field, value) {
 
 async function serialize(key, row) {
   const db = { queryEntity: async (name) => (name === 'product' ? [{ uid: 'prod1', ...row }] : []) };
-  return new XMLSerializer(bundle(key).ir, db).serialize({ msgId: 'BASELINE', collections: ['product'] });
+  return new XMLSerializer(bundle(key).ir, db).serialize({ msgId: 'BASELINE', msgDate: '2026-01-01T00:00:00Z', collections: ['product'] });
 }
 
 // Ignore pretty-printer indentation ONLY in element-containing objects. Text in
@@ -89,16 +89,14 @@ function withoutIndentation(node) {
 }
 
 function exportedProduct(xml) {
-  // Both IRs currently export a 2.0 envelope (REV-005). These checks inspect the
-  // record fragment; they do not certify a complete Issue 1.1 XML delivery.
   const parsed = withoutIndentation(literalParser.parse(xml));
-  return parsed.lsaDataset.logisticsSupportAnalysisData.lsaPrimaryData.products.prod;
+  const primary = parsed['s:lsaDataSet']?.msgContent.messageContentItems
+    ?? parsed['s:lsaDataset'].logisticsSupportAnalysisData.lsaPrimaryData;
+  return primary.products.prod;
 }
 
-function reimportFragment(key, xml) {
-  const fragment = xml.match(/<prod\b[^>]*>[\s\S]*?<\/prod>/);
-  assert.ok(fragment, 'serializer must produce a product record');
-  const rows = deserializeXML(document(key, fragment[0]), bundle(key).ir).batches.get('product').insert;
+function reimport(key, xml) {
+  const rows = deserializeXML(xml, bundle(key).ir).batches.get('product').insert;
   assert.equal(rows.length, 1);
   return rows[0];
 }
@@ -135,8 +133,8 @@ for (const issue of ['1.1', '2.0']) {
     const arrayXml = await serialize(issue, { prod_id: JSON.stringify([value]) });
     assert.equal(arrayXml, objectXml);
     assert.deepEqual(exportedProduct(arrayXml).prodId, value);
-    assert.deepEqual(JSON.parse(reimportFragment(issue, arrayXml).prod_id), value);
-    assert.notDeepEqual(JSON.parse(reimportFragment(issue, arrayXml).prod_id), [value]);
+    assert.deepEqual(JSON.parse(reimport(issue, arrayXml).prod_id), value);
+    assert.notDeepEqual(JSON.parse(reimport(issue, arrayXml).prod_id), [value]);
   });
 
   test(`Issue ${issue}: multiple prodId occurrences retain order and their attributes on record reimport`, async () => {
@@ -147,7 +145,7 @@ for (const issue of ['1.1', '2.0']) {
     expectValid(issue, 'prodId', value);
     const xml = await serialize(issue, { prod_id: JSON.stringify(value) });
     assert.deepEqual(exportedProduct(xml).prodId, value);
-    assert.deepEqual(JSON.parse(reimportFragment(issue, xml).prod_id), value);
+    assert.deepEqual(JSON.parse(reimport(issue, xml).prod_id), value);
   });
 
   test(`Issue ${issue}: a nested bkdn object and one-item array produce identical XML`, async () => {
@@ -177,7 +175,7 @@ for (const issue of ['1.1', '2.0']) {
     assert.equal(exportedProduct(await serialize(issue, { bkdns: '{}' })).bkdns, '');
     const nilXml = await serialize(issue, { bkdns: JSON.stringify(nil) });
     assert.deepEqual(exportedProduct(nilXml).bkdns, nil);
-    assert.deepEqual(JSON.parse(reimportFragment(issue, nilXml).bkdns), nil);
+    assert.deepEqual(JSON.parse(reimport(issue, nilXml).bkdns), nil);
   });
 
   test(`Issue ${issue}: serialized JSON text and an already decoded object produce identical XML`, async () => {
@@ -193,7 +191,7 @@ for (const issue of ['1.1', '2.0']) {
     expectValid(issue, 'prodId', value);
     const xml = await serialize(issue, { prod_id: JSON.stringify(value) });
     assert.deepEqual(Object.keys(exportedProduct(xml).prodId), ['id', 'class']);
-    assert.deepEqual(Object.keys(JSON.parse(reimportFragment(issue, xml).prod_id)), ['id', 'class']);
+    assert.deepEqual(Object.keys(JSON.parse(reimport(issue, xml).prod_id)), ['id', 'class']);
   });
 }
 
@@ -287,7 +285,7 @@ test('simpleContent scalar and #text object produce the same text; attributes re
   const value = { note: { '#text': 'ALPHA', '@_lang': 'en' } };
   const xml = await serialize('fixture', { payload: JSON.stringify(value) });
   assert.deepEqual(exportedProduct(xml).payload, value);
-  assert.deepEqual(JSON.parse(reimportFragment('fixture', xml).payload), value);
+  assert.deepEqual(JSON.parse(reimport('fixture', xml).payload), value);
 });
 
 test('repeatable primitive and complex fields accept singleton or array; multiple occurrences retain order', async () => {
@@ -300,7 +298,7 @@ test('repeatable primitive and complex fields accept singleton or array; multipl
     expectValid('fixture', 'payload', multiple);
     const multipleXml = await serialize('fixture', { payload: JSON.stringify(multiple) });
     assert.deepEqual(exportedProduct(multipleXml).payload, multiple);
-    assert.deepEqual(JSON.parse(reimportFragment('fixture', multipleXml).payload), multiple);
+    assert.deepEqual(JSON.parse(reimport('fixture', multipleXml).payload), multiple);
   }
 });
 
@@ -310,7 +308,7 @@ test('an optional empty array exports as absence, but the current JSON Schema re
   const xml = await serialize('fixture', { payload: JSON.stringify(value) });
   const absent = { text: 'ALPHA' };
   assert.equal(xml, await serialize('fixture', { payload: JSON.stringify(absent) }));
-  assert.deepEqual(JSON.parse(reimportFragment('fixture', xml).payload), absent);
+  assert.deepEqual(JSON.parse(reimport('fixture', xml).payload), absent);
 });
 
 test('arrays on a non-repeatable field can serialize, but are rejected by its JSON Schema', async () => {
@@ -337,7 +335,7 @@ test('nested JSON null emits an empty element; explicit xsi:nil retains nil and 
   assert.equal(validator('fixture', 'payload')({ optional: null }), false);
   const xml = await serialize('fixture', { payload: JSON.stringify(value) });
   assert.deepEqual(exportedProduct(xml).payload, value);
-  assert.deepEqual(JSON.parse(reimportFragment('fixture', xml).payload), value);
+  assert.deepEqual(JSON.parse(reimport('fixture', xml).payload), value);
   const empty = await serialize('fixture', { payload: JSON.stringify({ optional: null }) });
   assert.equal(exportedProduct(empty).payload.optional, '');
   assert.notEqual(empty, xml);

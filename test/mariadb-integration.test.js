@@ -39,6 +39,7 @@ function _connectionFromURL(urlString) {
     user: decodeURIComponent(url.username || ''),
     password: decodeURIComponent(url.password || ''),
     database,
+    jsonStrings: true, // These direct SQL assertions inspect the stored JSON spelling.
   };
 }
 
@@ -413,9 +414,9 @@ test('S3000L XML fixture round-trips through MariaDB', { skip: skipReason }, asy
     msgStatus: 'F',
   });
   const parsed = _parseXml(outputXml);
-  const data = parsed.lsaDataset.logisticsSupportAnalysisData;
+  const data = parsed['s:lsaDataset'].logisticsSupportAnalysisData;
 
-  assert.equal(parsed.lsaDataset.msgId, 'MSG-ROUNDTRIP-OUT');
+  assert.equal(parsed['s:lsaDataset'].msgId.id, 'MSG-ROUNDTRIP-OUT');
   assert.equal(data.lsaPrimaryData.products.prod['@_uid'], 'prod1');
   assert.deepEqual(data.lsaPrimaryData.products.prod.prodId, { id: 'PROD-1' });
   assert.deepEqual(data.lsaPrimaryData.products.prod.prodName, { name: 'Round Trip Product' });

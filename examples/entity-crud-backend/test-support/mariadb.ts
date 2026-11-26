@@ -86,11 +86,12 @@ export async function database() {
             "_entity_uid_sequence",
             "_entity_nested_deletion",
             "_entity_change_log",
+            "_entity_xml_export",
           ])
             await trx(table).delete();
           await trx("_entity_crud_state")
             .where({ id: 1 })
-            .update({ history_ready: false });
+            .update({ history_ready: false, last_exported_sequence: "0" });
         } finally {
           await trx.raw("SET FOREIGN_KEY_CHECKS = 1");
         }

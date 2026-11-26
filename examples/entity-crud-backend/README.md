@@ -103,18 +103,22 @@ integration tests before use.
 Call **`migrateEntityCrud(knex)`** through the host migration runner, once for each
 project database, before enabling writes. It adds these tables:
 
-| Table                      | Purpose                                                    |
-| -------------------------- | ---------------------------------------------------------- |
-| `_entity_crud_state`       | Project write lock and history readiness flag.             |
-| `_entity_identity_history` | Global XML UID ownership, establishment, and active state. |
-| `_entity_uid_sequence`     | Next numeric suffix per XSD UID prefix.                    |
-| `_entity_nested_deletion`  | Removed identity snapshots awaiting export.                |
-| `_entity_change_log`       | Before/after SQL row snapshots for effective changes.      |
+| Table                      | Purpose                                                                    |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `_entity_crud_state`       | Project write lock, history readiness, and last committed export sequence. |
+| `_entity_identity_history` | Global XML UID ownership, establishment, and active state.                 |
+| `_entity_xml_export`       | Committed dump filenames with their sequence and SHA-256 digest.           |
+| `_entity_uid_sequence`     | Next numeric suffix per XSD UID prefix.                                    |
+| `_entity_nested_deletion`  | Removed identity snapshots awaiting export.                                |
+| `_entity_change_log`       | Before/after SQL row snapshots for effective changes.                      |
 
-This is an idempotent creation helper for these new tables. It does not upgrade
-an existing, different history-table layout. Compare any tables already present
-in the actual project and write a migration for that layout before using it.
-Run migrations with a single migration runner.
+Run the idempotent Knex migration through one migration runner per project.
+It upgrades an existing state row with a signed BIGINT counter and seeds it from
+persisted row markers, change logs and deletion history. Where a previous host
+allocator used a higher number, supply its authoritative high-water mark as a
+decimal string, for example `await migrateEntityCrud(projectDb, "18073")`.
+A fresh database starts at zero. Subsequent runs can raise the counter.
+The XML UID prefix counters serve a separate purpose.
 
 Then call **`initializeProjectHistory()`**. The callback must answer from your
 authoritative import/export history whether each identity is established:
@@ -191,8 +195,9 @@ operation, and optional record ID. Keep the host's session and CSRF checks, JSON
 body-size limit, and same-origin deployment. The test-only actor header in
 `test-support/mariadb.ts` must never be used for authentication in the host.
 
-Configure mysql2 with `supportBigNumbers: true`, `bigNumberStrings: true`, and
-`timezone: 'Z'`. IDs may be strings or safe JavaScript integers. SQL timestamps are
+Configure mysql2 with `supportBigNumbers: true`, `bigNumberStrings: true`,
+`jsonStrings: true`, and `timezone: 'Z'`. This preserves JSON text and exact BIGINT
+values across the driver boundary. IDs may be strings or safe JavaScript integers. SQL timestamps are
 returned as ISO UTC strings. Keep `multipleStatements` disabled for requests; the
 test setup uses it only to execute trusted generated DDL.
 
@@ -299,29 +304,91 @@ rows and history writes made through `trx`. Await all hook work and use the
 provided transaction for database access; do not start a separate transaction or
 defer identity registration until after `persistMessage()` returns.
 
-After successful export of a stable snapshot, call **`acknowledgeExport()`** with
-the exact exported root records and the sequence allocated by the host:
+### 5. Mount the full XML dump route
+
+The example exports an Express 4 router for `POST /api/xml-files-dump`. Mount it
+after the host's JSON, session and CSRF middleware. The project resolver uses
+the host's project export permission before opening its database.
 
 ```ts
-await acknowledgeExport(
-  trx,
-  registry,
-  "1.1",
-  [{ entityName: "organization", id: organizationId }],
-  allocatedSequenceAsString,
+import { createXmlFilesDumpRouter, CrudError } from "./entity-crud";
+
+apiRouter.use(
+  createXmlFilesDumpRouter({
+    directory: env.NAS_XML_PATH,
+    registry, // The same initialized EntityCrudRegistry used by CRUD and import.
+    resolveProject: async (req, id) => {
+      const actor = await sessions.authenticatedActor(req);
+      if (!actor)
+        throw new CrudError("unauthenticated", "Sign in to export.", 401);
+
+      const project = await new ProjectRepository(
+        getCatalogDatabase(),
+      ).findById(id);
+      if (!project)
+        throw new CrudError("project_not_found", "Project not found.", 404);
+      if (!(await permissions.canExportProject(actor, project)))
+        throw new CrudError("forbidden", "Export permission required.", 403);
+      if (project.status !== "ready")
+        throw new CrudError("project_not_ready", "Project is not ready.", 409);
+
+      return {
+        projectId: project.id,
+        projectDb: getProjectDatabase(project.databaseName),
+        issue: project.dialect,
+      };
+    },
+  }),
 );
 ```
 
-The host must ensure the rows still match that successful export snapshot. Hold
-the project lock for the relevant operation, or provide equivalent export
-coordination. The helper marks identities established, acknowledges pending logs
-and deletions, and sets `_msg_seq` without changing `_updated_at`. It does not
-create XML, allocate message sequences, or prove that an export succeeded.
+Use your host's session, project model and permission implementation for the names
+above. A request such as `{"id":"p1","fileName":"baseline-001.xml"}` returns 201
+with `fileName` and the decimal-string `sequence` after commit. Retrying a
+completed filename verifies its digest and returns 200 with the original sequence.
+Use a new filename for a new snapshot. An unrelated existing file, or a missing
+or changed previously published file, returns 409. Keep the project ID stable.
 
-`_entity_nested_deletion.previous_value` holds the removed value in **stored XML
-JSON form**, including attributes. `path` is a JSON pointer using clean UI field
-names. `_entity_change_log` preserves complete before/after SQL rows. The host
-exporter must consume these records and apply the project's exchange rules.
+The route locks the project before reading, reserves the sequence in that
+transaction, and calls `serializeToXML(ir, new DBAdapter(trx, ir), {
+msgType: "B", version: issue, msgId, includeExportedRecords: true })`.
+The result contains `xml` and the deduplicated `{ entityName, id }` SQL records
+emitted through collections and relations. A full baseline includes active
+payload reachable through the schema. Inline XML values travel with their owner.
+Unlinked rows, generated database IDs, deleted rows and application tables are
+outside the XML payload. A baseline can populate a fresh database.
+
+If the data violates an XSD constraint, the route returns 422 with the first
+schema diagnostic and rolls back the sequence. In the bundled Issue 2.0 XSD,
+including any supporting data (for example, an organization) requires at least
+one genuine `warningCautionNotes/wcn` record. An empty project can omit the
+supporting section entirely.
+
+The publisher writes and syncs a hidden file, validates those exact bytes with the
+bundled Xerces XSD 1.1 checker, and creates the final filename with an exclusive
+hard link. It then awaits `acknowledgeExport(trx, registry, issue, exportedRecords,
+sequence, "baseline")` and records the file digest in the same SQL transaction.
+Install a JDK, prewarm the pinned validator jars (see `npm run test:xsd11`),
+and share `XSD11_CACHE_DIR` with the backend process. A host can supply its own
+strict `validate(path, issue)` that rejects invalid XML.
+
+Use an application-managed directory on a NAS supporting same-directory hard
+links, file and directory sync, and stable inode identifiers. File publication
+and a SQL commit use different systems. The hidden link identifies the file
+created by this project and request. On a crash or ambiguous commit, retry the
+same project and filename. Under the project lock the route checks the SQL
+receipt, preserves committed output, and can rebuild an uncommitted file it owns.
+Downstream consumers requiring a committed export should use the response or
+the receipt. Leave hidden `.xml-export-*.pending` files to this recovery path.
+
+Baseline acknowledgment establishes active identities. Queued removals remain
+available for a subsequent net-change export. A root with pending removals
+keeps `_msg_seq = 0` and its pending change log. Inline delete nodes in legacy
+stored XML are omitted and identified by `omittedDeletionUids` in the manifest.
+For a delta, the exchange implementation must emit the applicable deletion
+snapshots from `_entity_nested_deletion` before using the five-argument
+`acknowledgeExport()` contract, which acknowledges the supplied roots' removals.
+`previous_value` contains stored XML JSON and `path` is a clean UI JSON pointer.
 
 For additional XSD or project rules, supply `validateAdditional` to the service.
 Throw `CrudValidationError` with field paths for a correctable input error.

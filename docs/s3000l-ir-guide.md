@@ -710,8 +710,7 @@ They map to different XML containers by dialect:
 
 The normalized value groups equivalent business sections. It is not always the
 literal XML tag. Export code must also use `ir.s3000lDialect` to choose the
-correct envelope. The current serializer does not yet implement the Issue 1.1
-choice; this limitation is detailed later.
+correct envelope. The serializer uses this mapping for both supported issues.
 
 ### Rule 7: API names should use IR entity names
 
@@ -1391,10 +1390,10 @@ types are not database entities.
 `deserializeXML()` supports both input dialects and checks them against
 `ir.s3000lDialect`.
 
-The current serializer emits the Issue 2.0 envelope. It does not yet emit a
-schema-valid Issue 1.1 envelope. Do not call `serializeToXML()` with an Issue
-1.1 IR for a delivery. This limitation is tracked as `REV-005` in
-[`Review.md`](../Review.md).
+The serializer builds the envelope for the IR dialect. For Issue 1.1 it emits
+`lsaDataSet/msgContent` with the required primary and supporting wrappers.
+For Issue 2.0 it emits `lsaDataset/logisticsSupportAnalysisData`. The root is
+namespace-qualified and local children are unqualified.
 
 ## 13. Generate and use the database
 
@@ -1736,7 +1735,7 @@ server.
 | A breakdown node has only an ID | Its `beRef` was not resolved to a breakdown-element revision row. | Index the `breakdownElements` entities by revision UID and natural key. |
 | Deleted records appear | Application code bypassed `DBAdapter`. | Filter `_deleted_at IS NULL` or use adapter reads. |
 | Imported fields are all null | XML and IR dialects differ, or code guessed XML names. | Check `s3000lDialect` and use IR `xmlName`. |
-| Issue 1.1 export has an Issue 2.0 root | The current serializer is not Issue 1.1-aware. | Do not deliver Issue 1.1 exports until `REV-005` is resolved. |
+| Export dialect mismatch | The requested issue differs from the IR dialect. | Load the IR for the project issue. |
 | The viewer shows entities but no product records | The bundled viewer is a schema viewer. | Add a project database API such as the worked example. |
 
 ## 18. Completion checklist for an IR consumer

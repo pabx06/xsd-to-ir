@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "check": "tsc --noEmit",
     "test": "vitest run --exclude '**/*.integration.spec.ts'",
-    "test:integration": "vitest run src/entity-crud.integration.spec.ts",
+    "test:integration": "vitest run src/*.integration.spec.ts",
     "format": "prettier --write src test-support *.json *.md",
     "format:check": "prettier --check src test-support *.json *.md"
   },

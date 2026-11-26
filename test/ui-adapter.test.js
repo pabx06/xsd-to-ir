@@ -153,8 +153,7 @@ for (const issue of ['1.1', '2.0']) {
     const literal = new XMLParser({ ignoreAttributes: false, parseTagValue: false, trimValues: false }).parse(exported);
     assert.equal(literal.prod.prodId.id['#text'], '000567');
     assert.equal(literal.prod.prodId.id['@_xmlns:local'], 'urn:kept');
-    // Validate record behavior; the known Issue 1.1 export-envelope limitation is separate.
-    const reimported = deserializeXML(template.replace(/<prod\b[^>]*>[\s\S]*?<\/prod>/, exported), ir)
+    const reimported = deserializeXML(xml, ir)
       .batches.get('product').insert[0];
     assert.deepEqual(JSON.parse(reimported.prod_id), JSON.parse(updated.prod_id));
   });

@@ -28,12 +28,12 @@ async function serialize(ir, row) {
   const db = {
     queryEntity: async (name) => (name === 'product' ? [{ uid: 'prod-order', ...row }] : []),
   };
-  return new XMLSerializer(ir, db).serialize({ msgId: 'VALUE-ORDER', collections: ['product'] });
+  return new XMLSerializer(ir, db).serialize({ msgId: 'VALUE-ORDER', msgDate: '2026-01-01T00:00:00Z', collections: ['product'] });
 }
 
 function product(xml) {
-  return literalParser.parse(xml)
-    .lsaDataset.logisticsSupportAnalysisData.lsaPrimaryData.products.prod;
+  return literalParser.parse(xml)['s:lsaDataset']
+    .logisticsSupportAnalysisData.lsaPrimaryData.products.prod;
 }
 
 function elementKeys(value) {
