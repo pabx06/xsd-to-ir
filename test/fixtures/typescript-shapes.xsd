@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:complexType name="record">
+    <xs:sequence><xs:element name="payload" type="Payload"/></xs:sequence>
+    <xs:attribute name="uid" type="xs:ID" use="required"/>
+    <xs:attribute name="crud" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="Payload">
+    <xs:sequence>
+      <xs:element name="code" type="Code"/>
+      <xs:element name="fixed" type="xs:string" fixed="123"/>
+      <xs:element name="nodes" minOccurs="2" maxOccurs="3">
+        <xs:complexType><xs:sequence><xs:element name="id" type="xs:string"/></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:sequence minOccurs="0">
+        <xs:element name="first" type="xs:string"/>
+        <xs:element name="second" type="xs:string"/>
+      </xs:sequence>
+      <xs:choice minOccurs="0">
+        <xs:element name="left" type="xs:string"/>
+        <xs:sequence>
+          <xs:element name="right" type="xs:string"/>
+          <xs:element name="label" type="xs:string"/>
+        </xs:sequence>
+      </xs:choice>
+      <xs:element name="count" type="xs:integer" minOccurs="0"/>
+      <xs:element name="amount" type="xs:decimal" minOccurs="0"/>
+      <xs:element name="flag" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="note" type="Label" nillable="true" minOccurs="0"/>
+      <xs:element name="child" type="Payload" minOccurs="0"/>
+      <xs:element name="dash" type="a-b" minOccurs="0"/>
+      <xs:element name="underscore" type="a_b" minOccurs="0"/>
+      <xs:element name="reserved" type="class" minOccurs="0"/>
+      <xs:element name="unicode" type="café" minOccurs="0"/>
+      <xs:element name="mapName" type="Types" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="forbidden" type="xs:string" use="prohibited"/>
+  </xs:complexType>
+  <xs:complexType name="Label">
+    <xs:simpleContent><xs:extension base="xs:string">
+      <xs:attribute name="lang" type="xs:string" use="required"/>
+    </xs:extension></xs:simpleContent>
+  </xs:complexType>
+  <xs:simpleType name="Code">
+    <xs:restriction base="xs:string"><xs:enumeration value="A"/><xs:enumeration value="B"/></xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="a-b">
+    <xs:annotation><xs:documentation><![CDATA[Keep */ comment delimiters inert.]]></xs:documentation></xs:annotation>
+    <xs:attribute name="dash" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="a_b">
+    <xs:attribute name="underscore" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="class">
+    <xs:attribute name="default" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="café">
+    <xs:attribute name="clé" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="Types">
+    <xs:attribute name="tag" type="xs:string" use="required"/>
+  </xs:complexType>
+</xs:schema>

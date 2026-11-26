@@ -93,4 +93,4 @@ Therefore, today:
 - Message-envelope metadata cannot be round-tripped.
 - XML → DB → XML currently produces a **new outbound message around persisted data**, not a replay of the original imported message.
 - For a genuine semantic message round-trip, add a `message_header`/`message_journal` model with child associations for repeatable nodes, or retain the original parsed header tree.
-- Leaving the hardcoded envelope work aside, the current serializer remains Issue-2-shaped and should not yet be considered schema-faithful for either complete Issue 1 or Issue 2 envelope replay.
+- A new outbound message uses the selected project dialect. The [full dump route](examples/entity-crud-backend/README.md#5-mount-the-full-xml-dump-route) documents validation, sequence allocation and delivery.

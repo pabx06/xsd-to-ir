@@ -102,6 +102,32 @@ h3 { font-size: 13px; }
 .field-table th, .field-table td { padding: 5px 3px; border-bottom: 1px solid rgb(44 57 72 / 70%); vertical-align: top; }
 .field-table td:first-child { color: var(--text); font-weight: 600; }
 .field-meta { color: var(--muted); line-height: 1.4; }
+.field-structure { margin-top: 5px; font-weight: 400; }
+.value-type-ref { display: block; }
+.value-type-toggle { max-width: 100%; overflow-wrap: anywhere; padding: 2px 5px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); color: var(--accent); font-size: 9px; text-align: left; }
+.value-type-toggle:hover { border-color: var(--accent); }
+.value-type-toggle[aria-expanded="true"] { color: var(--accent-2); }
+.value-type-slot { display: block; }
+.value-type-slot[hidden] { display: none; }
+.value-type-definition { min-width: 0; overflow-wrap: anywhere; margin: 6px 0 3px; padding: 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); color: var(--text); font-weight: 400; }
+.value-type-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.value-type-heading code { color: var(--muted); font-size: 8px; overflow-wrap: anywhere; }
+.value-documentation { margin: 4px 0; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.value-compositor { margin-top: 6px; padding-left: 6px; border-left: 2px solid var(--border); }
+.value-compositor > summary { color: var(--warning); cursor: pointer; font-size: 9px; }
+.value-children { display: grid; gap: 4px; margin-top: 4px; }
+.value-fields { display: grid; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
+.value-field { padding: 5px; border: 1px solid rgb(44 57 72 / 70%); border-radius: 4px; background: var(--panel); }
+.value-field .xml-name { color: var(--muted); font-size: 8px; font-weight: 400; }
+.value-field-type { margin-top: 2px; overflow-wrap: anywhere; }
+.type-name { color: var(--accent-2); }
+.constraint-list, .value-assertion, .unsupported, .recursive-ref, .missing-ref { display: block; margin-top: 3px; font-size: 8px; }
+.constraint-list, .value-assertion { color: var(--warning); }
+.unsupported, .missing-ref { color: var(--danger); }
+.recursive-ref { color: var(--accent); }
+.type-alternatives { margin-top: 3px; color: var(--muted); }
+.type-alternatives ul { margin: 3px 0; padding-left: 18px; }
+.value-text { margin-top: 6px; padding: 5px; border-left: 2px solid var(--accent-2); }
 .relation-list { display: grid; gap: 5px; margin-top: 9px; }
 .relation-item { padding: 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg); font-size: 10px; }
 .relation-item button { padding: 0; border: 0; background: transparent; color: var(--accent); font-weight: 600; }

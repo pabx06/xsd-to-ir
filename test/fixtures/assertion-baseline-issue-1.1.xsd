@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:s="http://www.asd-europe.org/s-series/s3000l"
+  elementFormDefault="unqualified"
+  version="1.1">
+  <xs:import namespace="http://www.asd-europe.org/s-series/s3000l"
+    schemaLocation="../../s3000l/1_1/s3000l_1-1_lsa_dataset.xsd"/>
+
+  <xs:element name="case">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="anchor">
+          <xs:complexType>
+            <xs:attribute name="uid" type="xs:ID" use="required"/>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="probe" type="xs:anyType"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

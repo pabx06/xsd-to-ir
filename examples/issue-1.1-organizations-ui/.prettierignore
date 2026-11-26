@@ -1,0 +1,10 @@
+node_modules
+src/generated
+dist
+.angular
+coverage
+playwright-report
+test-results
+package-lock.json
+# This generator follows the repository's Airbnb JavaScript rules.
+scripts/generate.cjs

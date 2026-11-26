@@ -170,6 +170,8 @@ function inlineComplexElementColumn({
   nullable,
   minOccurs,
   maxOccurs,
+  valueTypeRef,
+  nillable = false,
   helpers,
 }) {
   return {
@@ -188,6 +190,7 @@ function inlineComplexElementColumn({
     constraints: {},
     documentation: `Inline complex type ${typeName} (not a real S3000L entity)`,
     xsdType: typeName,
+    ...(valueTypeRef ? { valueTypeRef, nillable } : {}),
   };
 }
 

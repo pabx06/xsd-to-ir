@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Isolated assertion shapes; this is not an S3000L issue schema. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" version="1.1">
+  <xs:element name="prod" type="product"/>
+  <xs:element name="lsaDataset">
+    <xs:complexType><xs:sequence>
+      <xs:element name="msgId" type="xs:string"/>
+      <xs:element name="msgDate" type="xs:date"/>
+      <xs:element name="msgType">
+        <xs:complexType><xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="logisticsSupportAnalysisData" type="logisticsSupportAnalysisMessageContent"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:complexType name="logisticsSupportAnalysisMessageContent">
+    <xs:sequence><xs:element name="lsaPrimaryData">
+      <xs:complexType><xs:sequence><xs:element name="products">
+        <xs:complexType><xs:sequence><xs:element name="prod" type="product" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+      </xs:element></xs:sequence></xs:complexType>
+    </xs:element></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="product">
+    <xs:sequence>
+      <xs:element name="direct" type="Reference" minOccurs="0"/>
+      <xs:element name="repeated" type="Reference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="anonymous" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0"/></xs:sequence>
+          <xs:attribute name="uidRef" type="xs:string"/>
+          <xs:assert test="(@uidRef and not(id)) or (not(@uidRef) and id)"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="derived" type="DerivedReference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="derivedLocal" type="LocalReference" minOccurs="0"/>
+      <xs:element name="restricted" type="RestrictedReference" minOccurs="0"/>
+      <xs:element name="derivedNested" type="DerivedNested" minOccurs="0"/>
+      <xs:element name="nestedDerived" type="NestedDerived" minOccurs="0"/>
+      <xs:element name="restrictedNested" type="RestrictedNested" minOccurs="0"/>
+      <xs:element name="anonymousDerived" minOccurs="0">
+        <xs:complexType><xs:complexContent><xs:extension base="Reference">
+          <xs:attribute name="left" type="xs:string"/>
+          <xs:attribute name="right" type="xs:string"/>
+          <xs:assert test="(@left and not(@right)) or (not(@left) and @right)"/>
+        </xs:extension></xs:complexContent></xs:complexType>
+      </xs:element>
+      <xs:element name="textDerived" type="DerivedTextReference" minOccurs="0"/>
+      <xs:element name="textRestricted" type="RestrictedTextReference" minOccurs="0"/>
+      <xs:element name="derivedComparison" type="DerivedWindow" minOccurs="0"/>
+      <xs:element name="nested" type="Nested" minOccurs="0"/>
+      <xs:element name="depthTwo" type="DepthTwo" minOccurs="0"/>
+      <xs:element name="deep" type="Deep" minOccurs="0"/>
+      <xs:element name="recursive" type="Recursive" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="mutual" type="MutualA" minOccurs="0"/>
+      <xs:element name="anonymousNested" type="AnonymousNested" minOccurs="0"/>
+      <xs:element name="flag" type="FlagReference" minOccurs="0"/>
+      <xs:element name="number" type="NumberReference" minOccurs="0"/>
+      <xs:element name="comparison" type="Window" minOccurs="0"/>
+      <xs:element name="grouped" type="GroupedReference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="anonymousWrapper" minOccurs="0">
+        <xs:complexType><xs:sequence><xs:element name="wrapper">
+          <xs:complexType><xs:sequence><xs:element name="ref" type="Reference"/></xs:sequence></xs:complexType>
+        </xs:element></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="anonymousComparison" minOccurs="0">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="lower" type="xs:int"/>
+            <xs:element name="upper" type="xs:int"/>
+          </xs:sequence>
+          <xs:assert test="lower le upper"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="uid" type="xs:ID" use="required"/>
+    <xs:attribute name="crud" type="xs:string" use="required"/>
+  </xs:complexType>
+  <xs:complexType name="Reference">
+    <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0" nillable="true"/></xs:sequence>
+    <xs:attribute name="uidRef" type="xs:string"/>
+    <xs:assert test="(@uidRef and not(id)) or (not(@uidRef) and id)"/>
+  </xs:complexType>
+  <xs:complexType name="DerivedReference">
+    <xs:complexContent><xs:extension base="Reference">
+      <xs:sequence><xs:element name="label" type="xs:string" minOccurs="0"/></xs:sequence>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="LocalReference">
+    <xs:complexContent><xs:extension base="DerivedReference">
+      <xs:attribute name="left" type="xs:string"/>
+      <xs:attribute name="right" type="xs:string"/>
+      <xs:assert test="(@left and not(@right)) or (not(@left) and @right)"/>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedReference">
+    <xs:complexContent><xs:restriction base="LocalReference">
+      <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0" nillable="true"/></xs:sequence>
+      <xs:assert test="(@left and not(@uidRef)) or (not(@left) and @uidRef)"/>
+    </xs:restriction></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="DerivedNested">
+    <xs:complexContent><xs:extension base="Nested">
+      <xs:sequence><xs:element name="label" type="xs:string" minOccurs="0"/></xs:sequence>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="NestedDerived">
+    <xs:sequence>
+      <xs:element name="ref" type="DerivedReference" maxOccurs="unbounded"/>
+      <xs:element name="localRef" type="LocalReference" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="OptionalNested">
+    <xs:complexContent><xs:extension base="Reference">
+      <xs:sequence><xs:element name="ref" type="Reference" minOccurs="0"/></xs:sequence>
+    </xs:extension></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedNested">
+    <xs:complexContent><xs:restriction base="OptionalNested">
+      <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0" nillable="true"/></xs:sequence>
+    </xs:restriction></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="TextReference">
+    <xs:simpleContent><xs:extension base="xs:string">
+      <xs:attribute name="uidRef" type="xs:string"/>
+      <xs:attribute name="code" type="xs:string"/>
+      <xs:assert test="(@uidRef and not(@code)) or (not(@uidRef) and @code)"/>
+    </xs:extension></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="DerivedTextReference">
+    <xs:simpleContent><xs:extension base="TextReference">
+      <xs:attribute name="left" type="xs:string"/>
+      <xs:attribute name="right" type="xs:string"/>
+      <xs:assert test="(@left and not(@right)) or (not(@left) and @right)"/>
+    </xs:extension></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="RestrictedTextReference">
+    <xs:simpleContent><xs:restriction base="DerivedTextReference">
+      <xs:assert test="(@left and not(@uidRef)) or (not(@left) and @uidRef)"/>
+    </xs:restriction></xs:simpleContent>
+  </xs:complexType>
+  <xs:complexType name="DerivedWindow">
+    <xs:complexContent><xs:extension base="Window"/></xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="Nested">
+    <xs:sequence><xs:element name="ref" type="Reference" maxOccurs="unbounded"/></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="DepthTwo">
+    <xs:sequence><xs:element name="middle" type="Nested"/></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Deep">
+    <xs:sequence><xs:element name="outer" type="DepthTwo"/></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Recursive">
+    <xs:sequence>
+      <xs:element name="ref" type="Reference" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:element name="child" type="Recursive" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MutualA">
+    <xs:sequence>
+      <xs:element name="ref" type="LocalReference" minOccurs="0"/>
+      <xs:element name="branch" type="MutualB" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="MutualB">
+    <xs:sequence>
+      <xs:element name="anonymous" type="AnonymousNested" minOccurs="0" nillable="true"/>
+      <xs:element name="window" type="DerivedWindow" minOccurs="0"/>
+      <xs:element name="child" type="MutualA" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="AnonymousNested">
+    <xs:sequence><xs:element name="ref" maxOccurs="unbounded">
+      <xs:complexType>
+        <xs:sequence><xs:element name="id" type="xs:string" minOccurs="0"/></xs:sequence>
+        <xs:attribute name="uidRef" type="xs:string"/>
+        <xs:assert test="(@uidRef and not(id)) or (not(@uidRef) and id)"/>
+      </xs:complexType>
+    </xs:element></xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="FlagReference">
+    <xs:sequence><xs:element name="flag" type="xs:boolean" minOccurs="0"/></xs:sequence>
+    <xs:attribute name="uidRef" type="xs:string"/>
+    <xs:assert test="(@uidRef and not(flag)) or (not(@uidRef) and flag)"/>
+  </xs:complexType>
+  <xs:complexType name="NumberReference">
+    <xs:sequence><xs:element name="number" type="xs:int" minOccurs="0"/></xs:sequence>
+    <xs:attribute name="uidRef" type="xs:string"/>
+    <xs:assert test="(@uidRef and not(number)) or (not(@uidRef) and number)"/>
+  </xs:complexType>
+  <xs:complexType name="Window">
+    <xs:sequence>
+      <xs:element name="lower" type="xs:int"/>
+      <xs:element name="upper" type="xs:int"/>
+    </xs:sequence>
+    <xs:assert test="lower le upper"/>
+  </xs:complexType>
+  <!-- Both id and code may coexist: the assertion itself permits any member
+       count inside the identifier group. No surrounding choice masks that. -->
+  <xs:complexType name="GroupedReference">
+    <xs:sequence>
+      <xs:element name="id" type="xs:string" minOccurs="0"/>
+      <xs:element name="code" type="xs:string" minOccurs="0"/>
+    </xs:sequence>
+    <xs:attribute name="uidRef" type="xs:string"/>
+    <xs:assert test="(@uidRef and not(id or code)) or (not(@uidRef) and (id or code))"/>
+  </xs:complexType>
+</xs:schema>

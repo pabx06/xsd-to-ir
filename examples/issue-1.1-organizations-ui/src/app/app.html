@@ -1,0 +1,644 @@
+<a
+  class="skip-link p-3.5 fixed left-4 -top-25 z-[3000] bg-white text-primary focus:top-4"
+  href="#main-content"
+  [inert]="editorOpen() || !!confirmation()"
+  >Skip to Organizations</a
+>
+<div class="app-layout min-h-screen flex compact:block" [inert]="editorOpen() || !!confirmation()">
+  <aside
+    class="sidebar px-[17px] w-64.5 grow-0 shrink-0 basis-64.5 bg-[#172c37] text-[#b3c2c9] flex flex-col pt-7.5 pb-5.5 sticky top-0 h-screen tablet:px-3 tablet:w-56 tablet:basis-56 compact:w-full compact:basis-56 compact:static compact:h-auto compact:pt-[17px] compact:pb-0"
+    aria-label="Project navigation"
+  >
+    <div
+      class="brand px-[13px] py-0 flex items-center gap-3 text-[20px] font-bold tracking-[2.4px] text-white compact:px-0 compact:text-[16px] compact:gap-[5px]"
+    >
+      <span
+        class="brand-mark w-9 h-10 grid place-items-center text-[#74d7c9] compact:w-[31px] compact:h-[31px]"
+        ><i class="pi pi-compass text-[32px] compact:text-[24px]" aria-hidden="true"></i
+      ></span>
+      <div>
+        LSA<span
+          class="block text-[8px] font-medium tracking-[1.7px] text-[#9ab4bc] mt-[7px] compact:hidden"
+          >LOGISTICS WORKSPACE</span
+        >
+      </div>
+    </div>
+    <div
+      class="sidebar-project mx-0 px-3 py-4 border border-[#354752] flex gap-2.5 items-center bg-[#213741] rounded-[8px] mt-[37px] mb-7 tablet:px-2 compact:my-0 compact:p-0 compact:border-0 compact:absolute compact:right-[17px] compact:top-[19px] compact:bg-transparent"
+    >
+      <span
+        class="project-avatar rounded-[5px] w-[31px] h-8.5 bg-[#36545e] text-[#d4efea] grid place-items-center text-[15px] font-semibold compact:hidden"
+        >{{ projectLabel.slice(0, 1) }}</span
+      >
+      <div>
+        <strong
+          class="block text-[12px] font-semibold text-[#edf4f5] tablet:text-[11px] compact:text-[10px]"
+          >{{ projectLabel }}</strong
+        ><span class="block text-[10px] mt-[5px] compact:text-[9px] compact:mt-[3px]"
+          >LSA project · Issue 1.1</span
+        >
+      </div>
+      <i
+        class="pi pi-lock text-[10px] ml-auto text-[#83a0aa] compact:hidden"
+        aria-hidden="true"
+      ></i>
+    </div>
+    <nav
+      aria-label="Work areas"
+      class="compact:px-0 compact:flex compact:gap-2.5 compact:overflow-x-auto compact:pt-3 compact:pb-3.5 compact:mt-2.5"
+    >
+      <p
+        class="nav-heading px-[13px] py-0 text-[9px] tracking-[1.7px] text-[#8197a1] mb-4 font-semibold compact:hidden"
+      >
+        WORK AREAS
+      </p>
+      @for (area of workAreas; track area.label) {
+      <button
+        class="nav-link px-3 py-[13px] border-0 w-full bg-transparent flex text-left items-center gap-[11px] text-[12px] rounded-[6px] compact:p-2.5 compact:w-auto compact:shrink-0 compact:text-[10px] disabled:text-[#8ea4ae]"
+        type="button"
+        disabled
+        [attr.aria-label]="area.label + ' — not available in this example'"
+      >
+        <i [class]="'pi ' + area.icon" aria-hidden="true"></i><span>{{ area.label }}</span
+        ><i
+          class="pi pi-lock nav-lock text-[9px] ml-auto text-[#69838f] compact:hidden"
+          aria-hidden="true"
+        ></i>
+      </button>
+      }
+      <div
+        class="nav-section px-3 py-[13px] border-0 w-full bg-transparent flex text-left items-center gap-[11px] text-[12px] rounded-[6px] text-[#d8e7eb] mt-3.5 compact:hidden"
+      >
+        <i class="pi pi-database text-[15px] w-[19px]" aria-hidden="true"></i
+        ><span>Shared records</span
+        ><i class="pi pi-chevron-down ml-auto text-[9px]" aria-hidden="true"></i>
+      </div>
+      <a
+        href="#main-content"
+        class="nav-active px-[13px] py-3 border border-[#2e625f] flex items-center gap-[13px] no-underline text-[#a5eee1] bg-[#214742] text-[12px] font-semibold rounded-[6px] mt-1 compact:m-0 compact:py-[9px] compact:-order-1 compact:shrink-0 compact:text-[10px] compact:gap-[7px]"
+        aria-current="page"
+        ><span
+          class="active-dot w-1.5 h-1.5 rounded-full bg-[#69cabc] ml-[7px] compact:ml-0 compact:w-[5px] compact:h-[5px]"
+        ></span
+        >Organizations<span
+          class="nav-count px-1.5 py-0.5 ml-auto text-[10px] text-[#b6e3dc] bg-[#315952] rounded-[4px]"
+          >{{ ready() ? stats().total : '—' }}</span
+        ></a
+      >
+      <span class="nav-soon px-[13px] py-[17px] block text-[#8ba0aa] text-[10px] compact:hidden"
+        >More work areas are coming.</span
+      >
+    </nav>
+    <div
+      class="sidebar-bottom px-[13px] mt-auto border-t border-t-[#354852] pt-6 pb-0 compact:px-0 compact:py-2.5 compact:flex compact:items-center compact:justify-between compact:mt-0 compact:text-[10px]"
+    >
+      <div
+        class="flex items-center gap-2 text-[11px] font-medium text-[#e0ebee] compact:text-[9px]"
+      >
+        <span class="offline-dot inline-block w-1.5 h-1.5 bg-[#4ebc9b] rounded-full"></span
+        ><strong
+          >{{ ready() ? 'Backend connected' : connecting() ? 'Connecting…' : 'Not connected'
+          }}</strong
+        >
+      </div>
+      <p class="text-[#8da4ae] text-[11px] leading-relaxed compact:hidden">
+        Changes are saved to the selected project.
+      </p>
+      <button
+        type="button"
+        (click)="connect()"
+        [disabled]="busy() || connecting() || !configuration.config"
+        class="bg-transparent border-0 text-inherit text-[11px]"
+      >
+        Refresh connection
+      </button>
+    </div>
+  </aside>
+  <div class="workspace min-w-0 flex-1">
+    <header
+      class="topbar px-9.5 py-0 h-[79px] flex items-center justify-between border-b border-b-line bg-white text-[#8a969d] text-[11px] gap-[15px] tablet:px-6 compact:px-4.5 compact:py-3.5 compact:h-auto compact:gap-[5px] compact:text-[10px]"
+    >
+      <div>
+        <span class="breadcrumb text-[#4d626c] font-medium compact:hidden">{{ projectLabel }}</span
+        ><span class="crumb-divider mx-[13px] my-0 text-[#c8d0d4] compact:hidden">/</span
+        ><span>Shared records</span>
+      </div>
+      <div class="topbar-right flex items-center gap-[17px] compact:gap-[5px]">
+        <span
+          class="issue-chip px-[9px] py-1.5 border border-[#e0e7ea] rounded-[5px] text-[#57707a] text-[10px] compact:text-[9px]"
+          >S3000L Issue 1.1</span
+        >
+      </div>
+    </header>
+    <main
+      id="main-content"
+      tabindex="-1"
+      class="m-auto px-9.5 max-w-395 pt-[39px] pb-5.5 tablet:px-6 tablet:pt-7.5 compact:px-4 compact:pt-6.5 compact:pb-5 wide:pt-11.5"
+    >
+      <div
+        class="page-heading flex items-center justify-between gap-6 mb-7 compact:items-start compact:gap-[15px] compact:mb-5.5"
+      >
+        <div>
+          <div class="eyebrow">SHARED RECORDS</div>
+          <h1
+            class="mx-0 text-[30px] leading-[1.2] tracking-[-0.8px] text-ink mt-[9px] mb-2.5 font-[650] compact:text-[26px]"
+          >
+            Organizations
+          </h1>
+          <p
+            class="m-0 text-[#70808a] text-[12px] compact:text-[11px] compact:leading-[1.8] compact:max-w-55"
+          >
+            The people and partners behind your support network.
+          </p>
+        </div>
+        <p-button
+          label="New organization"
+          ariaLabel="New organization"
+          icon="pi pi-plus"
+          (onClick)="open()"
+          [disabled]="!ready() || busy() || opening()"
+        />
+      </div>
+      @if (feedback()) {
+      <div class="feedback" role="status">
+        <i class="pi pi-check-circle" aria-hidden="true"></i>{{ feedback() }}
+      </div>
+      } @if (error() && !editorOpen()) {
+      <div class="error-banner" role="alert">
+        <i class="pi pi-exclamation-circle" aria-hidden="true"></i>{{ error() }}<button
+          type="button"
+          (click)="ready() ? refresh() : connect()"
+          [disabled]="connecting() || !configuration.config"
+        >
+          Try again
+        </button>
+      </div>
+      }
+      <div
+        class="stat-grid grid grid-cols-3 gap-[19px] mb-[29px] tablet:gap-3 compact:gap-2 compact:mb-5"
+      >
+        <div class="stat-card">
+          <div>
+            <span>Organizations</span><strong>{{ ready() ? stats().total : '—' }}</strong
+            ><small>In this project</small>
+          </div>
+          <span class="stat-icon bg-primary-50 text-primary"
+            ><i class="pi pi-building" aria-hidden="true"></i
+          ></span>
+        </div>
+        <div class="stat-card">
+          <div>
+            <span>Pending changes</span><strong>{{ ready() ? stats().pending : '—' }}</strong
+            ><small
+              >{{ stats().deleted ? stats().deleted + ' deletion(s) included' : 'Awaiting XML
+              export' }}</small
+            >
+          </div>
+          <span class="stat-icon amber bg-[#fff4e5] text-[#be8a38]"
+            ><i class="pi pi-history" aria-hidden="true"></i
+          ></span>
+        </div>
+        <div class="stat-card">
+          <div>
+            <span>Document assignments</span><strong>{{ ready() ? stats().documents : '—' }}</strong
+            ><small>Linked to active organizations</small>
+          </div>
+          <span class="stat-icon blue bg-[#ecf1fa] text-[#6886b6]"
+            ><i class="pi pi-file" aria-hidden="true"></i
+          ></span>
+        </div>
+      </div>
+      <section
+        class="records-card border border-line rounded-[9px] bg-white overflow-hidden shadow-[0_2px_3px_#20334103]"
+        aria-label="Organization records"
+      >
+        <div
+          class="records-toolbar px-[21px] py-[19px] flex items-center justify-between gap-4 tablet:p-[17px] compact:px-3 compact:py-3.5 compact:gap-2.5 compact:flex-wrap"
+        >
+          <div class="search-field relative w-[min(350px,_100%)] compact:w-full">
+            <i
+              class="pi pi-search absolute left-[13px] top-[13px] text-[13px] text-[#93a2a8]"
+              aria-hidden="true"
+            ></i
+            ><input
+              pInputText
+              type="search"
+              aria-label="Search organizations"
+              placeholder="Search name or identifier…"
+              [formControl]="search"
+              class="py-2.5 border border-[#dce5e8] pr-3 pl-[35px] w-full text-[11px] rounded-[6px] placeholder:text-[#8c9aa1]"
+            />
+          </div>
+          <div
+            class="toolbar-filter flex items-center gap-[9px] text-[11px] whitespace-nowrap compact:ml-auto"
+          >
+            <label
+              for="status-filter"
+              class="text-[#7b8e96] tablet:hidden compact:block compact:text-[10px]"
+              >Change status</label
+            ><select id="status-filter" [formControl]="status" class="compact:text-[10px]">
+              <option value="">All records</option>
+              <option value="pending">Pending export</option>
+              <option value="R">Replaced</option>
+              <option value="N">Unchanged</option>
+              <option value="I">New</option>
+              <option value="U">Updated</option>
+            </select>
+          </div>
+        </div>
+        <p-table
+          [loading]="loading() || connecting() || opening()"
+          [value]="rows()"
+          dataKey="id"
+          [tableStyle]="{ 'min-width': '720px' }"
+        >
+          <ng-template #header
+            ><tr>
+              <th>Organization</th>
+              <th>Identifiers</th>
+              <th>Documents</th>
+              <th [attr.aria-sort]="ariaSort('crud')">
+                <button class="sort-button" type="button" (click)="sort('crud')">
+                  Change status<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th [attr.aria-sort]="ariaSort('_updatedAt')">
+                <button class="sort-button" type="button" (click)="sort('_updatedAt')">
+                  Last update<i class="pi pi-sort-alt" aria-hidden="true"></i>
+                </button>
+              </th>
+              <th><span class="sr-only">Edit</span></th>
+            </tr></ng-template
+          >
+          <ng-template #body let-row
+            ><tr>
+              <td>
+                <div class="name-cell flex items-center gap-[11px] min-w-50">
+                  <span class="org-avatar">{{ title(row.value).slice(0, 1) }}</span>
+                  <div>
+                    <button
+                      class="record-name p-0 border-0 bg-transparent text-left text-[11px] font-semibold text-[#2a4652] leading-[1.5] hover:text-primary hover:underline"
+                      type="button"
+                      (click)="open(row)"
+                      [disabled]="!ready() || busy() || loading()"
+                    >
+                      {{ title(row.value) }}</button
+                    ><span class="record-subtitle block text-[9px] text-[#8c9ba2] mt-1"
+                      >{{ row.value.name?.lang ? row.value.name.lang.toUpperCase() + ' · ' : ''
+                      }}Organization record</span
+                    >
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="identifier-list flex flex-wrap gap-1 max-w-40">
+                  @for (identifier of row.value.orgId; track $index) {
+                  <span
+                    class="identifier px-1.5 py-[3px] border border-[#e7ecef] font-mono text-[10px] text-[#5e737d] bg-[#f4f6f7] rounded-[4px] wrap-anywhere"
+                    >{{ identifier.id }}</span
+                  >
+                  }
+                </div>
+              </td>
+              <td>
+                <span class="doc-count flex items-center gap-[7px] text-[#71858f] text-[11px]"
+                  ><i class="pi pi-file" aria-hidden="true"></i>{{ row.value.docs?.doc.length || 0
+                  }}</span
+                >
+              </td>
+              <td>
+                <span
+                  class="status-badge"
+                  [class.updated]="row.crud === 'U'"
+                  [class.inserted]="row.crud === 'I'"
+                  ><span></span>{{ row.crud === 'R' ? 'Replaced' : row.crud === 'N' ? 'Unchanged' :
+                  row.crud === 'I' ? 'New' : 'Updated' }}</span
+                >
+              </td>
+              <td class="date-cell text-[10px] text-[#7a8e98] whitespace-nowrap">
+                {{ row.updatedAt | date:'dd MMM yyyy' }}
+              </td>
+              <td>
+                <button
+                  class="icon-action"
+                  type="button"
+                  [attr.aria-label]="'Edit ' + title(row.value)"
+                  (click)="open(row)"
+                  [disabled]="!ready() || busy() || loading()"
+                >
+                  <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
+                </button>
+              </td></tr
+          ></ng-template>
+          <ng-template #emptymessage
+            ><tr>
+              <td colspan="6">
+                <div class="empty-state p-10 grid justify-items-center text-center text-muted">
+                  <i class="pi pi-building text-[30px] text-[#a1bab7]" aria-hidden="true"></i>
+                  <h2 class="mx-0 text-[16px] mt-4.5 mb-0">
+                    {{ loading() || connecting() ? 'Loading organizations…' : error() || !ready() ?
+                    'Organizations unavailable' : 'No organizations found' }}
+                  </h2>
+                  <p class="text-[12px]">
+                    {{ loading() || connecting() ? 'Please wait.' : error() || !ready() ? 'Check the
+                    connection message above.' : search.value || status.value ? 'Try another search
+                    or change the filter.' : 'Add the first organization to this project.' }}
+                  </p>
+                  @if (ready() && !loading() && !search.value && !status.value && !error()) {
+                  <p-button
+                    label="Add organization"
+                    ariaLabel="Add organization"
+                    icon="pi pi-plus"
+                    (onClick)="open()"
+                    [disabled]="!ready() || busy() || opening()"
+                  />
+                  }
+                </div>
+              </td>
+            </tr></ng-template
+          >
+        </p-table>
+        <div
+          class="pagination px-5 py-3.5 flex items-center justify-between gap-3 text-[10px] text-[#778d97] compact:p-3 compact:text-[9px]"
+        >
+          <span
+            >{{ pageInfo().total }} {{ pageInfo().total === 1 ? 'organization' : 'organizations'
+            }}<span class="pagination-secondary compact:hidden">
+              · Page {{ pageInfo().page }} of {{ pageInfo().pageCount || 1 }}</span
+            ></span
+          >
+          <div class="flex items-center gap-1.5 compact:gap-0.5">
+            <label for="page-size" class="sr-only">Records per page</label
+            ><select
+              id="page-size"
+              [value]="pageInfo().pageSize"
+              (change)="setPageSize($event)"
+              class="py-[7px] mr-3 text-[10px] pr-5 pl-[9px] compact:px-[7px] compact:mr-0 compact:text-[9px]"
+            >
+              <option value="6">6 per page</option>
+              <option value="12">12 per page</option>
+              <option value="24">24 per page</option></select
+            ><button
+              class="icon-action"
+              type="button"
+              aria-label="Previous page"
+              [disabled]="!ready() || loading() || pageInfo().page <= 1"
+              (click)="refresh(pageInfo().page - 1)"
+            >
+              <i class="pi pi-chevron-left" aria-hidden="true"></i></button
+            ><button
+              class="icon-action"
+              type="button"
+              aria-label="Next page"
+              [disabled]="!ready() || loading() || pageInfo().page >= pageInfo().pageCount"
+              (click)="refresh(pageInfo().page + 1)"
+            >
+              <i class="pi pi-chevron-right" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+      <div class="demo-note mx-0.5 my-[21px] flex gap-2.5 text-[#8a9da5] items-start">
+        <i class="pi pi-info-circle text-[12px] mt-[1px]" aria-hidden="true"></i>
+        <p class="m-0 text-[10px] leading-[1.7]">
+          Records belong to {{ projectLabel }}. The backend manages identities and change tracking.
+          XML export is handled outside this editor.
+        </p>
+      </div>
+      <footer
+        class="workspace-footer mt-12 border-t border-t-[#e5ebed] pt-5 flex justify-between text-[#98a8af] text-[9px] compact:mt-7 compact:gap-3 compact:text-[8px]"
+      >
+        <span class="tracking-[1.6px] text-[8px]">LSA / ORGANIZATIONS</span
+        ><span class="compact:max-w-32.5 compact:text-right"
+          >One project. One source of shared records.</span
+        >
+      </footer>
+    </main>
+  </div>
+</div>
+<p-drawer
+  [inert]="!!confirmation()"
+  (onShow)="focusEditor()"
+  [visible]="editorOpen()"
+  position="right"
+  styleClass="organization-drawer"
+  [blockScroll]="true"
+  [dismissible]="false"
+  [showCloseIcon]="false"
+  [closeOnEscape]="false"
+  [pt]="{ root: { role: 'dialog', 'aria-labelledby': 'editor-title', 'aria-modal': 'true' } }"
+>
+  <ng-template #header
+    ><div class="editor-heading flex items-center justify-between w-full gap-3.5">
+      <div>
+        <span class="eyebrow">ORGANIZATION RECORD</span>
+        <h2
+          id="editor-title"
+          class="mx-0 text-[22px] mt-[7px] mb-0 tracking-[-0.3px] text-ink compact:text-[21px]"
+        >
+          {{ selected() ? 'Edit organization' : 'New organization' }}
+        </h2>
+      </div>
+      <button
+        id="editor-close"
+        type="button"
+        class="icon-action"
+        aria-label="Close editor"
+        (click)="close()"
+        [disabled]="busy()"
+      >
+        <i class="pi pi-times" aria-hidden="true"></i>
+      </button></div
+  ></ng-template>
+  @if (editorOpen()) {
+  <div
+    class="editor-summary px-0 py-[23px] flex items-center justify-between gap-3 compact:py-5 compact:flex-wrap"
+  >
+    <div class="flex items-center gap-3">
+      <span class="org-avatar">{{ selected() ? title(selected()!.value).slice(0, 1) : '+' }}</span>
+      <div>
+        <strong class="text-[13px] text-[#334f5a]"
+          >{{ selected() ? title(selected()!.value) : 'A new shared record' }}</strong
+        >
+        <p class="mx-0 text-[10px] text-[#8a9ba3] mt-1.5 mb-0">
+          {{ selected() ? 'Record ' + selected()!.id : 'Identifiers and tracking are assigned on
+          save.' }}
+        </p>
+      </div>
+    </div>
+    <span class="editor-state text-[#758d94] text-[9px] whitespace-nowrap compact:ml-11.5"
+      >{{ dirty() ? 'Unsaved changes' : 'No unsaved changes' }}</span
+    >
+  </div>
+  <div
+    class="editor-tabs flex gap-2 border-b border-b-line mb-5.5 compact:gap-0"
+    role="tablist"
+    aria-label="Organization sections"
+  >
+    @for (section of tabs; track section) {
+    <button
+      type="button"
+      role="tab"
+      [id]="'tab-' + section"
+      [attr.aria-selected]="tab() === section"
+      [tabIndex]="tab() === section ? 0 : -1"
+      (keydown)="tabKey($event, section)"
+      [attr.aria-controls]="'panel-' + section"
+      (click)="tab.set(section)"
+    >
+      {{ section }}@if (section === 'Identifiers') {
+      <span class="required-dot w-1 h-1 rounded-full bg-[#a0b6bd]" aria-label="required"></span> }
+    </button>
+    }
+  </div>
+  @if (error()) {
+  <div class="error-banner" role="alert">{{ error() }}</div>
+  } @if (issues().length) {
+  <div
+    class="validation-summary p-3.5 border border-[#f2d5cd] bg-[#fff7f5] rounded-[6px] mb-5 text-[#9d5145] text-[11px]"
+    role="alert"
+  >
+    <strong>Check these fields</strong>
+    <ul class="pl-[17px] mb-0">
+      @for (issue of issues(); track $index) {
+      <li>
+        <button
+          type="button"
+          (click)="focusIssue(issue)"
+          class="px-0 py-1 border-0 bg-transparent text-inherit underline text-[11px] text-left wrap-anywhere"
+        >
+          {{ issue.path || 'Organization' }}: {{ issue.message }}
+        </button>
+      </li>
+      }
+    </ul>
+  </div>
+  } @if (referencesLoading()) {
+  <p role="status" class="text-muted text-[11px]">Loading reference choices…</p>
+  } @if (referenceError()) {
+  <div role="alert" class="error-banner">
+    Reference choices could not be loaded. {{ referenceError() }}
+    <button type="button" (click)="loadReferences()" [disabled]="busy()">Retry references</button>
+  </div>
+  }
+  <form id="organization-form" (submit)="$event.preventDefault(); save()">
+    <fieldset [disabled]="busy()" class="m-0 p-0 border-0 min-w-0">
+      <div
+        class="editor-panel"
+        role="tabpanel"
+        [id]="'panel-' + tab()"
+        [attr.aria-labelledby]="'tab-' + tab()"
+      >
+        <div class="section-intro">
+          <h3 class="text-[15px] font-semibold mb-2">
+            {{ tab() === 'Details' ? 'Organization details' : tab() }}
+          </h3>
+          <p class="text-[#7b9098] text-[11px] leading-[1.8] mb-5 max-w-132.5">
+            {{ tab() === 'Details' ? 'Give this record a clear name. Add language, date, or
+            applicability when needed.' : tab() === 'Identifiers' ? 'At least one identifier is
+            required. Leading zeroes are preserved.' : tab() === 'Documents' ? 'Link a document or a
+            specific document issue. Expand an assignment for its full details.' : 'Add remarks,
+            their source, and any supporting documents or applicability.' }}
+          </p>
+        </div>
+        @for (field of visibleFields(); track field) {
+        <app-field-editor
+          [node]="field"
+          [path]="'/' + field.field.name"
+          [references]="references()"
+          [issues]="issues()"
+        />
+        }
+      </div>
+    </fieldset>
+  </form>
+  @if (selected(); as row) {
+  <details class="record-details border-t border-t-line mt-7 pt-[17px] text-[#69818b] text-[11px]">
+    <summary class="cursor-pointer">
+      Record information <span class="float-right text-[#98a9ae] text-[10px]">Read only</span>
+    </summary>
+    <dl class="grid grid-cols-[repeat(2,1fr)] gap-4.5 mt-5">
+      <div>
+        <dt>Record ID</dt>
+        <dd>{{ row.id }}</dd>
+      </div>
+      <div>
+        <dt>XML UID</dt>
+        <dd>{{ row.uid }}</dd>
+      </div>
+      <div>
+        <dt>CRUD action</dt>
+        <dd>{{ row.crud }}</dd>
+      </div>
+      <div>
+        <dt>Created</dt>
+        <dd>{{ row.createdAt | date:'medium' }}</dd>
+      </div>
+      <div>
+        <dt>Last update</dt>
+        <dd>{{ row.updatedAt | date:'medium' }}</dd>
+      </div>
+      <div>
+        <dt>Pending export</dt>
+        <dd>{{ row.pendingExport ? 'Yes' : 'No' }}</dd>
+      </div>
+    </dl>
+  </details>
+  } }
+  <ng-template #footer
+    ><div class="editor-footer flex items-center justify-between gap-2.5">
+      <div>
+        @if (selected()) {
+        <p-button
+          label="Delete"
+          ariaLabel="Delete"
+          icon="pi pi-trash"
+          severity="danger"
+          [text]="true"
+          (onClick)="deleteSelected()"
+          [disabled]="busy() || !ready()"
+        />
+        }
+      </div>
+      <div class="flex gap-2.5 compact:gap-[7px]">
+        <p-button
+          label="Cancel"
+          severity="secondary"
+          [outlined]="true"
+          (onClick)="close()"
+          [disabled]="busy()"
+        /><p-button
+          label="Save organization"
+          ariaLabel="Save organization"
+          icon="pi pi-check"
+          [loading]="busy()"
+          [disabled]="busy() || !ready()"
+          (onClick)="save()"
+        />
+      </div></div
+  ></ng-template>
+</p-drawer>
+<p-dialog
+  [visible]="!!confirmation()"
+  [modal]="true"
+  [closable]="false"
+  [closeOnEscape]="false"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '440px', maxWidth: 'calc(100vw - 32px)' }"
+  [header]="confirmation()?.title || ''"
+>
+  <p class="confirmation-message m-0 text-[#697e88] text-[13px] leading-[1.8]">
+    {{ confirmation()?.message }}
+  </p>
+  <ng-template #footer
+    ><p-button
+      label="Keep working"
+      severity="secondary"
+      [outlined]="true"
+      (onClick)="cancelConfirmation()" /><p-button
+      [label]="confirmation()?.action || 'Confirm'"
+      severity="danger"
+      (onClick)="confirm()"
+  /></ng-template>
+</p-dialog>

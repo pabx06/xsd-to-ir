@@ -7,7 +7,10 @@ const XSD_PRIMITIVES = {
   NCName: { sqlType: 'VARCHAR', jsonType: 'string' },
   NMTOKEN: { sqlType: 'VARCHAR', jsonType: 'string' },
   NMTOKENS: { sqlType: 'TEXT', jsonType: 'string' },
-  anyURI: { sqlType: 'TEXT', jsonType: 'string', format: 'uri' },
+  // XSD 1.1 anyURI permits any XML character sequence, including empty text;
+  // neither JSON Schema's uri nor uri-reference format has that value space.
+  // https://www.w3.org/TR/xmlschema11-2/#anyURI
+  anyURI: { sqlType: 'TEXT', jsonType: 'string' },
   language: { sqlType: 'VARCHAR', jsonType: 'string' },
   // identifiers
   ID: { sqlType: 'VARCHAR', jsonType: 'string', isId: true },

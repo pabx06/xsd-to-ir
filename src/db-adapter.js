@@ -37,6 +37,14 @@ const TECH_COLS = new Set([
 
 const { DBRelationResolver } = require('./db-relation-resolver');
 
+/**
+ * @typedef {object} ImportedRowChange
+ * @property {string} entityName IR entity name, including helper entities.
+ * @property {number|string} id Database primary key.
+ * @property {object|null} previousRow Full SQL row before its first import write,
+ * or null when the row was inserted by this import.
+ */
+
 function _isIgnorableDDLExistsError(err) {
   const msg = String(err?.message || '').toLowerCase();
   const code = err?.code;
@@ -180,12 +188,22 @@ class DBAdapter {
 
   /**
    * Persist a full deserialized message in a single DB transaction.
+   * Both hooks are awaited inside that transaction. afterImport runs after
+   * relation resolution and before commit; a hook rejection rolls everything back.
+   * Changes contain each matched row once, preserving its first previousRow even
+   * when the message updates or deletes it again. Unmatched writes are omitted.
+   * Nested writes can pull a later parent insert forward. Surviving links
+   * established this way are checked against any soft deletes in the message.
+   * Read final rows through trx in afterImport, including soft-deleted rows.
    *
    * @param {Map}    batches   Output of XMLDeserializer.deserialize().batches
    * @param {object} msgMeta   Output of XMLDeserializer.deserialize().msgMeta
-   * @returns {{ inserted: number, updated: number, deleted: number }}
+   * @param {object} [hooks]
+   * @param {(context: {trx: import('knex').Knex.Transaction, msgMeta: object}) => (void|Promise<void>)} [hooks.beforeImport]
+   * @param {(context: {trx: import('knex').Knex.Transaction, msgMeta: object, changes: ImportedRowChange[]}) => (void|Promise<void>)} [hooks.afterImport]
+   * @returns {Promise<{ inserted: number, updated: number, deleted: number }>}
    */
-  async persistMessage(batches, _msgMeta) {
+  async persistMessage(batches, msgMeta, hooks = {}) {
     let inserted = 0;
     let updated = 0;
     let deleted = 0;
@@ -193,33 +211,92 @@ class DBAdapter {
     this._preflightRequiredUids(batches);
 
     await this.knex.transaction(async (trx) => {
+      await hooks.beforeImport?.({ trx, msgMeta });
+
       const pendingRelations = [];
-      // Optionally log the message header itself
-      // (you could persist msgMeta to a messages_log table here)
+      const changes = new Map();
+      const rememberChange = (entityName, id, previousRow) => {
+        if (!hooks.afterImport) return;
+        if (id === undefined || id === null) {
+          throw new Error(`Cannot track imported ${entityName}: database id is missing`);
+        }
+        const key = JSON.stringify([entityName, String(id)]);
+        if (!changes.has(key)) changes.set(key, { entityName, id, previousRow });
+      };
+
+      // Keep an entry per insert, including duplicate UIDs. Only the first
+      // occurrence can be pulled forward when another row needs its parent.
+      const indexedBatches = new Map();
+      for (const [entityName, batch] of batches) {
+        const byUid = new Map();
+        const entries = Array.from(batch.insert || [], (row) => {
+          const entry = { row, state: 'pending' };
+          if (row.uid && !byUid.has(row.uid)) byUid.set(row.uid, entry);
+          return entry;
+        });
+        const deletions = Array.from(batch.delete || []);
+        const maySoftDelete = deletions.length > 0 && this._hasColumn(this._entity(entityName), '_deleted_at');
+        indexedBatches.set(entityName, {
+          entries, byUid, deletions, maySoftDelete, earlyIds: new Set(),
+        });
+      }
+
+      const parentChecks = [];
+      // A later delete can invalidate a link enabled by an early insert.
+      // Check final database IDs so deleting or reparenting the child stays valid.
+      function parentCheck(entityName, row, resolved, insertedEarly = false) {
+        const ref = row._xmlParent;
+        const target = ref && indexedBatches.get(ref.entityName);
+        if (!target?.maySoftDelete) return null;
+        const parentId = resolved[ref.fkColumn];
+        if (!insertedEarly && !target.earlyIds.has(String(parentId))) return null;
+        return { entityName, ref, parentId };
+      }
+
+      const insertRow = async (entityName, entry, insertedEarly = false) => {
+        const { row } = entry;
+        entry.state = 'inserting';
+        const resolved = await this.relationResolver.resolveParentRef(row, trx, insertMissingParent);
+        const insertedRow = await this.insert(entityName, resolved, { trx });
+        entry.state = 'inserted';
+        if (insertedEarly) indexedBatches.get(entityName).earlyIds.add(String(insertedRow.id));
+        rememberChange(entityName, insertedRow.id, null);
+        const check = parentCheck(entityName, row, resolved, insertedEarly);
+        if (check) parentChecks.push({ ...check, id: insertedRow.id });
+        this.relationResolver.queueRelationRefs(pendingRelations, entityName, insertedRow.id, row._xmlRelations);
+        inserted++;
+        return insertedRow;
+      };
+
+      function insertMissingParent(ref) {
+        const entry = indexedBatches.get(ref.entityName)?.byUid.get(ref.uid);
+        if (!entry || entry.state === 'inserted') return null;
+        if (entry.state === 'inserting') {
+          throw new Error(`Cannot resolve parent FK ${ref.fkColumn}: parent cycle at ${ref.entityName} uid "${ref.uid}"`);
+        }
+        return insertRow(ref.entityName, entry, true);
+      }
 
       for (const [entityName, batch] of batches) {
-        // INSERT
-        for (const row of batch.insert) {
-          const relationRefs = row._xmlRelations || [];
-          const resolved = await this.relationResolver.resolveParentRef(row, trx);
-          const insertedRow = await this.insert(entityName, resolved, { trx });
-          this.relationResolver.queueRelationRefs(
-            pendingRelations,
-            entityName,
-            insertedRow.id,
-            relationRefs,
-          );
-          inserted++;
+        const { entries, deletions } = indexedBatches.get(entityName);
+        for (const entry of entries) {
+          if (entry.state === 'pending') await insertRow(entityName, entry);
         }
 
         // UPDATE
-        for (const row of batch.update) {
+        for (const row of (batch.update || [])) {
           const uid = row._xmlUid;
           if (!uid) continue;
           const relationRefs = row._xmlRelations || [];
           const { _xmlUid, ...clean } = row; // eslint-disable-line no-unused-vars
-          const resolved = await this.relationResolver.resolveParentRef(clean, trx);
+          const resolved = await this.relationResolver.resolveParentRef(clean, trx, insertMissingParent);
+          const check = parentCheck(entityName, row, resolved);
+          const previousRow = hooks.afterImport || check
+            ? await this._activeByUid(this._entity(entityName), uid, trx, hooks.afterImport ? '*' : 'id')
+            : null;
           await this.update(entityName, uid, resolved, { trx });
+          if (previousRow) rememberChange(entityName, previousRow.id, previousRow);
+          if (check && previousRow) parentChecks.push({ ...check, id: previousRow.id });
           if (relationRefs.length > 0) {
             const source = await this._activeByUid(this._entity(entityName), uid, trx);
             if (source) {
@@ -230,13 +307,20 @@ class DBAdapter {
         }
 
         // SOFT DELETE
-        for (const uid of batch.delete) {
+        for (const uid of deletions) {
+          const entity = this._entity(entityName);
+          const previousRow = hooks.afterImport && this._hasColumn(entity, '_deleted_at')
+            ? await this._activeByUid(entity, uid, trx, '*')
+            : null;
           await this.softDelete(entityName, uid, { trx });
+          if (previousRow) rememberChange(entityName, previousRow.id, previousRow);
           deleted++;
         }
       }
 
       await this.relationResolver.applyPendingRelationRefs(pendingRelations, trx);
+      for (const check of parentChecks) await this._assertActiveImportParent(check, trx);
+      await hooks.afterImport?.({ trx, msgMeta, changes: [...changes.values()] });
     });
 
     return { inserted, updated, deleted };
@@ -402,6 +486,23 @@ class DBAdapter {
     return entity.columns.some((c) => c.columnName === columnName);
   }
 
+  async _assertActiveImportParent(check, trx) {
+    const {
+      entityName, id, ref, parentId,
+    } = check;
+    const source = this._entity(entityName);
+    const parent = this._entity(ref.entityName);
+    const links = trx({ child: source.tableName })
+      .join({ parent: parent.tableName }, 'parent.id', `child.${ref.fkColumn}`)
+      .where('child.id', id)
+      .where('parent.id', parentId)
+      .whereNotNull('parent._deleted_at');
+    if (this._hasColumn(source, '_deleted_at')) links.whereNull('child._deleted_at');
+    if (await links.first('child.id')) {
+      throw new Error(`Cannot resolve parent FK ${ref.fkColumn}: ${ref.entityName} uid "${ref.uid}" was deleted by this message`);
+    }
+  }
+
   _requiresUid(entity) {
     return entity.columns.some(
       (col) => col.columnName === 'uid' && col.nullable === false,
@@ -441,12 +542,12 @@ class DBAdapter {
     return out;
   }
 
-  async _activeByUid(entity, uid, trx) {
+  async _activeByUid(entity, uid, trx, columns = 'id') {
     let query = trx(entity.tableName).where('uid', uid);
     if (this._hasColumn(entity, '_deleted_at')) {
       query = query.whereNull('_deleted_at');
     }
-    const [row] = await query.select('id');
+    const [row] = await query.select(columns);
     return row || null;
   }
 }

@@ -192,7 +192,7 @@ test('serializer writes primary product rows under lsaPrimaryData.products.prod'
 
   const xml = await serializer.serialize({ msgId: 'MSG-PRODUCT' });
   const parsed = parseXml(xml);
-  const lsaData = parsed.lsaDataset.logisticsSupportAnalysisData;
+  const lsaData = parsed['s:lsaDataset'].logisticsSupportAnalysisData;
 
   assert.ok(lsaData.lsaPrimaryData.products.prod);
   assert.equal(lsaData.lsaPrimaryData.products.prod['@_uid'], 'P1');
@@ -226,7 +226,7 @@ test('serializer uses S3000L record names for task requirement and task variants
 
   const xml = await serializer.serialize({ msgId: 'MSG-TASKS' });
   const parsed = parseXml(xml);
-  const primary = parsed.lsaDataset.logisticsSupportAnalysisData.lsaPrimaryData;
+  const primary = parsed['s:lsaDataset'].logisticsSupportAnalysisData.lsaPrimaryData;
 
   assert.ok(primary.taskRequirements.taskReq);
   assert.equal(primary.taskRequirements.taskReq['@_uid'], 'TR1');
@@ -251,7 +251,7 @@ test('serializer uses original XML field names, not DB-derived camelCase names',
 
   const xml = await serializer.serialize({ msgId: 'MSG-FACILITY' });
   const parsed = parseXml(xml);
-  const facilities = parsed.lsaDataset.logisticsSupportAnalysisData.lsaSupportingData.facilities;
+  const facilities = parsed['s:lsaDataset'].logisticsSupportAnalysisData.lsaSupportingData.facilities;
 
   assert.equal(facilities.maintFclty['@_uid'], 'fclty1');
   assert.deepEqual(facilities.maintFclty.InfrStrCompls, { customFlag: 'Y' });
@@ -455,7 +455,7 @@ test('serializer reconstructs nested relationship records from parent FK columns
 
   const xml = await serializer.serialize({ msgId: 'MSG-REL-OUT' });
   const parsed = parseXml(xml);
-  const primary = parsed.lsaDataset.logisticsSupportAnalysisData.lsaPrimaryData;
+  const primary = parsed['s:lsaDataset'].logisticsSupportAnalysisData.lsaPrimaryData;
 
   const product = primary.products.prod;
   const variants = asArray(product.prodVar);

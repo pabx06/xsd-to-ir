@@ -4,7 +4,7 @@ class DBRelationResolver {
     this.activeByUid = activeByUid;
   }
 
-  async resolveParentRef(row, trx) {
+  async resolveParentRef(row, trx, insertMissingParent) {
     if (!row?._xmlParent) return row;
 
     const { _xmlParent, ...clean } = row;
@@ -15,7 +15,8 @@ class DBRelationResolver {
       );
     }
 
-    const parent = await this.activeByUid(parentEntity, _xmlParent.uid, trx);
+    const parent = await this.activeByUid(parentEntity, _xmlParent.uid, trx)
+      ?? await insertMissingParent?.(_xmlParent);
 
     if (!parent) {
       throw new Error(

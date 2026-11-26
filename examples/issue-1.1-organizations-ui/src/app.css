@@ -1,0 +1,178 @@
+/* Shared controls and Optimus component overrides. Layout utilities live in the templates. */
+.nav-link > i:first-child {
+  @apply text-[15px] w-[19px] compact:text-[11px] compact:w-auto;
+}
+.eyebrow {
+  @apply text-[9px] font-bold tracking-[1.7px] text-[#70888d];
+}
+.p-button {
+  @apply px-[15px] py-[11px] text-[12px] font-semibold rounded-[6px] gap-2 shadow-none;
+}
+.p-button-icon {
+  @apply text-[12px];
+}
+.stat-card {
+  @apply px-5 border border-line bg-white rounded-[9px] pt-5 pb-4.5 flex justify-between gap-2.5 shadow-[0_2px_3px_#20334102] tablet:px-3.5 tablet:py-[17px] compact:px-2.5 compact:py-3.5 compact:gap-0;
+}
+.stat-card div > span {
+  @apply text-[11px] text-[#687f88] font-medium compact:text-[9px];
+}
+.stat-card strong {
+  @apply mx-0 block text-ink text-[29px] mt-[9px] mb-[7px] font-semibold leading-none compact:text-[25px] compact:mt-2.5 compact:mb-0;
+}
+.stat-card small {
+  @apply text-[10px] text-[#8898a0] compact:hidden;
+}
+.stat-icon {
+  @apply w-[35px] h-[35px] rounded-[8px] grid place-items-center compact:hidden;
+}
+.stat-icon i {
+  @apply text-[15px];
+}
+select {
+  @apply py-[9px] border border-[#dce5e8] pr-7 pl-2.5 bg-white rounded-[5px] text-[#435c67] text-[11px] max-w-full;
+}
+.p-datatable {
+  @apply text-[12px];
+}
+.p-datatable-table {
+  @apply border-collapse;
+}
+.p-datatable-thead > tr > th {
+  @apply px-[15px] py-[13px] bg-[#f8fafb] border-t border-t-[#edf0f2] border-b border-b-line text-[#7b8e97] text-[10px] font-medium;
+}
+.p-datatable-thead > tr > th:first-child,
+.p-datatable-tbody > tr > td:first-child {
+  @apply pl-[21px];
+}
+.p-datatable-tbody > tr > td {
+  @apply px-[15px] py-[17px] border-[#edf1f3] align-middle bg-transparent wide:py-5.5;
+}
+.p-datatable-tbody > tr:hover {
+  @apply bg-[#fbfdfd];
+}
+.sort-button {
+  @apply p-0 border-0 bg-transparent flex items-center gap-2 whitespace-nowrap text-[10px] text-[#6d838c];
+}
+.sort-button i {
+  @apply text-[9px] text-[#a7b5bb];
+}
+.org-avatar {
+  @apply border border-[#deebe8] w-8.5 h-9 rounded-[7px] bg-[#edf5f2] text-[#4c8a7f] text-[13px] font-semibold grid place-items-center shrink-0;
+}
+.doc-count i {
+  @apply text-[11px] text-[#99a8af];
+}
+.status-badge {
+  @apply px-2 py-1 border border-[#e7ecee] inline-flex items-center gap-1.5 rounded-[4px] text-[#768a93] text-[9px] whitespace-nowrap;
+}
+.status-badge > span {
+  @apply w-[5px] h-[5px] bg-[#a0b0b7] rounded-full;
+}
+.status-badge.updated {
+  @apply border-[#f2dfba] text-[#996a18] bg-[#fffbf2];
+}
+.status-badge.updated > span {
+  @apply bg-[#c59840];
+}
+.status-badge.inserted {
+  @apply border-[#c9e6df] text-[#247866] bg-[#f1faf6];
+}
+.status-badge.inserted > span {
+  @apply bg-[#4da68e];
+}
+.icon-action {
+  @apply p-2 border-0 bg-transparent text-[#7f949e] inline-grid place-items-center rounded-[5px] min-h-8 min-w-8;
+}
+.icon-action i {
+  @apply text-[11px];
+}
+.icon-action:hover {
+  @apply bg-[#edf5f3] text-primary;
+}
+.icon-action:disabled {
+  @apply opacity-35 bg-transparent;
+}
+.feedback {
+  @apply px-[15px] py-3 border border-[#bbdfd3] flex items-center gap-[9px] mb-5 rounded-[6px] bg-[#effaf5] text-[#2f7562] text-[12px] leading-[1.6];
+}
+.error-banner {
+  @apply px-[15px] py-3 border border-[#f3ccc8] flex items-center gap-[9px] mb-5 rounded-[6px] bg-[#fff5f4] text-[#a0423d] text-[12px] leading-[1.6];
+}
+.error-banner button {
+  @apply border-0 shrink-0 bg-transparent text-inherit underline;
+}
+.organization-drawer.p-drawer {
+  @apply w-[min(780px,_92vw)] max-w-screen compact:w-screen;
+}
+.organization-drawer .p-drawer-header {
+  @apply px-[27px] py-[23px] border-b border-b-line compact:px-4.5 compact:py-[21px];
+}
+.organization-drawer .p-drawer-content {
+  @apply px-[27px] pt-0 pb-6 compact:px-[17px] compact:pb-5;
+}
+.organization-drawer .p-drawer-footer {
+  @apply px-[27px] py-[17px] border-t border-t-line bg-white compact:px-3 compact:py-[13px];
+}
+.editor-tabs button {
+  @apply px-[15px] py-[13px] border-t-0 border-r-0 border-b-2 border-b-transparent border-l-0 text-[12px] bg-transparent text-[#71858f] flex items-center gap-[7px] compact:px-[11px] compact:py-3 compact:text-[11px];
+}
+.editor-tabs button[aria-selected='true'] {
+  @apply text-[#147b70] border-b-[#147b70] font-semibold;
+}
+.field-label {
+  @apply text-[12px] font-semibold text-[#45606a] compact:text-[11px];
+}
+.expand-field {
+  @apply px-0 py-1 border-0 text-[12px] font-semibold text-[#45606a] flex items-center text-left gap-2 bg-transparent compact:text-[11px];
+}
+.expand-field > i {
+  @apply text-[9px] text-[#8aa3aa];
+}
+.presence-select {
+  @apply py-1.5 pr-5 pl-[9px] text-[10px] text-[#6b838e] max-w-[145px] compact:text-[9px] compact:max-w-[115px] compact:pr-[13px];
+}
+.schema-field input,
+.scalar-select,
+.reference-select {
+  @apply px-[11px] py-2.5 border border-[#d4e0e5] w-full rounded-[5px] text-[12px] text-[#3f5964];
+}
+.schema-field input:focus {
+  @apply border-[#429f90];
+}
+.field-hint {
+  @apply mx-0 my-1.5 text-[10px] leading-[1.7] text-[#8a9ca4] block;
+}
+.danger {
+  @apply text-[#aa6663];
+}
+.field-invalid input {
+  @apply border-[#c46b64];
+}
+.record-details dt {
+  @apply text-[#98a6ad] text-[10px] mb-[5px];
+}
+.record-details dd {
+  @apply m-0 wrap-anywhere text-[11px];
+}
+.p-dialog-title {
+  @apply text-ink text-[19px];
+}
+.page-heading .p-button {
+  @apply compact:px-3 compact:py-[11px] compact:text-[10px] compact:whitespace-nowrap compact:mt-5;
+}
+.editor-footer .p-button {
+  @apply compact:p-2.5 compact:text-[10px];
+}
+.p-dialog-footer {
+  @apply compact:gap-[7px];
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
